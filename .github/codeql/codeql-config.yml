@@ -1,0 +1,5 @@
+# CodeQL configuration. Only production code is analysed.
+name: Stadtfest-Finder CodeQL config
+paths-ignore:
+  # Design references (incl. the clickable HTML prototype) are not shipped code.
+  - 00-docs/**
