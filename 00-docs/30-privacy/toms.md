@@ -12,5 +12,6 @@
 | Integrität | Architekturregeln | import-linter verhindert Framework-Abhängigkeiten in `domain` | R01 |
 | Verfügbarkeit | Health-/Readiness-Probes | `/v1/health/live`, `/v1/health/ready` | R01 |
 | Verfügbarkeit | Backups | folgt in R16 | – |
-| Belastbarkeit | Rate-Limits | folgt ab R02 | – |
+| Belastbarkeit | Rate-Limits | Geocoding 5 Anfragen/s je Client (IP gehasht, 2 s TTL) | R02 |
+| Vertraulichkeit | Standortdaten minimiert | Keine Speicherung von Nutzerpositionen; Reverse-Geocoding auf ~100 m gerundet; Cache-Schlüssel nur über gerundete Werte, gehasht; Geocoding selbst gehostet | R02 |
 | Standort | Kern in der EU | Eigener Server (EU), Zitadel EU-Region; Nicht-EU-Dienste nur per ADR und per ENV abschaltbar | R01 |
