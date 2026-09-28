@@ -46,8 +46,8 @@ dev: install deps-up migrate ## Start local stack + API (reload) + worker; Ctrl+
 	wait
 
 .PHONY: seed
-seed: ## Load synthetic seed data into the local DB (available from R02)
-	@echo "No seed data yet – added in R02 (00-docs/10-specs/R02-katalog-backend.md)."
+seed: migrate ## Load synthetic seed data into the local DB (idempotent, never in prod)
+	$(BACKEND) uv run python ../seed/load.py
 
 .PHONY: gen
 gen: ## Regenerate code from api/openapi.yaml (backend models + mobile client) and design tokens
@@ -56,13 +56,13 @@ gen: ## Regenerate code from api/openapi.yaml (backend models + mobile client) a
 
 .PHONY: fmt
 fmt: ## Format all code
-	$(BACKEND) uv run ruff format src tests migrations && uv run ruff check --fix src tests migrations
+	$(BACKEND) uv run ruff format src tests migrations ../seed && uv run ruff check --fix src tests migrations ../seed
 	$(MOBILE) pnpm fix
 
 .PHONY: lint
 lint: ## Lint + type check + architecture rules + OpenAPI lint
-	$(BACKEND) uv run ruff format --check src tests migrations
-	$(BACKEND) uv run ruff check src tests migrations
+	$(BACKEND) uv run ruff format --check src tests migrations ../seed
+	$(BACKEND) uv run ruff check src tests migrations ../seed
 	$(BACKEND) uv run mypy src
 	$(BACKEND) uv run lint-imports
 	npx --yes @stoplight/spectral-cli@6 lint --fail-severity=warn api/openapi.yaml

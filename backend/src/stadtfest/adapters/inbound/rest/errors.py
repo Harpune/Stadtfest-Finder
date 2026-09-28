@@ -10,6 +10,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from stadtfest.application.shared.errors import (
+    InvalidInputError,
+    NotFoundError,
+    ServiceUnavailableError,
+)
 from stadtfest.generated.models import Error
 
 logger = structlog.get_logger(__name__)
@@ -24,6 +29,7 @@ _STATUS_ERRORS: dict[int, tuple[str, str]] = {
     409: ("conflict", "Das wurde inzwischen geändert. Bitte neu laden."),
     422: ("validation_failed", "Bitte fülle die markierten Pflichtfelder aus"),
     429: ("rate_limited", "Bitte kurz warten"),
+    503: ("service_unavailable", "Der Dienst ist gerade nicht erreichbar. Bitte später erneut."),
 }
 _INTERNAL_ERROR = ("internal_error", "Da ist etwas schiefgelaufen. Bitte versuche es erneut.")
 
@@ -73,6 +79,21 @@ async def _handle_validation_error(_: Request, exc: Exception) -> JSONResponse:
     return error_response(422, error, message, fields)
 
 
+async def _handle_not_found(_: Request, exc: Exception) -> JSONResponse:
+    return error_response(404, *_STATUS_ERRORS[404])
+
+
+async def _handle_invalid_input(_: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, InvalidInputError)  # noqa: S101  # registered for this type
+    error, message = _STATUS_ERRORS[422]
+    return error_response(422, error, message, exc.fields)
+
+
+async def _handle_unavailable(_: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, ServiceUnavailableError)  # noqa: S101  # registered for this type
+    return error_response(503, exc.code, _STATUS_ERRORS[503][1], headers={"Retry-After": "5"})
+
+
 async def _handle_unexpected(_: Request, exc: Exception) -> JSONResponse:
     # Only the exception type is logged: messages may contain request data.
     logger.error("unhandled_exception", exception_type=type(exc).__name__)
@@ -87,4 +108,7 @@ def register_error_handlers(app: FastAPI) -> None:
     """
     app.add_exception_handler(StarletteHTTPException, _handle_http_exception)
     app.add_exception_handler(RequestValidationError, _handle_validation_error)
+    app.add_exception_handler(NotFoundError, _handle_not_found)
+    app.add_exception_handler(InvalidInputError, _handle_invalid_input)
+    app.add_exception_handler(ServiceUnavailableError, _handle_unavailable)
     app.add_exception_handler(Exception, _handle_unexpected)

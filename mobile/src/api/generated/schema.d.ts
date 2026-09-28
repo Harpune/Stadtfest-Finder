@@ -44,10 +44,264 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Active categories
+         * @description Active categories in moderation order (`sortOrder`). Cacheable: the response carries
+         *     an `ETag`; `If-None-Match` with the current ETag yields `304`.
+         */
+        get: operations["listCategories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search events for map and list
+         * @description Published or cancelled events that have not ended yet (end date >= today, Europe/Berlin).
+         *     Sorted: running first, then by start date ascending, then by name.
+         *     `lat`/`lon` define the reference point for `distanceKm` and, together with `radiusKm`,
+         *     a radius filter. Without `lat`/`lon` the distance refers to the center of `bbox`.
+         */
+        get: operations["searchEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/events/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Count matching events
+         * @description Number of events matching the same filters as `searchEvents`, used for the filter
+         *     button and the chip counts. `byCategory` counts, per category, the events that match
+         *     all filters except the category filter.
+         */
+        get: operations["countEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/events/{eventId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Event detail
+         * @description Full details of a published or cancelled event. Past events remain available by ID
+         *     (timeline, lists). Drafts and deleted events yield `404`.
+         */
+        get: operations["getEvent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/geocode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search places and ZIP codes in Germany
+         * @description Suggestions for a city name, ZIP code or address (Germany only). A 5-digit input is
+         *     treated as a ZIP code. Rate-limited per client.
+         */
+        get: operations["geocode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/geocode/reverse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Place for coordinates
+         * @description Resolves coordinates to ZIP code and place. Coordinates are never stored.
+         */
+        get: operations["reverseGeocode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description Event category (filter chip, marker border color). */
+        Category: {
+            /** Format: uuid */
+            id: string;
+            /** @example Stadtfest */
+            name: string;
+            /** @example 🎪 */
+            emoji: string;
+            /** @example #FFB547 */
+            color: string;
+            sortOrder: number;
+        };
+        /** @description Category as embedded in an event detail. */
+        CategoryRef: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            emoji: string;
+            color: string;
+        };
+        /**
+         * @description Status of a publicly visible event. "Past" is derived from `endDate`.
+         * @enum {string}
+         */
+        PublicEventStatus: "published" | "cancelled";
+        /** @description Event image variants (R08). */
+        Image: {
+            /** Format: uri */
+            url: string;
+            /** Format: uri */
+            thumbUrl: string;
+            width?: number;
+            height?: number;
+        };
+        /** @description Event as shown in carousel, list and timeline. */
+        EventSummary: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @description Short name for the selected map pin. */
+            shortName: string;
+            status: components["schemas"]["PublicEventStatus"];
+            /** Format: date */
+            startDate: string;
+            /** Format: date */
+            endDate: string;
+            place: string;
+            city: string;
+            lat: number;
+            lon: number;
+            /** Format: uuid */
+            categoryId: string;
+            /** @description Distance to the reference point, if one was given. */
+            distanceKm?: number | null;
+            coverImage?: components["schemas"]["Image"] | null;
+        };
+        /** @description One page of events. */
+        EventPage: {
+            items: components["schemas"]["EventSummary"][];
+            /** @description Cursor for the next page, `null` on the last page. */
+            nextCursor?: string | null;
+        };
+        /** @description Result counts for filter previews. */
+        EventCount: {
+            total: number;
+            /** @description Category ID -> number of events matching all filters except categories. */
+            byCategory: {
+                [key: string]: number;
+            };
+        };
+        /** @description Entry of the event program. */
+        ProgramItem: {
+            /** Format: date */
+            date: string;
+            /** @example 10:45 Uhr */
+            timeLabel: string;
+            title: string;
+            subtitle?: string | null;
+        };
+        /** @description Full public event detail. */
+        EventDetail: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            shortName: string;
+            status: components["schemas"]["PublicEventStatus"];
+            cancelReason?: string | null;
+            category: components["schemas"]["CategoryRef"];
+            /** Format: date */
+            startDate: string;
+            /** Format: date */
+            endDate: string;
+            openingHours: string[];
+            price?: string | null;
+            place: string;
+            address: string;
+            city: string;
+            postalCode: string;
+            lat: number;
+            lon: number;
+            description?: string | null;
+            program: components["schemas"]["ProgramItem"][];
+            transit?: string | null;
+            parking?: string | null;
+            /** Format: uri */
+            websiteUrl?: string | null;
+            images: components["schemas"]["Image"][];
+            distanceKm?: number | null;
+        };
+        /** @description A geocoding suggestion. */
+        GeocodeResult: {
+            /** @example 73430 Aalen */
+            label: string;
+            postalCode?: string | null;
+            city: string;
+            lat: number;
+            lon: number;
+            /** @enum {string} */
+            kind: "postcode" | "city" | "address";
+        };
+        /** @description Place for coordinates. */
+        ReverseGeocodeResult: {
+            postalCode?: string | null;
+            city: string;
+            label: string;
+        };
         /** @description Common error format for all non-2xx responses. */
         Error: {
             /**
@@ -91,7 +345,27 @@ export interface components {
             };
         };
     };
-    parameters: never;
+    parameters: {
+        /** @description Map viewport `minLon,minLat,maxLon,maxLat`. */
+        Bbox: number[];
+        /** @description Latitude of the reference point (user position or map center). Requires `lon`. */
+        Lat: number;
+        /** @description Longitude of the reference point. Requires `lat`. */
+        Lon: number;
+        /** @description Radius around `lat`/`lon` in km. Ignored without `lat`/`lon`. */
+        RadiusKm: number;
+        /**
+         * @description Time filter: `today` = running today; `weekend` = overlaps Saturday or Sunday of the
+         *     current week; `months` = overlaps at least one month in `months`.
+         */
+        When: "all" | "today" | "weekend" | "months";
+        /** @description Months `YYYY-MM` (required for `when=months`, at most 12). */
+        Months: string[];
+        /** @description Category IDs. Unknown or inactive IDs are ignored silently. */
+        Categories: string[];
+        /** @description Text search in name, place and city (case/accent-insensitive, typo-tolerant). */
+        Query: string;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
@@ -146,6 +420,218 @@ export interface operations {
                     "application/json": components["schemas"]["ReadinessStatus"];
                 };
             };
+            default: components["responses"]["Error"];
+        };
+    };
+    listCategories: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag of a previously received response. */
+                "If-None-Match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active categories, sorted. */
+            200: {
+                headers: {
+                    /** @description Version of the category list. */
+                    ETag?: string;
+                    /** @description Client caching policy. */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Category"][];
+                };
+            };
+            /** @description Not modified (ETag matches). */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    searchEvents: {
+        parameters: {
+            query?: {
+                /** @description Map viewport `minLon,minLat,maxLon,maxLat`. */
+                bbox?: components["parameters"]["Bbox"];
+                /** @description Latitude of the reference point (user position or map center). Requires `lon`. */
+                lat?: components["parameters"]["Lat"];
+                /** @description Longitude of the reference point. Requires `lat`. */
+                lon?: components["parameters"]["Lon"];
+                /** @description Radius around `lat`/`lon` in km. Ignored without `lat`/`lon`. */
+                radiusKm?: components["parameters"]["RadiusKm"];
+                /**
+                 * @description Time filter: `today` = running today; `weekend` = overlaps Saturday or Sunday of the
+                 *     current week; `months` = overlaps at least one month in `months`.
+                 */
+                when?: components["parameters"]["When"];
+                /** @description Months `YYYY-MM` (required for `when=months`, at most 12). */
+                months?: components["parameters"]["Months"];
+                /** @description Category IDs. Unknown or inactive IDs are ignored silently. */
+                categories?: components["parameters"]["Categories"];
+                /** @description Text search in name, place and city (case/accent-insensitive, typo-tolerant). */
+                q?: components["parameters"]["Query"];
+                /** @description Opaque cursor from `nextCursor` of the previous page. Cursors not issued by the server are rejected with `422`. */
+                cursor?: string;
+                /** @description Page size (the map requests up to 500). */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of events. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventPage"];
+                };
+            };
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    countEvents: {
+        parameters: {
+            query?: {
+                /** @description Map viewport `minLon,minLat,maxLon,maxLat`. */
+                bbox?: components["parameters"]["Bbox"];
+                /** @description Latitude of the reference point (user position or map center). Requires `lon`. */
+                lat?: components["parameters"]["Lat"];
+                /** @description Longitude of the reference point. Requires `lat`. */
+                lon?: components["parameters"]["Lon"];
+                /** @description Radius around `lat`/`lon` in km. Ignored without `lat`/`lon`. */
+                radiusKm?: components["parameters"]["RadiusKm"];
+                /**
+                 * @description Time filter: `today` = running today; `weekend` = overlaps Saturday or Sunday of the
+                 *     current week; `months` = overlaps at least one month in `months`.
+                 */
+                when?: components["parameters"]["When"];
+                /** @description Months `YYYY-MM` (required for `when=months`, at most 12). */
+                months?: components["parameters"]["Months"];
+                /** @description Category IDs. Unknown or inactive IDs are ignored silently. */
+                categories?: components["parameters"]["Categories"];
+                /** @description Text search in name, place and city (case/accent-insensitive, typo-tolerant). */
+                q?: components["parameters"]["Query"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Counts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventCount"];
+                };
+            };
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getEvent: {
+        parameters: {
+            query?: {
+                /** @description Latitude of the reference point (user position or map center). Requires `lon`. */
+                lat?: components["parameters"]["Lat"];
+                /** @description Longitude of the reference point. Requires `lat`. */
+                lon?: components["parameters"]["Lon"];
+            };
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Event detail. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventDetail"];
+                };
+            };
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    geocode: {
+        parameters: {
+            query: {
+                /** @description Search text (city, ZIP code or address). */
+                q: string;
+                /** @description Maximum number of suggestions. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Suggestions, best match first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeocodeResult"][];
+                };
+            };
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    reverseGeocode: {
+        parameters: {
+            query: {
+                /** @description Latitude (WGS84). */
+                lat: number;
+                /** @description Longitude (WGS84). */
+                lon: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The place at the coordinates. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReverseGeocodeResult"];
+                };
+            };
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+            503: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

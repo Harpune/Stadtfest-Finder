@@ -31,8 +31,8 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           enable-cache: true
       - run: uv sync --frozen
-      - run: uv run ruff format --check src tests migrations
-      - run: uv run ruff check src tests migrations
+      - run: uv run ruff format --check src tests migrations ../seed
+      - run: uv run ruff check src tests migrations ../seed
       - run: uv run mypy src
       - run: uv run lint-imports
       - name: Tests (unit, integration via Testcontainers, contract via Schemathesis)

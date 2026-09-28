@@ -33,8 +33,31 @@ def test_valid_environment_loads(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/db")
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
     monkeypatch.setenv("ENV", "prod")
+    monkeypatch.setenv("NOMINATIM_URL", "http://nominatim:8080")
 
     settings = load_settings()
 
     assert settings.env is Environment.PROD
     assert settings.is_production
+
+
+def test_fake_geocoding_is_rejected_in_prod(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir("/")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/db")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.setenv("ENV", "prod")
+    monkeypatch.setenv("GEOCODING_PROVIDER", "fake")
+
+    with pytest.raises(SettingsError, match="GEOCODING_PROVIDER=fake"):
+        load_settings()
+
+
+def test_nominatim_requires_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir("/")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/db")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.delenv("NOMINATIM_URL", raising=False)
+    monkeypatch.setenv("GEOCODING_PROVIDER", "nominatim")
+
+    with pytest.raises(SettingsError, match="NOMINATIM_URL"):
+        load_settings()
