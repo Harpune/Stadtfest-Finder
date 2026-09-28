@@ -10,6 +10,7 @@ export
 
 COMPOSE_DEV := docker compose -f infra/compose.dev.yaml
 BACKEND := cd backend &&
+MOBILE := cd mobile &&
 API_PORT ?= 8000
 
 .PHONY: help
@@ -21,8 +22,9 @@ help: ## Show available targets
 	@echo "Created .env from .env.example"
 
 .PHONY: install
-install: .env ## Install backend dependencies
+install: .env ## Install backend and mobile dependencies
 	$(BACKEND) uv sync --frozen
+	$(MOBILE) pnpm install --frozen-lockfile
 
 .PHONY: deps-up
 deps-up: .env ## Start local dependencies (Postgres/PostGIS, Redis, SeaweedFS, Keycloak)
@@ -48,12 +50,14 @@ seed: ## Load synthetic seed data into the local DB (available from R02)
 	@echo "No seed data yet – added in R02 (00-docs/10-specs/R02-katalog-backend.md)."
 
 .PHONY: gen
-gen: ## Regenerate code from api/openapi.yaml (backend models + mobile client)
+gen: ## Regenerate code from api/openapi.yaml (backend models + mobile client) and design tokens
 	$(BACKEND) uv run datamodel-codegen
+	$(MOBILE) pnpm gen
 
 .PHONY: fmt
 fmt: ## Format all code
 	$(BACKEND) uv run ruff format src tests migrations && uv run ruff check --fix src tests migrations
+	$(MOBILE) pnpm fix
 
 .PHONY: lint
 lint: ## Lint + type check + architecture rules + OpenAPI lint
@@ -62,18 +66,26 @@ lint: ## Lint + type check + architecture rules + OpenAPI lint
 	$(BACKEND) uv run mypy src
 	$(BACKEND) uv run lint-imports
 	npx --yes @stoplight/spectral-cli@6 lint --fail-severity=warn api/openapi.yaml
+	$(MOBILE) pnpm lint
+	$(MOBILE) pnpm typecheck
 
 .PHONY: test
-test: ## Unit + integration + contract tests (integration/contract need Docker)
+test: ## Unit + integration + contract tests (integration/contract need Docker) + mobile Jest
 	$(BACKEND) uv run pytest
+	$(MOBILE) pnpm test --ci
 
 .PHONY: test-unit
 test-unit: ## Unit tests only (no Docker needed)
 	$(BACKEND) uv run pytest tests/unit
+	$(MOBILE) pnpm test --ci
+
+.PHONY: test-e2e
+test-e2e: ## Maestro flows against a running simulator/emulator with the dev build installed
+	$(MOBILE) pnpm test:e2e
 
 .PHONY: gen-check
 gen-check: gen ## Fail if generated code is out of date
-	@git diff --exit-code -- backend/src/stadtfest/generated || \
+	@git diff --exit-code -- backend/src/stadtfest/generated mobile/src/api/generated mobile/src/theme/generated || \
 		(echo "Generated code is out of date – run 'make gen' and commit the result." && exit 1)
 
 .PHONY: check

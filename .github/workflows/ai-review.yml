@@ -1,0 +1,47 @@
+# AI code review on pull requests (claude-code-action). Needs the repository secret
+# ANTHROPIC_API_KEY – see 00-docs/40-operations/ci-github.md. Skips cleanly without it.
+name: AI review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    env:
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - name: Skip without API key
+        if: env.HAS_KEY != 'true'
+        run: echo "ANTHROPIC_API_KEY not configured – skipping AI review."
+      - uses: actions/checkout@v7
+        if: env.HAS_KEY == 'true'
+        with:
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@v1
+        if: env.HAS_KEY == 'true'
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request against the rules in CLAUDE.md, especially:
+            - API-first (api/openapi.yaml, no hand-edited generated code)
+            - hexagonal architecture and use-case authorization
+            - privacy hard rules (no personal data in logs, LLM prompts or push payloads)
+            - tests, testIDs and Storybook stories for components
+            Also look for bugs, security issues (OWASP Top 10) and missing edge cases.
+
+            The PR branch is already checked out. Use `gh pr comment` for a short summary and
+            `mcp__github_inline_comment__create_inline_comment` (with `confirmed: true`) for
+            specific issues. Only post GitHub comments.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
