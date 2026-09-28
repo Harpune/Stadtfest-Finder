@@ -40,7 +40,21 @@ async def test_redis_cache_roundtrip_and_generations(redis_url: str) -> None:
     await client.aclose()
 
 
-@pytest.mark.usefixtures("seeded")
+async def _reset_rate_limits(redis_url: str) -> None:
+    """Contract tests share Redis and the test client IP; start with a fresh budget."""
+    redis = Redis.from_url(redis_url, decode_responses=True)
+    keys = [key async for key in redis.scan_iter("sf:ratelimit:*")]
+    if keys:
+        await redis.delete(*keys)
+    await redis.aclose()
+
+
+@pytest.fixture
+async def fresh_rate_limits(redis_url: str) -> None:
+    await _reset_rate_limits(redis_url)
+
+
+@pytest.mark.usefixtures("seeded", "fresh_rate_limits")
 def test_public_api_end_to_end(integration_settings: Settings) -> None:
     today = BerlinClock().today()
     with TestClient(create_app(integration_settings)) as client:
@@ -68,4 +82,5 @@ def test_public_api_end_to_end(integration_settings: Settings) -> None:
         assert count["total"] >= 1
 
         geo = client.get("/v1/geocode", params={"q": "73430"})  # fake geocoding in tests
+        assert geo.status_code == 200, geo.text
         assert geo.json()[0]["postalCode"] == "73430"
