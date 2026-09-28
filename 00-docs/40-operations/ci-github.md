@@ -14,7 +14,8 @@ Die PR-Pipeline (`.github/workflows/ci.yml`, `codeql.yml`, `ai-review.yml`) und 
 1. **Actions aktivieren:** *Settings → Actions → General* → „Allow all actions“ (bzw. die genutzten Actions freigeben). *Workflow permissions:* „Read repository contents“ genügt, die Workflows fordern ihre Rechte selbst an.
 2. **KI-Review (optional):** *Settings → Secrets and variables → Actions → New repository secret* `ANTHROPIC_API_KEY`. Ohne Secret überspringt `ai-review.yml` den Lauf und bleibt grün.
 3. **Code scanning (CodeQL):** Der Workflow `codeql.yml` analysiert immer. Bei Funden schlägt er fehl und listet sie im Job-Log auf.
-   - Für **private Repositories** braucht der Upload in *Security → Code scanning* das kostenpflichtige GitHub Code Security. Ohne das bleibt der Upload aus.
+   - **Öffentliches Repository** (aktueller Stand): Die Ergebnisse werden automatisch nach *Security → Code scanning* hochgeladen, es ist nichts zu tun.
+   - Für **private Repositories** braucht der Upload das kostenpflichtige GitHub Code Security. Ohne das bleibt der Upload aus.
    - Mit Code Security: *Settings → Code security* → Code scanning aktivieren („Default setup“ **nicht** zusätzlich einschalten) und die Repository-Variable `CODE_SCANNING_ENABLED=true` setzen (*Settings → Secrets and variables → Actions → Variables*).
 4. **Branch-Schutz für `main`:** *Settings → Branches → Add rule* (bzw. Ruleset)
    - „Require a pull request before merging“

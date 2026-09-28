@@ -31,9 +31,9 @@ jobs:
       - uses: github/codeql-action/analyze@v4
         with:
           category: /language:${{ matrix.language }}
-          # Upload needs GitHub Code Security on private repos. Without it, results are
-          # evaluated below instead (set repo variable CODE_SCANNING_ENABLED=true to upload).
-          upload: ${{ vars.CODE_SCANNING_ENABLED == 'true' && 'always' || 'never' }}
+          # Public repos upload automatically. Private repos need GitHub Code Security and the
+          # repo variable CODE_SCANNING_ENABLED=true; otherwise findings are only evaluated below.
+          upload: ${{ (vars.CODE_SCANNING_ENABLED == 'true' || !github.event.repository.private) && 'always' || 'never' }}
           output: sarif-results
       - name: Fail on findings
         run: |
