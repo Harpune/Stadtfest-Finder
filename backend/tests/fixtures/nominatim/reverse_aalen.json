@@ -1,0 +1,10 @@
+{
+  "place_id": 456789,
+  "lat": "48.8369",
+  "lon": "10.0930",
+  "category": "building",
+  "type": "yes",
+  "addresstype": "building",
+  "display_name": "Rathaus, Marktplatz, Aalen, 73430, Deutschland",
+  "address": {"road": "Marktplatz", "town": "Aalen", "postcode": "73430", "country": "Deutschland", "country_code": "de"}
+}

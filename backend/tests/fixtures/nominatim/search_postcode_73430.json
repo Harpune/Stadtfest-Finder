@@ -1,0 +1,20 @@
+[
+  {
+    "place_id": 123456,
+    "lat": "48.8374832",
+    "lon": "10.0933247",
+    "category": "place",
+    "type": "postcode",
+    "addresstype": "postcode",
+    "name": "73430",
+    "display_name": "73430, Aalen, Ostalbkreis, Baden-Württemberg, Deutschland",
+    "address": {
+      "postcode": "73430",
+      "city": "Aalen",
+      "county": "Ostalbkreis",
+      "state": "Baden-Württemberg",
+      "country": "Deutschland",
+      "country_code": "de"
+    }
+  }
+]

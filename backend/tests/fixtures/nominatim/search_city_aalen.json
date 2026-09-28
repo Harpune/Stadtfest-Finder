@@ -1,0 +1,24 @@
+[
+  {
+    "place_id": 234567,
+    "lat": "48.8375",
+    "lon": "10.0933",
+    "category": "boundary",
+    "type": "administrative",
+    "addresstype": "town",
+    "name": "Aalen",
+    "display_name": "Aalen, Ostalbkreis, Baden-Württemberg, Deutschland",
+    "address": {"town": "Aalen", "county": "Ostalbkreis", "state": "Baden-Württemberg", "country": "Deutschland", "country_code": "de"}
+  },
+  {
+    "place_id": 345678,
+    "lat": "48.8368",
+    "lon": "10.0932",
+    "category": "highway",
+    "type": "pedestrian",
+    "addresstype": "road",
+    "name": "Marktplatz",
+    "display_name": "1, Marktplatz, Aalen, 73430, Deutschland",
+    "address": {"house_number": "1", "road": "Marktplatz", "town": "Aalen", "postcode": "73430", "country": "Deutschland", "country_code": "de"}
+  }
+]

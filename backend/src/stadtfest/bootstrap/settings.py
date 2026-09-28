@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import StrEnum
 from functools import lru_cache
 
-from pydantic import Field, PostgresDsn, RedisDsn, ValidationError
+from pydantic import AnyHttpUrl, Field, PostgresDsn, RedisDsn, ValidationError, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +15,13 @@ class Environment(StrEnum):
     DEV = "dev"
     TEST = "test"
     PROD = "prod"
+
+
+class GeocodingProvider(StrEnum):
+    """Geocoding adapter (ADR 0006). `fake` is only allowed in dev and test."""
+
+    NOMINATIM = "nominatim"
+    FAKE = "fake"
 
 
 class LogFormat(StrEnum):
@@ -41,6 +48,20 @@ class Settings(BaseSettings):
     redis_url: RedisDsn = Field(description="Redis URL, e.g. redis://localhost:6379/0")
     log_level: str = Field(default="INFO", pattern="^(DEBUG|INFO|WARNING|ERROR)$")
     log_format: LogFormat = LogFormat.JSON
+    geocoding_provider: GeocodingProvider = GeocodingProvider.NOMINATIM
+    nominatim_url: AnyHttpUrl | None = Field(
+        default=None,
+        description="Base URL of the self-hosted Nominatim, e.g. http://nominatim:8080",
+    )
+    geocoding_timeout_seconds: float = Field(default=3.0, gt=0, le=30)
+
+    @model_validator(mode="after")
+    def _check_adapters(self) -> Settings:
+        if self.geocoding_provider is GeocodingProvider.FAKE and self.env is Environment.PROD:
+            raise ValueError("GEOCODING_PROVIDER=fake is not allowed in prod")
+        if self.geocoding_provider is GeocodingProvider.NOMINATIM and self.nominatim_url is None:
+            raise ValueError("NOMINATIM_URL is required for GEOCODING_PROVIDER=nominatim")
+        return self
 
     @property
     def is_production(self) -> bool:
@@ -67,7 +88,10 @@ def load_settings() -> Settings:
         return Settings()
     except ValidationError as exc:
         problems = sorted(
+            # Model-level errors have no location; their message names the variable, not a value.
             f"{'.'.join(str(part) for part in error['loc']).upper()}: {error['type']}"
+            if error["loc"]
+            else str(error["msg"]).removeprefix("Value error, ")
             for error in exc.errors()
         )
         raise SettingsError("Invalid configuration: " + "; ".join(problems)) from None

@@ -5,7 +5,7 @@ import pytest
 import structlog
 
 from stadtfest.bootstrap.logging import REDACTED, configure_logging, scrub_personal_data
-from stadtfest.bootstrap.settings import LogFormat, Settings
+from stadtfest.bootstrap.settings import GeocodingProvider, LogFormat, Settings
 
 
 def _settings() -> Settings:
@@ -13,6 +13,7 @@ def _settings() -> Settings:
         database_url="postgresql+asyncpg://u:p@localhost:5432/db",
         redis_url="redis://localhost:6379/0",
         log_format=LogFormat.JSON,
+        geocoding_provider=GeocodingProvider.FAKE,
     )
 
 

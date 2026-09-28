@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from stadtfest.adapters.inbound.rest import health
+from stadtfest.adapters.inbound.rest import categories, events, geocoding, health
 from stadtfest.adapters.inbound.rest.errors import register_error_handlers
 from stadtfest.adapters.inbound.rest.middleware import RequestContextMiddleware
 from stadtfest.bootstrap.container import Container
@@ -51,4 +51,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(RequestContextMiddleware)
     register_error_handlers(app)
     app.include_router(health.router)
+    app.include_router(categories.router)
+    app.include_router(events.router)
+    app.include_router(geocoding.router)
     return app

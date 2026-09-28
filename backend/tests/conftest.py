@@ -9,7 +9,7 @@ import pytest
 from testcontainers.postgres import PostgresContainer
 from testcontainers.redis import RedisContainer
 
-from stadtfest.bootstrap.settings import Environment, LogFormat, Settings
+from stadtfest.bootstrap.settings import Environment, GeocodingProvider, LogFormat, Settings
 
 # Same images as infra/compose.dev.yaml (multi-arch PostGIS, see comment there).
 POSTGIS_IMAGE = "imresamu/postgis:17-3.5"
@@ -38,4 +38,5 @@ def integration_settings(postgres_url: str, redis_url: str) -> Settings:
         database_url=postgres_url,
         redis_url=redis_url,
         log_format=LogFormat.CONSOLE,
+        geocoding_provider=GeocodingProvider.FAKE,
     )
