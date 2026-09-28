@@ -1,0 +1,32 @@
+# OpenAPI lint rules for api/openapi.yaml (run by `make lint`).
+extends: ["spectral:oas"]
+rules:
+  operation-operationId: error
+  operation-tags: error
+  operation-description: warn
+  info-contact: off
+  camel-case-properties:
+    description: JSON properties must be camelCase.
+    severity: error
+    given: "$..properties"
+    then:
+      field: "@key"
+      function: casing
+      functionOptions:
+        type: camel
+  paths-versioned:
+    description: All paths start with /v1 (or a later version).
+    severity: error
+    given: "$.paths"
+    then:
+      field: "@key"
+      function: pattern
+      functionOptions:
+        match: "^/v[0-9]+/"
+  error-response-documented:
+    description: Every operation documents a default (or 4xx) error response.
+    severity: error
+    given: "$.paths.*[get,put,post,patch,delete].responses"
+    then:
+      field: default
+      function: truthy

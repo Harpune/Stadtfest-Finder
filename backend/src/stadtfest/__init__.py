@@ -1,0 +1,1 @@
+"""Stadtfest-Finder backend."""
