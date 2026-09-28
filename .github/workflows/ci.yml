@@ -54,7 +54,7 @@ jobs:
         id: base
         if: github.event_name == 'pull_request'
         run: |
-          if git show "origin/${{ github.base_ref }}:api/openapi.yaml" > /tmp/base-openapi.yaml 2>/dev/null; then
+          if git show "origin/${{ github.base_ref }}:api/openapi.yaml" > base-openapi.yaml 2>/dev/null; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "No api/openapi.yaml on ${{ github.base_ref }} yet – skipping oasdiff."
@@ -64,7 +64,7 @@ jobs:
         if: steps.base.outputs.exists == 'true'
         uses: oasdiff/oasdiff-action/breaking@v0.1.17
         with:
-          base: /tmp/base-openapi.yaml
+          base: base-openapi.yaml  # inside the workspace: the action runs in a container
           revision: api/openapi.yaml
           fail-on: ERR
 
