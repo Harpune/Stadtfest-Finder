@@ -18,7 +18,7 @@
 ### R01-US1 · Lokaler Stack mit einem Befehl
 Als Entwickler will ich mit `make dev` alle Abhängigkeiten und das Backend starten, damit ich sofort arbeiten kann.
 
-- `infra/compose.dev.yaml` startet PostgreSQL + PostGIS, Redis, MinIO und Keycloak mit festen Versionen und Healthchecks.
+- `infra/compose.dev.yaml` startet PostgreSQL + PostGIS, Redis, SeaweedFS (S3, ADR 0007) und Keycloak mit festen Versionen und Healthchecks.
 - **Nominatim:** Standardmäßig läuft lokal ein Fake-Adapter. Optional startet ein Nominatim-Container mit kleinem Extrakt (Compose-Profil `geo`), `NOMINATIM_URL` in `.env.example`.
 - Keycloak importiert beim Start einen Realm `stadtfest` mit:
   - Public Client `stadtfest-app` (Authorization Code + PKCE, Redirect `stadtfest://auth`)
@@ -39,7 +39,7 @@ Als Entwickler will ich mit `make dev` alle Abhängigkeiten und das Backend star
 - Alembic eingerichtet. Die erste Migration aktiviert die Extensions `postgis`, `pg_trgm` und `unaccent`.
 
 ### R01-US3 · Worker-Skeleton
-- arq-Worker als eigener Prozess (`python -m stadtfest.adapters.in.worker`), gleiche Settings und gleiche Composition Root.
+- arq-Worker als eigener Prozess (`python -m stadtfest.bootstrap.worker`), gleiche Settings und gleiche Composition Root.
 - Ein Beispiel-Job `ping` mit Test beweist Enqueue → Ausführung.
 - Cron-Unterstützung ist konfiguriert (Zeitzone `Europe/Berlin`) und wird ab R11 genutzt.
 

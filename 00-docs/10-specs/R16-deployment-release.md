@@ -11,7 +11,7 @@
 ### R16-US1 · Produktionsstack
 - `infra/compose.yaml`:
   - Dienste `api`, `worker`, `mcp`, PostgreSQL + PostGIS, Redis, Nominatim (Deutschland)
-  - Objektspeicher (EU-S3 oder selbst gehostetes MinIO, per ADR)
+  - Objektspeicher (EU-S3 oder selbst gehostetes SeaweedFS, per ADR)
   - Reverse Proxy mit TLS (Caddy oder Traefik, per ADR)
   - statische Auslieferung für die Deep-Link-Domain (R04)
 - Images aus GHCR, getaggt mit Commit-SHA und SemVer. Komodo deployt eine festgelegte Version.

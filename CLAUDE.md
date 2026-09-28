@@ -17,7 +17,7 @@ Decisions: @00-docs/25-adr/
 | Worker / queue | arq on Redis |
 | Database | PostgreSQL + PostGIS |
 | Cache | Redis |
-| Object storage | S3-compatible, EU-hosted (MinIO locally) – event images |
+| Object storage | S3-compatible, EU-hosted (SeaweedFS locally, see ADR 0007) – event images |
 | Auth | OIDC/OAuth2 + PKCE; Zitadel Cloud (EU region) in production, Keycloak locally |
 | AI | Own LLM port with one generic adapter (LiteLLM or Pydantic AI); provider selected via env: Mistral (EU), OpenAI, Anthropic, Ollama (local) |
 | Web search | Web search API used as an LLM tool (provider: see ADR) |
@@ -58,12 +58,12 @@ backend/
   src/stadtfest/
     domain/<context>/          entities, value objects, domain services (pure Python)
     application/<context>/     use cases, ports (in/out)
-    adapters/in/rest/          FastAPI routers
-    adapters/in/mcp/           MCP tools
-    adapters/in/worker/        arq job handlers
-    adapters/out/<tech>/       persistence, storage, queue, cache, llm, geocoding, search, push, auth
+    adapters/inbound/rest/     FastAPI routers
+    adapters/inbound/mcp/      MCP tools
+    adapters/inbound/worker/   arq job handlers
+    adapters/outbound/<tech>/  persistence, storage, queue, cache, llm, geocoding, search, push, auth
     generated/                 generated from openapi.yaml – DO NOT EDIT
-    bootstrap/                 composition root, DI wiring, settings
+    bootstrap/                 composition root, DI wiring, settings, entry points (app, worker)
   migrations/                  Alembic
   tests/{unit,integration,contract}/
 mobile/
@@ -140,7 +140,8 @@ seed/                          synthetic seed data + loader
 - `domain/` is pure Python: no imports from FastAPI, SQLAlchemy, Pydantic, Redis, httpx.
 - Business logic lives in domain and application only. Adapters translate and delegate.
 - Every external system is accessed through an outbound port (interface in `application/`)
-  with an adapter in `adapters/out/`. This keeps LLM providers, geocoding etc. swappable.
+  with an adapter in `adapters/outbound/`. (Packages are named `inbound`/`outbound` because
+  `in` is a Python keyword, see ADR 0002.) Layer rules are enforced by `import-linter`. This keeps LLM providers, geocoding etc. swappable.
 - REST API, MCP server and worker share the same use cases – no logic duplication.
   (The architecture diagram calls this the "Service-Schicht".)
 - Contexts communicate via application services or domain events, not by reaching into
@@ -259,7 +260,7 @@ Tools are thin adapters: parse input, call the use case, map the result. No busi
 ## Testing
 
 - New use cases: unit tests in `tests/unit` with fake adapters for all ports.
-- Adapters: integration tests with Testcontainers (PostGIS, Redis, MinIO).
+- Adapters: integration tests with Testcontainers (PostGIS, Redis, SeaweedFS).
 - API: Schemathesis contract tests against `api/openapi.yaml`.
 - LLM calls: never hit real providers in tests; use recorded fixtures or the fake adapter.
   Same for web search, geocoding (Nominatim) and push.
