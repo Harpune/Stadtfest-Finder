@@ -21,7 +21,7 @@ Decisions: @00-docs/25-adr/
 | Auth | OIDC/OAuth2 + PKCE; Zitadel Cloud (EU region) in production, Keycloak locally |
 | AI | Own LLM port with one generic adapter (LiteLLM or Pydantic AI); provider selected via env: Mistral (EU), OpenAI, Anthropic, Ollama (local) |
 | Web search | Web search API used as an LLM tool (provider: see ADR) |
-| Geocoding | ZIP → coordinates via own ZIP table or Nominatim |
+| Geocoding | Self-hosted Nominatim (Germany extract, EU) via geocoding port; app never calls it directly, only via `/v1/geocode*` |
 | Push | Push port, provider selected via env: Expo Push Service or direct APNs / FCM |
 | Mobile | React Native + Expo (TypeScript), expo-router, TanStack Query, MapLibre, Storybook for React Native |
 | Tests | pytest, Testcontainers, Schemathesis · Jest + RN Testing Library · Maestro (E2E) |
@@ -272,6 +272,20 @@ Tools are thin adapters: parse input, call the use case, map the result. No busi
 - Never commit to `main`. Work on `feature/<short-description>` or `fix/<short-description>`,
   merge via PR only.
 - Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`).
+- **Commit, push and merge policy for Claude:**
+  - Claude may commit and push on `feature/*` and `fix/*` branches without asking.
+  - **Commit** after each coherent step of an increment (e.g. a finished user story, or a
+    self-contained layer such as spec + generated code, migration, use case + tests, screen).
+    Each commit must leave the branch green for the affected area (`make lint` + relevant
+    tests); keep commits atomic and reference the increment/story, e.g.
+    `feat(R03-US7): add filter sheet with month grid`.
+  - **Push** when a feature is complete (at the latest when a user story or an increment from
+    `00-docs/10-specs/` is done and `make check` passes locally), then open or update the PR
+    to `main`.
+  - Claude may **merge a PR into `main` only when the complete pipeline is green** (all
+    required checks passed, none pending or skipped due to failure). If the pipeline is
+    red, fix it on the branch and push again – never merge red, never bypass branch
+    protection, never force-push, never enable auto-merge unless explicitly asked.
 - PR pipeline: format check, lint + type check, OpenAPI lint + `oasdiff`, generated-code
   drift check, tests, security scan (Trivy, CodeQL), AI review (claude-code-action).
 - Only `main` builds Docker images → pushed to GHCR, tagged with commit SHA and SemVer.
