@@ -1,0 +1,60 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "meta": { "name": "Stadtfest-Finder", "version": "1.0.0", "defaultTheme": "dark", "note": "status.warning* und status.success* sind Vorschläge und im Prototyp noch nicht verwendet." },
+  "color": {
+    "dark": {
+      "brand": {
+        "primary": { "$value": "#FFB547" }, "onPrimary": { "$value": "#15111C" }, "primaryText": { "$value": "#FFB547" }, "primaryContainer": { "$value": "rgba(255,181,71,0.13)" },
+        "secondary": { "$value": "#FF6B8B" }, "onSecondary": { "$value": "#15111C" }, "secondaryText": { "$value": "#FF6B8B" }, "secondaryContainer": { "$value": "rgba(255,107,139,0.14)" }
+      },
+      "status": {
+        "error": { "$value": "#FF6B8B" }, "onError": { "$value": "#15111C" }, "errorContainer": { "$value": "rgba(255,107,139,0.14)" },
+        "warning": { "$value": "#FFA24C" }, "onWarning": { "$value": "#15111C" }, "warningContainer": { "$value": "rgba(255,162,76,0.14)" },
+        "success": { "$value": "#7ED957" }, "onSuccess": { "$value": "#15111C" }, "successContainer": { "$value": "rgba(126,217,87,0.14)" },
+        "info": { "$value": "#60A5FA" }, "onInfo": { "$value": "#15111C" }
+      },
+      "moderator": {
+        "primary": { "$value": "#2DD4BF" }, "onPrimary": { "$value": "#062321" }, "text": { "$value": "#5EEAD4" }, "banner": { "$value": "#0E3B38" }, "container": { "$value": "rgba(45,212,191,0.14)" }
+      },
+      "surface": {
+        "background": { "$value": "#15111C" }, "surface": { "$value": "#231C30" }, "surfaceVariant": { "$value": "#2A2335" }, "sheet": { "$value": "#1D1727" }, "drawer": { "$value": "#1B1624" },
+        "floating": { "$value": "rgba(35,28,48,0.94)" }, "glass": { "$value": "rgba(21,17,28,0.72)" },
+        "onSurface": { "$value": "#F4EEF8" }, "onSurfaceMuted": { "$value": "#A89BB8" }, "onSurfaceFaint": { "$value": "#6E6380" },
+        "outline": { "$value": "rgba(255,255,255,0.09)" }, "scrim": { "$value": "rgba(8,5,12,0.6)" }, "skeleton": { "$value": "#2E2639" },
+        "placeholderA": { "$value": "#2C2438" }, "placeholderB": { "$value": "#261F31" }
+      }
+    },
+    "light": {
+      "brand": {
+        "primary": { "$value": "#FFB547" }, "onPrimary": { "$value": "#15111C" }, "primaryText": { "$value": "#A35A00" }, "primaryContainer": { "$value": "#FFF1DC" },
+        "secondary": { "$value": "#FF6B8B" }, "onSecondary": { "$value": "#15111C" }, "secondaryText": { "$value": "#C8284F" }, "secondaryContainer": { "$value": "#FFE4EA" }
+      },
+      "status": {
+        "error": { "$value": "#C8284F" }, "onError": { "$value": "#FFFFFF" }, "errorContainer": { "$value": "#FFE4EA" },
+        "warning": { "$value": "#B45309" }, "onWarning": { "$value": "#FFFFFF" }, "warningContainer": { "$value": "#FFEDD5" },
+        "success": { "$value": "#2F7D32" }, "onSuccess": { "$value": "#FFFFFF" }, "successContainer": { "$value": "#E3F5DC" },
+        "info": { "$value": "#2563EB" }, "onInfo": { "$value": "#FFFFFF" }
+      },
+      "moderator": {
+        "primary": { "$value": "#0F766E" }, "onPrimary": { "$value": "#FFFFFF" }, "text": { "$value": "#0F766E" }, "banner": { "$value": "#CCFBF1" }, "container": { "$value": "#DDF7F2" }
+      },
+      "surface": {
+        "background": { "$value": "#FBF8F4" }, "surface": { "$value": "#FFFFFF" }, "surfaceVariant": { "$value": "#F1EBF3" }, "sheet": { "$value": "#FFFFFF" }, "drawer": { "$value": "#FFFFFF" },
+        "floating": { "$value": "rgba(255,255,255,0.96)" }, "glass": { "$value": "rgba(255,255,255,0.88)" },
+        "onSurface": { "$value": "#231A2E" }, "onSurfaceMuted": { "$value": "#6F6480" }, "onSurfaceFaint": { "$value": "#A79DB3" },
+        "outline": { "$value": "rgba(35,26,46,0.1)" }, "scrim": { "$value": "rgba(20,12,28,0.4)" }, "skeleton": { "$value": "#EDE6EF" },
+        "placeholderA": { "$value": "#EFE6F0" }, "placeholderB": { "$value": "#E8DDEA" }
+      }
+    },
+    "category": {
+      "stadtfest": { "$value": "#FFB547" }, "volksfest": { "$value": "#FF6B8B" }, "weihnachtsmarkt": { "$value": "#5EEAD4" }, "markt": { "$value": "#8B9CFF" },
+      "palette5": { "$value": "#7ED957" }, "palette6": { "$value": "#C792EA" }
+    }
+  },
+  "font": {
+    "display": { "$value": "Young Serif", "weight": 400 },
+    "ui": { "$value": "Outfit", "weights": [300, 400, 500, 600, 700] }
+  },
+  "radius": { "phone": 44, "sheet": 28, "card": 22, "block": 20, "buttonLarge": 18, "button": 16, "input": 14, "chip": 12, "pill": 10 },
+  "motion": { "page": { "duration": 340, "easing": "cubic-bezier(.2,.8,.2,1)" }, "sheet": { "duration": 340 }, "login": { "duration": 380 }, "toast": { "duration": 250, "visible": 2200 } }
+}
