@@ -1,4 +1,5 @@
 # Static security analysis (CLAUDE.md "PR pipeline": security scan).
+# See 00-docs/40-operations/ci-github.md for code scanning on private repositories.
 name: CodeQL
 
 on:
@@ -30,3 +31,13 @@ jobs:
       - uses: github/codeql-action/analyze@v4
         with:
           category: /language:${{ matrix.language }}
+          # Upload needs GitHub Code Security on private repos. Without it, results are
+          # evaluated below instead (set repo variable CODE_SCANNING_ENABLED=true to upload).
+          upload: ${{ vars.CODE_SCANNING_ENABLED == 'true' && 'always' || 'never' }}
+          output: sarif-results
+      - name: Fail on findings
+        run: |
+          count=$(jq '[.runs[].results[]] | length' sarif-results/*.sarif)
+          jq -r '.runs[].results[] | "::error file=\(.locations[0].physicalLocation.artifactLocation.uri),line=\(.locations[0].physicalLocation.region.startLine // 1)::\(.ruleId): \(.message.text)"' sarif-results/*.sarif
+          echo "CodeQL findings: $count"
+          test "$count" -eq 0
