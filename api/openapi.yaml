@@ -124,7 +124,9 @@ paths:
         - name: cursor
           in: query
           required: false
-          description: Opaque cursor from `nextCursor` of the previous page.
+          description: >-
+            Opaque cursor from `nextCursor` of the previous page. Cursors not issued by the
+            server are rejected with `422`.
           schema:
             type: string
             maxLength: 512
@@ -360,7 +362,7 @@ components:
         maxItems: 12
         items:
           type: string
-          pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
+          pattern: "^20[0-9]{2}-(0[1-9]|1[0-2])$"
     Categories:
       name: categories
       in: query

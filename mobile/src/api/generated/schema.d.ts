@@ -480,7 +480,7 @@ export interface operations {
                 categories?: components["parameters"]["Categories"];
                 /** @description Text search in name, place and city (case/accent-insensitive, typo-tolerant). */
                 q?: components["parameters"]["Query"];
-                /** @description Opaque cursor from `nextCursor` of the previous page. */
+                /** @description Opaque cursor from `nextCursor` of the previous page. Cursors not issued by the server are rejected with `422`. */
                 cursor?: string;
                 /** @description Page size (the map requests up to 500). */
                 limit?: number;
