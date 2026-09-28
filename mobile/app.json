@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Stadtfest-Finder",
+    "slug": "stadtfest-finder",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "de.stadtfestfinder.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#15111C",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "de.stadtfestfinder.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#15111C",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "dark": {
+            "backgroundColor": "#15111C"
+          }
+        }
+      ],
+      "@react-native-community/datetimepicker"
+    ],
+    "scheme": "stadtfest",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

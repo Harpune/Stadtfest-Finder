@@ -1,0 +1,84 @@
+# Local dependencies for development. Started by `make dev`.
+# Not for production – see infra/compose.yaml (R16).
+name: stadtfest-dev
+
+services:
+  postgres:
+    # Multi-arch build by the PostGIS docker maintainer (official image lacks arm64).
+    image: imresamu/postgis:17-3.5
+    environment:
+      POSTGRES_DB: stadtfest
+      POSTGRES_USER: stadtfest
+      POSTGRES_PASSWORD: stadtfest
+    ports:
+      - "${POSTGRES_HOST_PORT:-55432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stadtfest -d stadtfest"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "${REDIS_HOST_PORT:-56379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # S3-compatible object storage (replaces MinIO, see ADR 0007).
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.00
+    command: server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -master.volumeSizeLimitMB=256
+    ports:
+      - "${S3_HOST_PORT:-58333}:8333"
+    volumes:
+      - seaweedfs-data:/data
+      - ./dev/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8333/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # Local identity provider (Zitadel in production, see ADR 0003).
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    command: start-dev --import-realm --health-enabled=true
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_PORT: "8080"
+    ports:
+      - "${KEYCLOAK_HOST_PORT:-58080}:8080"
+    volumes:
+      - ./dev/keycloak/stadtfest-realm.json:/opt/keycloak/data/import/stadtfest-realm.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '\"UP\"' <&3"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+
+  # Optional: real Nominatim with a small extract. Start with `--profile geo`.
+  # The default local setup uses the fake geocoding adapter (GEOCODING_PROVIDER=fake).
+  nominatim:
+    image: mediagis/nominatim:5.1
+    profiles: ["geo"]
+    environment:
+      PBF_URL: https://download.geofabrik.de/europe/germany/baden-wuerttemberg/stuttgart-regbez-latest.osm.pbf
+      IMPORT_STYLE: address
+      NOMINATIM_PASSWORD: nominatim
+    ports:
+      - "${NOMINATIM_HOST_PORT:-58088}:8080"
+    volumes:
+      - nominatim-data:/var/lib/postgresql/16/main
+    shm_size: 1gb
+
+volumes:
+  postgres-data:
+  seaweedfs-data:
+  nominatim-data:

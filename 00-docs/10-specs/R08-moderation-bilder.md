@@ -9,7 +9,7 @@
 
 ## Umfang
 
-**Drin:** Storage-Port mit S3-Adapter (MinIO lokal, EU-S3 produktiv), signierte Upload-URLs, Zuordnung, Thumbnails im Worker, Entfernen von Metadaten, Reihenfolge, Löschen, Anzeige in allen Nutzeransichten, Aufräumen verwaister Uploads.
+**Drin:** Storage-Port mit S3-Adapter (SeaweedFS lokal, EU-S3 produktiv), signierte Upload-URLs, Zuordnung, Thumbnails im Worker, Entfernen von Metadaten, Reihenfolge, Löschen, Anzeige in allen Nutzeransichten, Aufräumen verwaister Uploads.
 
 **Nicht drin:** Übernahme von Bildern aus KI-Quellen. Sie ist bewusst ausgeschlossen (Bildrechte, siehe [09 offene Punkte](../15-design/workflows/09-moderation-ki-suche.md#offene-punkte)).
 
@@ -63,7 +63,7 @@
 ## Tests
 
 - Unit: Upload-Validierung (Typ, Größe, Anzahl), Reihenfolge-Validierung.
-- Integration (MinIO-Testcontainer): kompletter Roundtrip signierte URL → PUT → Zuordnung → Worker → Varianten vorhanden, EXIF entfernt, Original gelöscht. Aufräum-Job.
+- Integration (SeaweedFS-Testcontainer): kompletter Roundtrip signierte URL → PUT → Zuordnung → Worker → Varianten vorhanden, EXIF entfernt, Original gelöscht. Aufräum-Job.
 - Contract: Upload- und Bild-Endpunkte.
 - RNTL: Bildraster (Laden, Fehler, Titelbild).
 

@@ -1,0 +1,15 @@
+{
+  "identities": [
+    {
+      "name": "stadtfest-dev",
+      "credentials": [
+        { "accessKey": "stadtfest-dev", "secretKey": "stadtfest-dev-secret" }
+      ],
+      "actions": ["Admin", "Read", "List", "Tagging", "Write"]
+    },
+    {
+      "name": "anonymous",
+      "actions": ["Read:stadtfest-images/public/"]
+    }
+  ]
+}

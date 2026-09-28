@@ -9,19 +9,19 @@
 
 ## Umfang
 
-**Drin:** Eigenes Paket bzw. eigener Einstiegspunkt `adapters/in/mcp` mit FastMCP, Streamable HTTP, OAuth gegen denselben IdP (Resource Server), drei Tools, eigenes Docker-Image `mcp`, Compose-Service.
+**Drin:** Eigenes Paket bzw. eigener Einstiegspunkt `adapters/inbound/mcp` mit FastMCP, Streamable HTTP, OAuth gegen denselben IdP (Resource Server), drei Tools, eigenes Docker-Image `mcp`, Compose-Service.
 
 **Nicht drin:** Weitere Tools (Favoriten, Listen). MCP folgt **nicht** der OpenAPI-Spec.
 
 ## User Stories
 
 ### R15-US1 · Server und Transport
-- FastMCP-Server als eigener Prozess (`python -m stadtfest.adapters.in.mcp`) mit derselben Composition Root, Streamable HTTP unter `/mcp`.
+- FastMCP-Server als eigener Prozess (`python -m stadtfest.bootstrap.mcp`) mit derselben Composition Root, Streamable HTTP unter `/mcp`.
 - Health-Endpunkt für Compose und Komodo.
 - **Kein Geschäftscode im Adapter:** Die Tools parsen die Eingabe, rufen den Use Case auf und mappen das Ergebnis.
 
 ### R15-US2 · Authentifizierung
-- OAuth 2.1 Resource Server: Der MCP-Server veröffentlicht Protected Resource Metadata mit Zitadel (lokal Keycloak) als Authorization Server und validiert Bearer-Tokens mit derselben JWT-Logik wie die REST-API (R05, gemeinsamer Code in `adapters/in/auth`).
+- OAuth 2.1 Resource Server: Der MCP-Server veröffentlicht Protected Resource Metadata mit Zitadel (lokal Keycloak) als Authorization Server und validiert Bearer-Tokens mit derselben JWT-Logik wie die REST-API (R05, gemeinsamer Code in `adapters/inbound/auth`).
 - **Ohne Token** sind nur `search_events` und `get_event` nutzbar (öffentlich, laut CLAUDE.md).
 - `start_ai_search` ohne Token ergibt einen Auth-Fehler mit Hinweis auf die Anmeldung, mit Token ohne Rolle `moderator` einen Berechtigungsfehler.
 

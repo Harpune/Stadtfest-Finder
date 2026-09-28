@@ -1,0 +1,35 @@
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+*.egg-info/
+
+# Node / Expo
+node_modules/
+.expo/
+dist-web/
+web-build/
+*.tsbuildinfo
+mobile/ios/
+mobile/android/
+
+# Test output
+test-results/
+maestro-results/

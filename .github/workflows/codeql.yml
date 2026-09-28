@@ -1,0 +1,43 @@
+# Static security analysis (CLAUDE.md "PR pipeline": security scan).
+# See 00-docs/40-operations/ci-github.md for code scanning on private repositories.
+name: CodeQL
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  actions: read # required by CodeQL to read the workflow run (private repositories)
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
+          # Upload needs GitHub Code Security on private repos. Without it, results are
+          # evaluated below instead (set repo variable CODE_SCANNING_ENABLED=true to upload).
+          upload: ${{ vars.CODE_SCANNING_ENABLED == 'true' && 'always' || 'never' }}
+          output: sarif-results
+      - name: Fail on findings
+        run: |
+          count=$(jq '[.runs[].results[]] | length' sarif-results/*.sarif)
+          jq -r '.runs[].results[] | "::error file=\(.locations[0].physicalLocation.artifactLocation.uri),line=\(.locations[0].physicalLocation.region.startLine // 1)::\(.ruleId): \(.message.text)"' sarif-results/*.sarif
+          echo "CodeQL findings: $count"
+          test "$count" -eq 0

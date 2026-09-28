@@ -1,0 +1,116 @@
+openapi: 3.1.0
+info:
+  title: Stadtfest-Finder API
+  version: 0.1.0
+  summary: REST API for the Stadtfest-Finder mobile app.
+  description: |
+    Single source of truth for the REST interface (API-first, see CLAUDE.md).
+    Times are ISO 8601; "today" is evaluated in Europe/Berlin. Coordinates are WGS84.
+    Public endpoints work without a token; protected ones require a JWT issued by the IdP.
+  contact:
+    name: Stadtfest-Finder
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: http://localhost:8000
+    description: Local development
+tags:
+  - name: health
+    description: Liveness and readiness probes.
+paths:
+  /v1/health/live:
+    get:
+      operationId: getLiveness
+      tags: [health]
+      summary: Liveness probe
+      description: Returns 200 as long as the process is able to serve requests.
+      security: []
+      responses:
+        "200":
+          description: Process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/health/ready:
+    get:
+      operationId: getReadiness
+      tags: [health]
+      summary: Readiness probe
+      description: Checks the dependencies required to serve traffic (database, Redis).
+      security: []
+      responses:
+        "200":
+          description: All dependencies are reachable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessStatus"
+        "503":
+          description: At least one dependency is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessStatus"
+        default:
+          $ref: "#/components/responses/Error"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token issued by the IdP (Zitadel in production, Keycloak locally).
+  responses:
+    Error:
+      description: Error in the common error format.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Error:
+      type: object
+      description: Common error format for all non-2xx responses.
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Machine-readable error code, e.g. `validation_failed`, `not_found`.
+          examples: [validation_failed]
+        message:
+          type: string
+          description: Human-readable message (German, suitable for display).
+          examples: [Bitte fülle die markierten Pflichtfelder aus]
+        fields:
+          type: object
+          description: Field-level errors keyed by field name.
+          additionalProperties:
+            type: string
+    HealthStatus:
+      type: object
+      description: Result of the liveness probe.
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+    ReadinessStatus:
+      type: object
+      description: Result of the readiness probe with one entry per dependency.
+      required: [status, checks]
+      properties:
+        status:
+          type: string
+          enum: [ok, unavailable]
+        checks:
+          type: object
+          description: Status per dependency, e.g. `database`, `redis`.
+          additionalProperties:
+            type: string
+            enum: [ok, unavailable]
+security:
+  - bearerAuth: []

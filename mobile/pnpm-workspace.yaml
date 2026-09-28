@@ -1,0 +1,8 @@
+# pnpm settings for the Expo app (hoisted layout for Metro/React Native tooling).
+nodeLinker: hoisted
+
+# Dependency build scripts: only allow what is needed.
+allowBuilds:
+  esbuild: true
+  '@parcel/watcher': false
+  unrs-resolver: false

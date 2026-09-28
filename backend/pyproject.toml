@@ -1,0 +1,126 @@
+[project]
+name = "stadtfest"
+version = "0.1.0"
+description = "Stadtfest-Finder backend: REST API, worker and MCP server"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.20.0",
+    "arq>=0.28.0",
+    "asyncpg>=0.31.0",
+    "fastapi>=0.141.1",
+    "geoalchemy2>=0.20.0",
+    "httpx>=0.28.1",
+    "pydantic>=2.13.5",
+    "pydantic-settings>=2.15.0",
+    "redis>=5.3.1",
+    "sqlalchemy[asyncio]>=2.1.1",
+    "structlog>=26.1.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.0,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "datamodel-code-generator>=0.83.0",
+    "import-linter>=2.15",
+    "mypy>=2.3.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.9",
+    "schemathesis>=4.28.0",
+    "testcontainers[postgres,redis]>=4.13.3",
+]
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["src/stadtfest/generated"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "S", "ASYNC", "BLE", "RUF", "D", "ANN", "PT", "TID"]
+ignore = ["D105", "D107"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "D", "ANN"]
+"migrations/**" = ["D"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["migrations/"]
+
+[[tool.mypy.overrides]]
+module = ["arq.*", "testcontainers.*", "geoalchemy2.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+markers = [
+    "integration: needs Docker (Testcontainers)",
+    "contract: Schemathesis contract tests against api/openapi.yaml",
+]
+
+[tool.importlinter]
+root_packages = ["stadtfest"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Hexagonal layers: bootstrap -> adapters -> application -> domain"
+type = "layers"
+layers = [
+    "stadtfest.bootstrap",
+    "stadtfest.adapters",
+    "stadtfest.application",
+    "stadtfest.domain",
+]
+
+[[tool.importlinter.contracts]]
+name = "Domain is pure Python"
+type = "forbidden"
+source_modules = ["stadtfest.domain"]
+forbidden_modules = [
+    "fastapi", "starlette", "sqlalchemy", "geoalchemy2", "pydantic", "pydantic_settings",
+    "redis", "arq", "httpx", "structlog", "stadtfest.generated",
+]
+
+[[tool.importlinter.contracts]]
+name = "Application does not depend on frameworks or generated API models"
+type = "forbidden"
+source_modules = ["stadtfest.application"]
+forbidden_modules = [
+    "fastapi", "starlette", "sqlalchemy", "geoalchemy2", "redis", "arq", "httpx",
+    "stadtfest.generated",
+]
+
+[tool.datamodel-codegen]
+input = "../api/openapi.yaml"
+input-file-type = "openapi"
+output = "src/stadtfest/generated/models.py"
+output-model-type = "pydantic_v2.BaseModel"
+target-python-version = "3.12"
+snake-case-field = true
+allow-population-by-field-name = true
+use-annotated = true
+use-standard-collections = true
+use-union-operator = true
+use-double-quotes = true
+field-constraints = true
+enum-field-as-literal = "all"
+disable-timestamp = true
+formatters = ["ruff-format", "ruff-check"]
+use-schema-description = true
+custom-file-header = "# Generated from api/openapi.yaml by `make gen` - DO NOT EDIT."

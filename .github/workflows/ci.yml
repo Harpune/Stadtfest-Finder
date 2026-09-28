@@ -1,0 +1,132 @@
+# PR pipeline (CLAUDE.md "Git & CI/CD"). All jobs must be green before merging to main.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  backend:
+    name: Backend (format, lint, types, architecture, tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run ruff format --check src tests migrations
+      - run: uv run ruff check src tests migrations
+      - run: uv run mypy src
+      - run: uv run lint-imports
+      - name: Tests (unit, integration via Testcontainers, contract via Schemathesis)
+        run: uv run pytest
+
+  api:
+    name: OpenAPI (lint, breaking changes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Spectral
+        run: npx --yes @stoplight/spectral-cli@6 lint --fail-severity=warn api/openapi.yaml
+      - name: Base spec for breaking-change check
+        id: base
+        if: github.event_name == 'pull_request'
+        run: |
+          if git show "origin/${{ github.base_ref }}:api/openapi.yaml" > /tmp/base-openapi.yaml 2>/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No api/openapi.yaml on ${{ github.base_ref }} yet – skipping oasdiff."
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: oasdiff (breaking changes need a new API version + ADR)
+        if: steps.base.outputs.exists == 'true'
+        uses: oasdiff/oasdiff-action/breaking@v0.1.17
+        with:
+          base: /tmp/base-openapi.yaml
+          revision: api/openapi.yaml
+          fail-on: ERR
+
+  mobile:
+    name: Mobile (lint, types, tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: mobile/package.json
+          version: 11
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: mobile/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test --ci
+
+  codegen-drift:
+    name: Generated code is up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: mobile/package.json
+          version: 11
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: mobile/pnpm-lock.yaml
+      - run: cd backend && uv sync --frozen
+      - run: cd mobile && pnpm install --frozen-lockfile
+      - run: cd backend && uv run datamodel-codegen
+      - run: cd mobile && pnpm gen
+      - name: Fail on drift
+        run: |
+          git diff --exit-code -- backend/src/stadtfest/generated mobile/src/api/generated mobile/src/theme/generated \
+            || (echo "::error::Generated code is out of date – run 'make gen' and commit the result." && exit 1)
+
+  trivy:
+    name: Security scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"

@@ -84,7 +84,7 @@ Als App will ich Orte bzw. PLZ suchen und Koordinaten in einen Ort auflösen, oh
 
 - `GET /v1/geocode?q=&limit=` (ab 2 Zeichen) → `[{label, postalCode?, city, lat, lon, kind: postcode|city|address}]`, nur Deutschland (`countrycodes=de`). Eine reine 5-stellige Eingabe wird als strukturierte PLZ-Suche (`postalcode=`) geschickt.
 - `GET /v1/geocode/reverse?lat=&lon=` → `{postalCode, city, label}`.
-- **Geocoding-Port** in `application/`, Adapter `adapters/out/geocoding/nominatim` (httpx, Timeout 3 s, eigener User-Agent). Dazu ein Fake-Adapter mit festen Daten für Tests und lokal.
+- **Geocoding-Port** in `application/`, Adapter `adapters/outbound/geocoding/nominatim` (httpx, Timeout 3 s, eigener User-Agent). Dazu ein Fake-Adapter mit festen Daten für Tests und lokal.
 - Redis-Cache: vorwärts 30 Tage (Schlüssel = normalisierte Anfrage). Reverse-Ergebnisse werden auf einem gerundeten Raster gecacht (3 Nachkommastellen); die Originalkoordinaten landen nicht im Cache-Schlüssel.
 - Ist Nominatim nicht erreichbar, gibt es `503` mit `error: geocoding_unavailable`. Die Suche nach Festen ist davon nicht betroffen.
 - Rate-Limit pro Client-IP: 5 Anfragen/s, sonst `429`. Die IP wird nur flüchtig in Redis gezählt und nicht geloggt.
