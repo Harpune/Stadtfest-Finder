@@ -9,6 +9,7 @@ on:
     - cron: "17 4 * * 1"
 
 permissions:
+  actions: read # required by CodeQL to read the workflow run (private repositories)
   contents: read
   security-events: write
 
