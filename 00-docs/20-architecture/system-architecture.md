@@ -1,0 +1,76 @@
+# Systemarchitektur
+
+Markdown-Fassung von [`00-Design.pdf`](00-Design.pdf) (C4-Container-Ebene). Die Flows A–D stimmen mit dem Diagramm und mit CLAUDE.md „Core flows“ überein. Die Entscheidungen dazu stehen in [`25-adr/`](../25-adr/0001-adrs-verwenden.md).
+
+**Betrieb:** Der Kern läuft auf einem eigenen Server in der EU. Externe Dienste sind per ENV austauschbar (DSGVO: Kern in der EU, Rest per ENV).
+
+## Container
+
+```mermaid
+flowchart LR
+  subgraph Client
+    APP["Mobile App<br/>React Native (Expo), MapLibre<br/>Rollen: Gast, Nutzer, Moderator"]
+    MCPC["Externer KI-Client<br/>z. B. Claude Desktop"]
+  end
+
+  subgraph Backend["Backend (eigene Infrastruktur, EU)"]
+    API["Backend-API<br/>FastAPI, JSON, prüft JWT + Rollen"]
+    MCP["FastMCP-Server<br/>Streamable HTTP, OAuth"]
+    SVC[["Service-Schicht<br/>Use Cases, gemeinsam für API, MCP, Worker"]]
+    WRK["Worker<br/>arq, KI-Suche, Benachrichtigungen, Bilder"]
+    DB[("Datenbank<br/>PostgreSQL + PostGIS")]
+    OBJ[("Objektspeicher<br/>S3-kompatibel, Festbilder")]
+    RED[("Queue + Cache<br/>Redis")]
+    AI["KI-Modul<br/>LLM-Port, ein generischer Adapter<br/>festes Ausgabeschema"]
+    GEO["Geocoding<br/>selbst gehostetes Nominatim"]
+  end
+
+  subgraph Extern["Externe Dienste"]
+    IDP["Auth · Zitadel Cloud (EU)<br/>OIDC + PKCE, Rollen-Claims"]
+    LLM["KI-Anbieter (per ENV)<br/>Mistral (EU) · OpenAI · Anthropic · Ollama"]
+    WEB["Web-Such-API<br/>Tool der KI-Suche"]
+    PUSH["Push<br/>Expo Push oder APNs/FCM direkt"]
+  end
+
+  APP -- "A1/B2/C1/C8 · HTTPS/REST, JWT" --> API
+  APP -. "B1 · OIDC Auth Code + PKCE" .-> IDP
+  MCPC -- "D1 · MCP über Streamable HTTP" --> MCP
+  API --> SVC
+  MCP -- D2 --> SVC
+  SVC -- "A2/D3 · SQL" --> DB
+  SVC -- "S3-API" --> OBJ
+  SVC -- "C2 · Redis" --> RED
+  RED -- C3 --> WRK
+  WRK --> SVC
+  WRK -- "C4 · PLZ" --> GEO
+  WRK -- C5 --> AI
+  AI -- "C6 · HTTPS LLM-API" --> LLM
+  AI -- "Tool-Call" --> WEB
+  WRK -. "Push-Auftrag" .-> PUSH
+  API -. "B3 · JWKS, JWT-Signatur prüfen" .-> IDP
+```
+
+## Flows
+
+| Flow | Schritte |
+|---|---|
+| **A · Suche als Gast** | A1 App → API ohne Token · A2 PostGIS-Umkreisabfrage → Ergebnisliste und Karte (Redis-Cache 5 min) |
+| **B · Anmeldung** | B1 App ↔ Zitadel (OIDC, PKCE) → Token · B2 App sendet JWT an die API · B3 API prüft JWT per JWKS und liest Rollen aus den Claims |
+| **C · KI-Suche per PLZ** | C1 Moderator stößt die Suche an, API legt einen Auftrag an (`202`) · C2 Auftrag in die Queue (über die Outbox, ADR 0005) · C3 Worker übernimmt · C4 Geocoding PLZ → Umkreis · C5 KI-Modul mit Festschema · C6 KI-Anbieter mit Web-Suche → validiertes JSON · C7 Speichern als **Entwurf** · C8 Moderator prüft und gibt frei |
+| **D · MCP** | D1 externer KI-Client → FastMCP (OAuth über Zitadel) · D2 Service-Schicht · D3 Datenbank |
+
+## Ausgabeschema der KI-Suche (C5)
+
+`name`, `date_from`, `date_to`, `place`, `address`, `coordinates`, `category`, `source_url`, `description`. Das Schema ist versioniert im Code und wird vor dem Speichern validiert. Ohne überprüfbare `source_url` wird ein Fund verworfen.
+
+## Abbildung im Code
+
+| Container | Einstiegspunkt | Paket |
+|---|---|---|
+| Backend-API | `uvicorn stadtfest.bootstrap.app:create_app --factory` | `adapters/inbound/rest` |
+| Worker | `python -m stadtfest.bootstrap.worker` | `adapters/inbound/worker` |
+| FastMCP-Server | ab R15 | `adapters/inbound/mcp` |
+| Service-Schicht | – | `application/<context>` + `domain/<context>` |
+| Datenbank, Objektspeicher, Redis, KI-Modul, Geocoding, Push | – | `adapters/outbound/<tech>` (hinter Ports) |
+
+Lokal ersetzt Keycloak Zitadel (ADR 0003) und SeaweedFS den Objektspeicher (ADR 0007).
