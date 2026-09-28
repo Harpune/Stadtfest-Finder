@@ -2,9 +2,181 @@
 
 from __future__ import annotations
 
+from datetime import date as date_aliased
 from typing import Annotated, Literal
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel
+
+
+class Category(BaseModel):
+    """Event category (filter chip, marker border color)."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    name: Annotated[str, Field(examples=["Stadtfest"])]
+    emoji: Annotated[str, Field(examples=["🎪"])]
+    color: Annotated[str, Field(examples=["#FFB547"], pattern="^#[0-9A-F]{6}$")]
+    sort_order: Annotated[int, Field(alias="sortOrder", ge=0)]
+
+
+class CategoryRef(BaseModel):
+    """Category as embedded in an event detail."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    name: str
+    emoji: str
+    color: Annotated[str, Field(pattern="^#[0-9A-F]{6}$")]
+
+
+class PublicEventStatus(RootModel[Literal["published", "cancelled"]]):
+    root: Annotated[
+        Literal["published", "cancelled"],
+        Field(description='Status of a publicly visible event. "Past" is derived from `endDate`.'),
+    ]
+
+
+class Image(BaseModel):
+    """Event image variants (R08)."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    url: AnyUrl
+    thumb_url: Annotated[AnyUrl, Field(alias="thumbUrl")]
+    width: Annotated[int | None, Field(ge=1)] = None
+    height: Annotated[int | None, Field(ge=1)] = None
+
+
+class EventSummary(BaseModel):
+    """Event as shown in carousel, list and timeline."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    name: str
+    short_name: Annotated[
+        str, Field(alias="shortName", description="Short name for the selected map pin.")
+    ]
+    status: PublicEventStatus
+    start_date: Annotated[date_aliased, Field(alias="startDate")]
+    end_date: Annotated[date_aliased, Field(alias="endDate")]
+    place: str
+    city: str
+    lat: float
+    lon: float
+    category_id: Annotated[UUID, Field(alias="categoryId")]
+    distance_km: Annotated[
+        float | None,
+        Field(alias="distanceKm", description="Distance to the reference point, if one was given."),
+    ] = None
+    cover_image: Annotated[Image | None, Field(alias="coverImage")] = None
+
+
+class EventPage(BaseModel):
+    """One page of events."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    items: list[EventSummary]
+    next_cursor: Annotated[
+        str | None,
+        Field(alias="nextCursor", description="Cursor for the next page, `null` on the last page."),
+    ] = None
+
+
+type ByCategoryAdditionalProperty = Annotated[int, Field(ge=0)]
+
+
+class EventCount(BaseModel):
+    """Result counts for filter previews."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    total: Annotated[int, Field(ge=0)]
+    by_category: Annotated[
+        dict[str, ByCategoryAdditionalProperty],
+        Field(
+            alias="byCategory",
+            description="Category ID -> number of events matching all filters except categories.",
+        ),
+    ]
+
+
+class ProgramItem(BaseModel):
+    """Entry of the event program."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    date: date_aliased
+    time_label: Annotated[str, Field(alias="timeLabel", examples=["10:45 Uhr"])]
+    title: str
+    subtitle: str | None = None
+
+
+class EventDetail(BaseModel):
+    """Full public event detail."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    name: str
+    short_name: Annotated[str, Field(alias="shortName")]
+    status: PublicEventStatus
+    cancel_reason: Annotated[str | None, Field(alias="cancelReason")] = None
+    category: CategoryRef
+    start_date: Annotated[date_aliased, Field(alias="startDate")]
+    end_date: Annotated[date_aliased, Field(alias="endDate")]
+    opening_hours: Annotated[list[str], Field(alias="openingHours")]
+    price: str | None = None
+    place: str
+    address: str
+    city: str
+    postal_code: Annotated[str, Field(alias="postalCode", pattern="^[0-9]{5}$")]
+    lat: float
+    lon: float
+    description: str | None = None
+    program: list[ProgramItem]
+    transit: str | None = None
+    parking: str | None = None
+    website_url: Annotated[AnyUrl | None, Field(alias="websiteUrl")] = None
+    images: list[Image]
+    distance_km: Annotated[float | None, Field(alias="distanceKm")] = None
+
+
+class GeocodeResult(BaseModel):
+    """A geocoding suggestion."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    label: Annotated[str, Field(examples=["73430 Aalen"])]
+    postal_code: Annotated[str | None, Field(alias="postalCode", pattern="^[0-9]{5}$")] = None
+    city: str
+    lat: float
+    lon: float
+    kind: Literal["postcode", "city", "address"]
+
+
+class ReverseGeocodeResult(BaseModel):
+    """Place for coordinates."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    postal_code: Annotated[str | None, Field(alias="postalCode", pattern="^[0-9]{5}$")] = None
+    city: str
+    label: str
 
 
 class Error(BaseModel):
