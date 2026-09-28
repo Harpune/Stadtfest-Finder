@@ -32,10 +32,22 @@ def redis_url() -> Iterator[str]:
 
 
 @pytest.fixture(scope="session")
-def integration_settings(postgres_url: str, redis_url: str) -> Settings:
+def migrated_postgres_url(postgres_url: str) -> str:
+    """Postgres URL with all Alembic migrations applied (once per session)."""
+    from alembic import command
+    from alembic.config import Config
+
+    config = Config(str(REPO_ROOT / "backend" / "alembic.ini"))
+    config.set_main_option("sqlalchemy.url", postgres_url)
+    command.upgrade(config, "head")
+    return postgres_url
+
+
+@pytest.fixture(scope="session")
+def integration_settings(migrated_postgres_url: str, redis_url: str) -> Settings:
     return Settings(
         env=Environment.TEST,
-        database_url=postgres_url,
+        database_url=migrated_postgres_url,
         redis_url=redis_url,
         log_format=LogFormat.CONSOLE,
         geocoding_provider=GeocodingProvider.FAKE,

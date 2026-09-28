@@ -88,7 +88,7 @@ def _parse_filter(  # mirrors the query parameters of the spec
             text=q,
         )
     except ValueError:
-        raise InvalidInputError({"q": "too_short"}) from None
+        raise InvalidInputError({"q": "invalid"}) from None
 
 
 def search_filter(

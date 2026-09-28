@@ -33,8 +33,11 @@ class SearchFilter:
         """Validate the radius and the text length."""
         if not MIN_RADIUS_KM <= self.radius_km <= MAX_RADIUS_KM:
             raise ValueError("radius out of range")
-        if self.text is not None and len(self.text.strip()) < MIN_QUERY_LENGTH:
-            raise ValueError("search text too short")
+        if self.text is not None:
+            if len(self.text.strip()) < MIN_QUERY_LENGTH:
+                raise ValueError("search text too short")
+            if any(ord(char) < 32 for char in self.text):  # control characters
+                raise ValueError("search text contains control characters")
 
     @property
     def distance_reference(self) -> GeoPoint | None:
@@ -87,6 +90,8 @@ class PageCursor:
         try:
             raw = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
             upcoming, start, name, event_id = json.loads(raw)
-            return cls(bool(upcoming), date.fromisoformat(start), str(name), UUID(event_id))
+            if not isinstance(name, str) or "\x00" in name:
+                raise ValueError("invalid cursor name")
+            return cls(bool(upcoming), date.fromisoformat(start), name, UUID(event_id))
         except (binascii.Error, ValueError, TypeError, UnicodeDecodeError) as exc:
             raise ValueError("invalid cursor") from exc

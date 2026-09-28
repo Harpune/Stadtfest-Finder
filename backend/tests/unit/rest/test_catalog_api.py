@@ -165,6 +165,7 @@ def test_search_parses_csv_filters(client: TestClient, catalog: FakeEventCatalog
         ({"when": "months", "months": "2026-13"}, "months"),
         ({"categories": "not-a-uuid"}, "categories"),
         ({"q": "  a "}, "q"),
+        ({"q": "Aa\x00len"}, "q"),
         ({"radiusKm": 5}, "radiusKm"),
         ({"cursor": "garbage"}, "cursor"),
     ],

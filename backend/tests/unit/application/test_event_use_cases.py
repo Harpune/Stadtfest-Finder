@@ -142,6 +142,16 @@ def test_search_filter_validation() -> None:
         SearchFilter(radius_km=5)
     with pytest.raises(ValueError, match="too short"):
         SearchFilter(text=" a ")
+    with pytest.raises(ValueError, match="control"):
+        SearchFilter(text="Aa\x00len")
+
+
+def test_cursor_roundtrip_and_rejects_nul() -> None:
+    cursor = PageCursor(upcoming=False, start_date=TODAY, name="Kalter Markt", id=uuid4())
+    assert PageCursor.decode(cursor.encode()) == cursor
+    evil = PageCursor(upcoming=False, start_date=TODAY, name="a\x00b", id=uuid4()).encode()
+    with pytest.raises(ValueError, match="cursor"):
+        PageCursor.decode(evil)
 
 
 async def test_get_public_event_not_found() -> None:
