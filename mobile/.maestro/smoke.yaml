@@ -1,0 +1,12 @@
+# Smoke test: the app starts and shows the start screen.
+appId: de.stadtfestfinder.app
+name: Smoke – App startet
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: start.title
+- tapOn:
+    id: start.discover
+- assertVisible:
+    id: toast

@@ -29,7 +29,6 @@ web-build/
 *.tsbuildinfo
 mobile/ios/
 mobile/android/
-mobile/.storybook/storybook.requires.ts
 
 # Test output
 test-results/

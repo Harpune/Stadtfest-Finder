@@ -1,0 +1,8 @@
+node_modules/
+.expo/
+ios/
+android/
+src/api/generated/
+src/theme/generated/
+.rnstorybook/storybook.requires.ts
+pnpm-lock.yaml
