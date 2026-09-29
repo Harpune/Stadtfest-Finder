@@ -9,4 +9,5 @@
 | GitHub (Actions, GHCR) | CI, Container-Registry | USA | keine Nutzerdaten (nur Code, synthetische Testdaten) | – | – | aktiv |
 | KI-Anbieter (Mistral/OpenAI/Anthropic/Ollama) | KI-Suche | je Anbieter | **keine** (nur PLZ, Radius, Zeitraum, Kategorien) | ja (`LLM_PROVIDER`) | folgt R10 | geplant |
 | Web-Such-API | Tool der KI-Suche | je Anbieter | keine | ja | folgt R10 | geplant |
+| MapTiler Cloud (MapTiler AG) | Kartenkacheln und -stile (Abruf direkt aus der App) | Schweiz (Angemessenheitsbeschluss); Hosting-Standorte im DPA prüfen | IP-Adresse, abgerufene Kacheln (≈ betrachteter Kartenausschnitt) | ja (`EXPO_PUBLIC_MAPTILER_KEY` leer → Offline-Stil ohne Abruf) | 0009 | aktiv ab R03, DPA vor Produktivstart |
 | Expo Push / APNs / FCM | Push-Benachrichtigungen | USA | Push-Token, generische Texte, IDs | ja (`PUSH_PROVIDER`) | folgt R11 | geplant |

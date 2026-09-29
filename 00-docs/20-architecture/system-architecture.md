@@ -30,10 +30,12 @@ flowchart LR
     LLM["KI-Anbieter (per ENV)<br/>Mistral (EU) · OpenAI · Anthropic · Ollama"]
     WEB["Web-Such-API<br/>Tool der KI-Suche"]
     PUSH["Push<br/>Expo Push oder APNs/FCM direkt"]
+    TILES["Kartenkacheln<br/>MapTiler Cloud (CH), ADR 0009"]
   end
 
   APP -- "A1/B2/C1/C8 · HTTPS/REST, JWT" --> API
   APP -. "B1 · OIDC Auth Code + PKCE" .-> IDP
+  APP -. "Vektorkacheln, Stil" .-> TILES
   MCPC -- "D1 · MCP über Streamable HTTP" --> MCP
   API --> SVC
   MCP -- D2 --> SVC
