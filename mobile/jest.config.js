@@ -4,4 +4,6 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: {'^@/(.*)$': '<rootDir>/src/$1'},
   testPathIgnorePatterns: ['/node_modules/', '/.maestro/'],
+  // The first test of a file also pays for loading React Native (slow on CI runners).
+  testTimeout: 20000,
 };
