@@ -26,13 +26,11 @@ flowchart TD
   D -->|Route starten / Mini-Karte| MAP([Apple Maps / Google Maps])
   D -->|Offizielle Website| WEB([Browser])
   D -->|Herz| A1{angemeldet?}
-  D -->|Teilen| A2{angemeldet?}
+  D -->|Teilen| SH([natives Share-Sheet])
   D -->|Einladen| A3{angemeldet?}
   A1 -- nein --> H([03 Gast-Hinweis])
-  A2 -- nein --> H
   A3 -- nein --> H
   A1 -- ja --> FAV[PUT/DELETE /v1/me/favorites/:id]
-  A2 -- ja --> SH([natives Share-Sheet])
   A3 -- ja --> INV([06 Einladung])
   D -->|„Jonas und Tim kommen mit“| INV
   D -->|Zurück| OUT([vorheriger Screen])
@@ -46,7 +44,7 @@ flowchart TD
 | 2 | 02-01 | Galerie links/rechts tippen | Blättert Bilder, Punkte und Zähler „1 / 6“ laufen mit. | Bilder per CDN-URL | lokal |
 | 3 | 02-01 | Herz (Gast) | Bottom Sheet „Lieblingsfeste merken“ ([03](03-authentifizierung.md)). Das Fest wird als offene Aktion gemerkt. | – | lokal |
 | 4 | 02-04 | Herz (Nutzer) | Herz füllt sich sofort, Toast „Zu Favoriten hinzugefügt“. Bei Fehler wird zurückgesetzt und ein Toast angezeigt. | `PUT /v1/me/favorites/{id}` bzw. `DELETE …` | sync (optimistisch) |
-| 5 | 02-01 | Teilen (Nutzer) | Öffnet das native Share-Sheet mit Titel, Zeitraum und Link `https://stadtfest-finder.de/f/{id}`. | – (Link wird clientseitig gebildet) | lokal |
+| 5 | 02-01 | Teilen (Gast und Nutzer) | Öffnet das native Share-Sheet mit Titel, Zeitraum und Link `https://stadtfest.herderstreet.de/f/{id}`. Kein Konto nötig (Entscheidung 29.09.2026). | – (Link wird clientseitig gebildet) | lokal |
 | 6 | 02-01 | Einladen | Gast: Hinweis. Nutzer: Einladung verfassen oder Zu-/Absage-Übersicht ([06](06-einladungen.md)). | `GET /v1/events/{id}/invitation` | sync |
 | 7 | 02-03 | Route starten / Mini-Karte | Öffnet die Standard-Karten-App mit den Zielkoordinaten. | – | lokal |
 | 8 | 02-03 | Offizielle Website | Öffnet den In-App-Browser bzw. den Systembrowser. | – | lokal |

@@ -3,7 +3,7 @@ import {fireEvent, screen, waitFor} from '@testing-library/react-native';
 import {router} from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React from 'react';
-import {Linking} from 'react-native';
+import {Linking, Share} from 'react-native';
 
 import {AuthProvider} from '@/features/auth/AuthProvider';
 import {renderWithProviders} from '@/test-utils';
@@ -150,7 +150,7 @@ describe('EventDetailScreen', () => {
     expect(router.back).toHaveBeenCalled();
   });
 
-  it('opens the guest hint for favorite, share and invite', async () => {
+  it('opens the guest hint for favorite and invite', async () => {
     mockApi(DETAIL);
     await renderDetail();
     await waitFor(() =>
@@ -159,8 +159,24 @@ describe('EventDetailScreen', () => {
     await fireEvent.press(screen.getByTestId('detail.favorite'));
     expect(screen.getByText('Lieblingsfeste merken')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('guestHint.dismiss'));
+    await fireEvent.press(screen.getByTestId('detail.invite'));
+    expect(await screen.findByText('Freunde einladen')).toBeOnTheScreen();
+  });
+
+  it('lets guests share the event with name, period and link', async () => {
+    const share = jest
+      .spyOn(Share, 'share')
+      .mockResolvedValue({action: 'sharedAction'});
+    mockApi(DETAIL);
+    await renderDetail();
+    await waitFor(() =>
+      expect(screen.getByTestId('detail.title')).toBeOnTheScreen(),
+    );
     await fireEvent.press(screen.getByTestId('detail.share'));
-    expect(await screen.findByText('Feste teilen')).toBeOnTheScreen();
+    const content = share.mock.calls[0]?.[0] as {message: string};
+    expect(content.message).toContain('Reichsstädter Tage');
+    expect(content.message).toContain('https://stadtfest.herderstreet.de/f/e1');
+    expect(screen.queryByText('Lieblingsfeste merken')).toBeNull();
   });
 
   it('starts the route in the maps app', async () => {

@@ -9,11 +9,10 @@ import {Button} from '../Button/Button';
 import {Icon, IconName} from '../Icon/Icon';
 import {Text} from '../Text/Text';
 
-export type GuestHintKind = 'favorite' | 'share' | 'invite';
+export type GuestHintKind = 'favorite' | 'invite';
 
 const ICONS: Record<GuestHintKind, IconName> = {
   favorite: 'heart',
-  share: 'share',
   invite: 'users',
 };
 

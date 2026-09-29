@@ -4,6 +4,8 @@
 
 Links wie `https://stadtfest.herderstreet.de/f/{eventId}` öffnen die Detailseite in der App (R04-US6). Ohne installierte App zeigt die Domain eine einfache Seite. Zusätzlich funktioniert immer das App-Schema `stadtfest://f/{eventId}`.
 
+**Domain konfigurierbar:** `EXPO_PUBLIC_LINK_HOST` (Standard `stadtfest.herderstreet.de`) bestimmt den Host der geteilten Links und des Android-Intent-Filters (`mobile/app.config.ts`). Für App Links wirkt eine Änderung erst mit einem neuen Build. Caddy liest denselben Wert aus `LINK_HOST`.
+
 **Stand:** Android App Links sind konfiguriert. iOS Universal Links folgen, sobald ein Apple-Developer-Konto mit Team-ID vorhanden ist (siehe unten).
 
 ## Voraussetzungen
@@ -21,10 +23,10 @@ Links wie `https://stadtfest.herderstreet.de/f/{eventId}` öffnen die Detailseit
 3. **Ausliefern:** Den Ordner `infra/deeplinks/public` als `/srv/deeplinks` bereitstellen und Caddy mit `infra/deeplinks/Caddyfile` starten. Caddy holt das TLS-Zertifikat automatisch.
    - `assetlinks.json` muss **ohne Weiterleitung** und mit `Content-Type: application/json` erreichbar sein.
    - Access-Logs sind abgeschaltet (keine IP-Adressen speichern).
-4. **App bauen:** Die Intent-Filter stehen in `mobile/app.json` (`autoVerify: true`, Host `stadtfest.herderstreet.de`, Pfad `/f/`). Nach einer Änderung einen neuen Build erzeugen.
+4. **App bauen:** Der Intent-Filter entsteht in `mobile/app.config.ts` (`autoVerify: true`, Host aus `EXPO_PUBLIC_LINK_HOST`, Pfad `/f/`). Für EAS-Builds die Variable als EAS-Umgebungsvariable setzen. Nach einer Änderung einen neuen Build erzeugen.
 5. **iOS (später):** Mit Apple-Team-ID
    - `infra/deeplinks/public/.well-known/apple-app-site-association` anlegen (`applinks.details[].appIDs = ["<TEAMID>.de.stadtfestfinder.app"]`, `components: [{"/": "/f/*"}]`), ohne Dateiendung, `Content-Type: application/json`
-   - In `mobile/app.json` unter `ios.associatedDomains` `applinks:stadtfest.herderstreet.de` eintragen und neu bauen.
+   - In `mobile/app.config.ts` `ios.associatedDomains: [`applinks:${LINK_HOST}`]` ergänzen und neu bauen.
 
 ## Prüfung
 
@@ -42,4 +44,4 @@ curl -s "https://digitalassetlinks.googleapis.com/v1/statements:list?source.web.
 ## Rollback
 
 - Den Eintrag in `assetlinks.json` entfernen: Android öffnet die Links dann wieder im Browser (Fallback-Seite). Das App-Schema funktioniert weiter.
-- Die Intent-Filter aus `mobile/app.json` entfernen und neu bauen.
+- Den Intent-Filter aus `mobile/app.config.ts` entfernen und neu bauen.

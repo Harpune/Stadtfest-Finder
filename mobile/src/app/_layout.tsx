@@ -6,6 +6,7 @@ import {
   Outfit_700Bold,
 } from '@expo-google-fonts/outfit';
 import {YoungSerif_400Regular} from '@expo-google-fonts/young-serif';
+import {BottomSheetModalProvider} from '@gorhom/bottom-sheet';
 import {QueryClientProvider} from '@tanstack/react-query';
 import {useFonts} from 'expo-font';
 import {Stack} from 'expo-router';
@@ -68,9 +69,11 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
             <ToastProvider>
-              <AuthProvider>
-                <ThemedStack />
-              </AuthProvider>
+              <BottomSheetModalProvider>
+                <AuthProvider>
+                  <ThemedStack />
+                </AuthProvider>
+              </BottomSheetModalProvider>
             </ToastProvider>
           </ThemeProvider>
         </QueryClientProvider>

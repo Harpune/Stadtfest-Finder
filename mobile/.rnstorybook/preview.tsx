@@ -1,3 +1,4 @@
+import {BottomSheetModalProvider} from '@gorhom/bottom-sheet';
 import type {Preview} from '@storybook/react-native';
 import React from 'react';
 import {View} from 'react-native';
@@ -23,9 +24,11 @@ const preview: Preview = {
         forcedScheme={globals.scheme === 'light' ? 'light' : 'dark'}
       >
         <ToastProvider>
-          <Canvas>
-            <Story />
-          </Canvas>
+          <BottomSheetModalProvider>
+            <Canvas>
+              <Story />
+            </Canvas>
+          </BottomSheetModalProvider>
         </ToastProvider>
       </ThemeProvider>
     ),
