@@ -5,12 +5,12 @@
 | **Ziel** | Gäste nicht blockieren, aber bei Account-Funktionen freundlich zur Anmeldung führen. Anmeldung und Registrierung per Apple, Google oder E-Mail. Abmelden. |
 | **Rollen** | Gast → Nutzer (Moderatoren melden sich genauso an, die Rolle kommt vom Backend) |
 | **Moderationsansicht** | Nein. Nach der Anmeldung liefert `GET /v1/me` die Rollen. Nur bei `moderator` erscheint im Drawer der Link „Moderator-Ansicht“. |
-| **Einstieg** | Account-Aktion als Gast (Herz, Teilen, Einladen), Profil-Drawer als Gast |
+| **Einstieg** | Account-Aktion als Gast (Herz, Einladen; Teilen geht seit 29.09.2026 ohne Konto), Profil-Drawer als Gast |
 | **Weiter zu** | zurück zur ausgelösten Aktion; die Aktion wird nachgeholt |
 
 ## Screens
 
-| Hinweis: Favorit | Hinweis: Teilen | Hinweis: Einladen | Drawer als Gast |
+| Hinweis: Favorit | Hinweis: Teilen (entfällt) | Hinweis: Einladen | Drawer als Gast |
 |---|---|---|---|
 | <img src="../screenshots/03-01-gasthinweis-favorit.png" width="200"> | <img src="../screenshots/03-02-gasthinweis-teilen.png" width="200"> | <img src="../screenshots/03-03-gasthinweis-einladen.png" width="200"> | <img src="../screenshots/03-07-drawer-gast.png" width="200"> |
 | **Anmelden** | **Registrieren** | **Validierungsfehler** | |
@@ -20,7 +20,7 @@
 
 ```mermaid
 flowchart TD
-  A([Gast tippt Herz / Teilen / Einladen]) --> PA[pendingAction merken]
+  A([Gast tippt Herz / Einladen]) --> PA[pendingAction merken]
   PA --> H[Gast-Hinweis · Bottom Sheet]
   DG([Gast öffnet Drawer]) --> GD[Drawer-Gastvariante]
   H -->|„Weiter ohne Konto“| BACK([zurück, nichts passiert])
@@ -34,7 +34,7 @@ flowchart TD
   T1 & T2 -->|401 / 409| E2[Fehler unter dem Feld]
   ME --> DO{pendingAction?}
   DO -- Favorit --> FAV[PUT /v1/me/favorites/:id · Toast „Angemeldet · Fest gemerkt“]
-  DO -- Teilen / Einladen --> RE[Aktion erneut öffnen]
+  DO -- Einladen --> RE[Aktion erneut öffnen]
   DO -- keine --> W[Toast „Willkommen, Vorname!“]
 ```
 

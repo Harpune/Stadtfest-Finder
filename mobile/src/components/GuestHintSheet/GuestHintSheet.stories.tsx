@@ -8,7 +8,7 @@ const meta = {
   component: GuestHintSheet,
   args: {visible: true, kind: 'favorite', onLogin: fn(), onDismiss: fn()},
   argTypes: {
-    kind: {control: 'inline-radio', options: ['favorite', 'share', 'invite']},
+    kind: {control: 'inline-radio', options: ['favorite', 'invite']},
   },
 } satisfies Meta<typeof GuestHintSheet>;
 
@@ -16,5 +16,4 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Favorite: Story = {};
-export const Share: Story = {args: {kind: 'share'}};
 export const Invite: Story = {args: {kind: 'invite'}};

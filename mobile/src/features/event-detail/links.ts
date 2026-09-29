@@ -3,8 +3,12 @@
  * validation. Pure functions, covered by unit tests.
  */
 
-/** Public host of shared event links and Android App Links (00-docs/40-operations/deep-links-domain.md). */
-export const LINK_HOST = 'stadtfest.herderstreet.de';
+/**
+ * Public host of shared event links and Android App Links, from EXPO_PUBLIC_LINK_HOST
+ * (00-docs/40-operations/deep-links-domain.md). Must match the host in app.config.ts.
+ */
+export const LINK_HOST =
+  process.env.EXPO_PUBLIC_LINK_HOST || 'stadtfest.herderstreet.de';
 
 /** Link to an event, e.g. for the share sheet (R06). */
 export function eventShareUrl(eventId: string): string {

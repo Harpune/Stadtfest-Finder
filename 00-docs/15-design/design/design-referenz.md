@@ -178,11 +178,11 @@ Die Klammer nennt jeweils den `start`-Wert im Prototyp.
 - **Status „Abgesagt“:** rote Pill auf `roseSoft`.
 
 ### 5. Hinweis „Anmelden für diese Funktion“ (Gast) (`gasthinweis`)
-- Bottom Sheet, das nichts blockiert. Icon-Kachel 56 in `roseSoft` (Herz, Teilen oder Personen je nach Auslöser), Titel (Serif 24), Text.
+- Bottom Sheet, das nichts blockiert. Icon-Kachel 56 in `roseSoft` (Herz oder Personen je nach Auslöser), Titel (Serif 24), Text.
 - Buttons „Anmelden oder registrieren“ (Amber) und „Weiter ohne Konto“.
 - Texte je Auslöser:
   - Favorit: „Lieblingsfeste merken“ / „Mit einem kostenlosen Konto speicherst du Favoriten auf deiner Zeitleiste und wirst vor Festbeginn erinnert.“
-  - Teilen: „Feste teilen“ / „Melde dich an, um Feste per Link mit Freunden zu teilen.“
+  - ~~Teilen~~: entfällt, Teilen geht ohne Konto (Entscheidung 29.09.2026).
   - Einladen: „Freunde einladen“ / „Mit einem Konto lädst du Freunde ein und siehst, wer zu- oder abgesagt hat.“
 - Nach der Anmeldung wird die ausgelöste Aktion nachgeholt (z. B. das Fest gemerkt, Toast „Angemeldet · Fest gemerkt“).
 
@@ -306,7 +306,7 @@ Die Suche selbst ist ein **Backend-Dienst**. Er bekommt nur eine PLZ, ein KI-Die
 ## Interactions & Behavior (übergreifend)
 - **Navigation:** Unterseiten liegen als Stapel übereinander. Die zuletzt geöffnete liegt oben, die Zurück-Taste schließt nur die oberste.
 - **Toasts** bestätigen jede Aktion (Texte stehen im Prototyp).
-- **Teilen:** in der App das native Share-Sheet. Im Prototyp erscheint ein Toast mit dem Link `stadtfest-finder.de/f/{id}`.
+- **Teilen:** in der App das native Share-Sheet, auch für Gäste, mit dem Link `https://stadtfest.herderstreet.de/f/{id}` (Host per `EXPO_PUBLIC_LINK_HOST`). Im Prototyp erscheint ein Toast.
 - **„Route starten“:** öffnet die Standard-Karten-App (Apple Maps / Google Maps).
 - **Laden:** Skeleton-Karten im Karussell und in der Liste, Pille „Feste werden geladen …“ auf der Karte. Nach jeder Filteränderung wird neu geladen.
 - **Leere Zustände:**

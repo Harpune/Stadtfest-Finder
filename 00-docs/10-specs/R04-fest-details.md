@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Ziel** | Alle Infos zu einem Fest ansehen und von dort handeln: Route starten, Website öffnen. Account-Aktionen (Herz, Teilen, Einladen) führen Gäste freundlich zum Gast-Hinweis. |
+| **Ziel** | Alle Infos zu einem Fest ansehen und von dort handeln: Route starten, Website öffnen, teilen. Account-Aktionen (Herz, Einladen) führen Gäste freundlich zum Gast-Hinweis. |
 | **Hängt ab von** | R03 |
 | **Quellen** | [02 Fest-Details](../15-design/workflows/02-fest-details.md), [03 Gast-Hinweis](../15-design/workflows/03-authentifizierung.md), [Design-Referenz §4–5](../15-design/design/design-referenz.md#4-detailseite-detail), Screens 02-01 bis 02-05, 03-01 bis 03-03 |
 | **Rollen** | Gast |
@@ -13,7 +13,7 @@
 
 **Nicht drin:**
 - Login hinter „Anmelden oder registrieren“ (R05; bis dahin öffnet der Button einen Platzhalter)
-- Favorit, Teilen und Einladen für Nutzer (R06 bzw. R14)
+- Favorit und Einladen für Nutzer (R06 bzw. R14)
 - Echte Bilder (R08)
 
 ## User Stories
@@ -42,15 +42,20 @@
 - „Route starten“ oder ein Tipp auf die Mini-Karte öffnet die Standard-Karten-App mit Zielkoordinaten und Namen: iOS Apple Maps, Android `geo:`-Intent bzw. Google Maps.
 - „Offizielle Website“ öffnet den In-App-Browser (`expo-web-browser`). Nur `https`/`http`-URLs sind zulässig, alles andere wird nicht geöffnet.
 
+### R04-US3a · Teilen (auch als Gast)
+- „Teilen“ öffnet für **alle**, auch Gäste, das native Share-Sheet mit Name, Zeitraum und Link `https://{EXPO_PUBLIC_LINK_HOST}/f/{id}` (Standard `stadtfest.herderstreet.de`).
+- Der Link enthält nur die Fest-ID; ans Backend geht nichts.
+- Entscheidung vom 29.09.2026: Teilen braucht kein Konto. Der Gast-Hinweis „Feste teilen“ (Screen 03-02) entfällt.
+
 ### R04-US4 · Abgesagt und nicht verfügbar
 - **Abgesagt:** rote Pill „Abgesagt“ auf `roseSoft`. Ein Absagegrund steht als Hinweis unter dem Titel (Annahme). „Einladen“ ist deaktiviert, die übrigen Aktionen bleiben erreichbar.
 - **404:** Hinweis „Dieses Fest ist nicht mehr verfügbar“, danach zurück zur Karte.
 
 ### R04-US5 · Gast-Hinweis mit gemerkter Aktion
-Als Gast will ich bei Herz, Teilen oder Einladen erfahren, was ein Konto bringt, ohne blockiert zu werden.
+Als Gast will ich bei Herz oder Einladen erfahren, was ein Konto bringt, ohne blockiert zu werden.
 
-- Bottom Sheet mit Icon-Kachel (Herz, Teilen oder Personen), Titel und Text wörtlich aus der Design-Referenz §5. Buttons: „Anmelden oder registrieren“ und „Weiter ohne Konto“.
-- Die Aktion wird als `pendingAction {type: favorite|share|invite, eventId}` im Auth-Store gemerkt.
+- Bottom Sheet mit Icon-Kachel (Herz oder Personen), Titel und Text wörtlich aus der Design-Referenz §5. Buttons: „Anmelden oder registrieren“ und „Weiter ohne Konto“.
+- Die Aktion wird als `pendingAction {type: favorite|invite, eventId}` im Auth-Store gemerkt.
 - „Weiter ohne Konto“ oder ein Tipp auf den Hintergrund schließt das Sheet und verwirft `pendingAction`.
 - Gilt überall, wo diese Aktionen vorkommen: Detailseite und Herz in der Liste (R03).
 

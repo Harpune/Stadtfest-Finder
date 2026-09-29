@@ -19,7 +19,7 @@ Alle 58 Screenshots. Die **ID** ist gleichzeitig der Dateiname in `screenshots/`
 | [02-04](../screenshots/02-04-detail-angemeldet.png) | Detail, angemeldet (Favorit, „kommen mit“) | 02 | Nutzer | `detail-angemeldet` |
 | [02-05](../screenshots/02-05-detail-hell.png) | Detail, Hellmodus | 02 | Gast, Nutzer | `detail` + hell |
 | [03-01](../screenshots/03-01-gasthinweis-favorit.png) | Gast-Hinweis: Favorit | 03 | Gast | `gasthinweis` |
-| [03-02](../screenshots/03-02-gasthinweis-teilen.png) | Gast-Hinweis: Teilen | 03 | Gast | `gasthinweis-teilen` |
+| [03-02](../screenshots/03-02-gasthinweis-teilen.png) | Gast-Hinweis: Teilen (entfällt, Teilen ohne Konto) | 03 | Gast | `gasthinweis-teilen` |
 | [03-03](../screenshots/03-03-gasthinweis-einladen.png) | Gast-Hinweis: Einladen | 03 | Gast | `gasthinweis-einladen` |
 | [03-04](../screenshots/03-04-login.png) | Anmelden | 03 | Gast | `login` |
 | [03-05](../screenshots/03-05-registrieren.png) | Registrieren | 03 | Gast | `registrieren` |

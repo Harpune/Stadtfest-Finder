@@ -5,7 +5,14 @@
 import {router} from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React from 'react';
-import {Linking, Platform, ScrollView, StyleSheet, View} from 'react-native';
+import {
+  Linking,
+  Platform,
+  ScrollView,
+  Share,
+  StyleSheet,
+  View,
+} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {
@@ -36,12 +43,13 @@ import {offlineStyle} from '../discover/mapStyle';
 import {useCategories} from '../discover/useDiscoverData';
 import {useTileStyle} from '../discover/useTileStyle';
 import {
+  formatDateRange,
   formatDateRangeLong,
   formatProgramDate,
   todayInBerlin,
 } from '../events/dates';
 import {eventStatus} from '../events/status';
-import {displayHost, mapsRouteUrl, safeWebUrl} from './links';
+import {displayHost, eventShareUrl, mapsRouteUrl, safeWebUrl} from './links';
 import {useEventDetail} from './useEventDetail';
 
 const CONTENT_OVERLAP = 28;
@@ -105,6 +113,25 @@ export function EventDetailScreen({eventId}: {eventId: string}) {
       await Linking.openURL(url);
     } catch {
       toast(strings.detail.mapsUnavailable);
+    }
+  };
+
+  // Sharing works without an account: native share sheet with name, period and link.
+  const shareEvent = async () => {
+    const url = eventShareUrl(eventId);
+    const message = base
+      ? strings.detail.shareMessage(
+          base.name,
+          formatDateRange(base.startDate, base.endDate),
+          url,
+        )
+      : url;
+    try {
+      await Share.share(
+        Platform.OS === 'ios' ? {message, url} : {message, title: base?.name},
+      );
+    } catch {
+      // The user closed the sheet or no share target exists; nothing to report.
     }
   };
 
@@ -326,7 +353,7 @@ export function EventDetailScreen({eventId}: {eventId: string}) {
           <IconButton
             icon={<Icon name="share" size={21} />}
             accessibilityLabel={strings.detail.share}
-            onPress={() => requestAccountAction({type: 'share', eventId})}
+            onPress={() => void shareEvent()}
             testID="detail.share"
           />
           <IconButton

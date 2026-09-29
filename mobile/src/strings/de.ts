@@ -51,6 +51,8 @@ export const strings = {
   detail: {
     back: 'Zurück',
     share: 'Teilen',
+    shareMessage: (name: string, period: string, url: string) =>
+      `${name} · ${period}\n${url}`,
     favorite: 'Merken',
     distanceAway: (km: string) => `${km} entfernt`,
     period: 'Zeitraum',
@@ -86,10 +88,6 @@ export const strings = {
     favorite: {
       title: 'Lieblingsfeste merken',
       text: 'Mit einem kostenlosen Konto speicherst du Favoriten auf deiner Zeitleiste und wirst vor Festbeginn erinnert.',
-    },
-    share: {
-      title: 'Feste teilen',
-      text: 'Melde dich an, um Feste per Link mit Freunden zu teilen.',
     },
     invite: {
       title: 'Freunde einladen',
