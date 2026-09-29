@@ -10,7 +10,6 @@ describe('authorizeOptions', () => {
   it('uses the Zitadel IdP scope for social logins', () => {
     const {scopes, extraParams} = authorizeOptions('apple', 'zitadel');
     expect(scopes).toContain('urn:zitadel:iam:org:idp:id:apple');
-    expect(scopes).toContain('urn:zitadel:iam:org:projects:roles');
     expect(extraParams).toEqual({});
   });
 

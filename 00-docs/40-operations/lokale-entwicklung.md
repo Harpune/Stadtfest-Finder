@@ -49,6 +49,13 @@ Für native Builds zusätzlich **mindestens 20 GB freien Speicher** einplanen (P
 - Ports lassen sich in `.env` ändern (`*_HOST_PORT`).
 - **Testnutzer:** `nutzer@example.test` (Rolle `user`), `moderator@example.test` (`moderator`, Region `ostalb`), `katadmin@example.test` (`moderator`, `category_admin`). Die Passwörter stehen in `infra/dev/keycloak/stadtfest-realm.json` und gelten nur lokal.
 
+## Anmeldung lokal (R05)
+
+- Die App meldet sich per PKCE am lokalen Keycloak an (`EXPO_PUBLIC_AUTH_ISSUER`, Standard `http://localhost:58080/realms/stadtfest`). Das Backend prüft die Tokens gegen denselben Issuer (`AUTH_ISSUER` in `.env`). Beide Adressen müssen **gleich** sein, denn Keycloak schreibt den aufgerufenen Host in `iss`.
+- **Android-Emulator:** `adb reverse tcp:58080 tcp:58080 && adb reverse tcp:8000 tcp:8000`, dann funktioniert `localhost` auch im Emulator. **Echtes Gerät:** in `mobile/.env` und `.env` die LAN-IP statt `localhost` eintragen.
+- **Kontolöschung:** `.env` enthält `IDP_ADMIN_PROVIDER=keycloak` mit dem Dev-Client `stadtfest-admin` (siehe `.env.example`). Fehlen die Variablen in einer älteren `.env`, nutzt das Backend den Fake und löscht den Keycloak-Nutzer nicht.
+- **Realm aktualisieren:** Keycloak importiert `stadtfest-realm.json` nur, wenn der Realm noch nicht existiert. Nach Änderungen am Realm (z. B. dem Client `stadtfest-admin` aus R05) den Container neu anlegen: `docker compose -f infra/compose.dev.yaml up -d --force-recreate keycloak`. Lokal angelegte Nutzer gehen dabei verloren.
+
 ## Hinweise
 
 - **PostGIS-Image:** `imresamu/postgis` ist der Multi-Arch-Build des PostGIS-Docker-Maintainers. Das offizielle Image hat kein ARM64 (Apple Silicon).

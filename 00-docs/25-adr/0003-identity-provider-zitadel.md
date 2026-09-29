@@ -22,7 +22,7 @@ Die App braucht Anmeldung per Apple, Google und E-Mail. Das Backend soll nie Pas
   | Rollen | `realm_access.roles` | `urn:zitadel:iam:org:project:roles` |
   | Region | Mapper `region` | per Action |
 
-- **Audience** der API: `stadtfest-api`.
+- **Audience** der API: `stadtfest-api` (Keycloak, per Audience-Mapper). Zitadel setzt als Audience die Projekt-ID; in Produktion ist `AUTH_AUDIENCE` daher die Projekt-ID (Ergänzung R05, siehe [Zitadel-Anleitung](../40-operations/zitadel.md)).
 - Das Backend validiert JWTs gegen das JWKS des IdP und speichert keine E-Mail-Adressen (E-08).
 
 ## Konsequenzen

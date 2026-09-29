@@ -62,8 +62,8 @@ export function authorizeOptions(
     extraParams.prompt = 'login';
   }
   if (kind === 'zitadel') {
-    // Access token as JWT with the API audience and project roles (00-docs/40-operations/zitadel.md).
-    scopes.push('urn:zitadel:iam:org:projects:roles');
+    // Adds the project (= API audience) to the access token; roles are asserted by the
+    // project setting "Assert Roles on Authentication" (00-docs/40-operations/zitadel.md).
     const projectId = process.env.EXPO_PUBLIC_AUTH_PROJECT_ID;
     if (projectId) {
       scopes.push(`urn:zitadel:iam:org:project:id:${projectId}:aud`);
