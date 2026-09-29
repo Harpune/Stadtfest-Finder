@@ -6,6 +6,8 @@ import {QueryClient} from '@tanstack/react-query';
 import createFetchClient from 'openapi-fetch';
 import createClient from 'openapi-react-query';
 
+import {authFetch} from '@/features/auth/authSession';
+
 import type {paths} from './generated/schema';
 
 /** Base URL of the backend, e.g. http://192.168.0.10:8000 for a device on the LAN. */
@@ -16,8 +18,8 @@ export const fetchClient = createFetchClient<paths>({
   baseUrl: API_BASE_URL,
   // The spec uses `style: form, explode: false` for arrays: `bbox=1,2,3,4`.
   querySerializer: {array: {style: 'form', explode: false}},
-  // Resolve fetch per call (not at import) so tests can replace it.
-  fetch: request => globalThis.fetch(request),
+  // Adds the bearer token and renews it on 401 (R05-US4); guests pass through unchanged.
+  fetch: request => authFetch(request),
 });
 
 /** Typed TanStack Query hooks, e.g. `$api.useQuery('get', '/v1/health/live')`. */

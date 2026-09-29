@@ -27,7 +27,8 @@ import {
 import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
 
-import {useAuth} from '../auth/AuthProvider';
+import {ProfileDrawer} from '../account/ProfileDrawer';
+import {initialsOf, useAuth} from '../auth/AuthProvider';
 import {todayInBerlin} from '../events/dates';
 import {buildCategoryLookup} from './categoryLookup';
 import {
@@ -100,7 +101,8 @@ export function DiscoverScreen() {
   const toast = useToast();
   const {state, dispatch} = useDiscover();
   const {location, locate} = useUserLocation();
-  const {requestAccountAction} = useAuth();
+  const {requestAccountAction, user} = useAuth();
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const mapRef = useRef<DiscoverMapHandle>(null);
   const today = todayInBerlin();
 
@@ -483,7 +485,8 @@ export function DiscoverScreen() {
             }
           />
           <AvatarButton
-            onPress={() => toast(strings.discover.profileSoon)}
+            onPress={() => setDrawerOpen(true)}
+            initials={initialsOf(user) || undefined}
             testID="discover.profile"
           />
         </View>
@@ -545,6 +548,10 @@ export function DiscoverScreen() {
           setSheetOpen(false);
         }}
         onClose={() => setSheetOpen(false)}
+      />
+      <ProfileDrawer
+        visible={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
       />
     </View>
   );
