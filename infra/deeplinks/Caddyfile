@@ -1,6 +1,7 @@
 # Static host for App Links (R04-US6). Deployed with the production stack (R16).
 # Serves only static files: assetlinks.json and a fallback page for /f/{id}.
-stadtfest.herderstreet.de {
+# The host comes from LINK_HOST (same value as EXPO_PUBLIC_LINK_HOST in the app).
+{$LINK_HOST:stadtfest.herderstreet.de} {
 	root * /srv/deeplinks
 	encode gzip
 
