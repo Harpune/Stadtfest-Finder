@@ -19,13 +19,15 @@
 ### R03-US1 · App-Start mit Standort
 - Beim ersten Start fragt die App **einmal** nach der Standortfreigabe (Systemdialog, vorher kein eigener Screen).
 - **Freigabe erteilt:** Die Karte zentriert auf die Position, Zoom 10. Der eigene Standort erscheint als blauer Punkt (`meDot`).
-- **Freigabe abgelehnt:** Start auf dem zuletzt bekannten Kartenausschnitt (lokal gespeichert), sonst Deutschland-Mitte (≈ 51.16 N, 10.45 E, Zoom 6). Die Entfernung wird dann zum Kartenmittelpunkt berechnet, der Filter zeigt „vom Kartenmittelpunkt“.
+- **Freigabe abgelehnt:** Start auf dem zuletzt bekannten Kartenausschnitt (lokal gespeichert), sonst Deutschland-Mitte (≈ 51.16 N, 10.45 E, Zoom 6). Die Entfernung wird dann zum Kartenmittelpunkt berechnet.
 - Während des Ladens: Skeleton-Karten im Karussell und Pille „Feste werden geladen …“ (01-02).
-- Die Standortposition wird nur als Query-Parameter an `/v1/events*` geschickt und **nie gespeichert**, weder lokal noch im Backend.
+- Die Standortposition verlässt das Gerät **nicht**: Entfernungen berechnet die App selbst (Haversine). Sie wird nie gespeichert, weder lokal noch im Backend.
+- **Kartenausschnitt statt Umkreis** (Entscheidung 29.09.2026): Einzige räumliche Einschränkung ist der sichtbare Kartenausschnitt. Es gibt keinen Umkreis-Filter; eingegrenzt wird durch Zoomen.
 
 ### R03-US2 · Karte bedienen
 - Zoom 6–13.
 - Beim Verschieben oder Zoomen lädt die App nach 300 ms Pause für den neuen Ausschnitt nach. Bereits geladene Marker bleiben stehen, bis die Antwort da ist.
+- Geladen wird ein um 30 % je Seite erweiterter, auf ein Raster ausgerichteter Bereich (`features/discover/geo.ts`). Kleine Verschiebungen treffen so dieselbe (gecachte) Antwort. Karussell, Liste und Leerzustand zeigen nur Feste im sichtbaren Ausschnitt; Zählungen (`/count`) gelten für den sichtbaren Ausschnitt.
 - **Marker:** 38-pt-Kreis in `surface2`, 2 px Rand in der Kategorie-Farbe, Emoji 17 pt.
 - **Cluster** (MapLibre, Radius 46 px): 44-pt-Kreis in Rosa mit Zahl. Ein Tipp zoomt 2 Stufen auf den Schwerpunkt.
 - **Auswahl:**
@@ -48,7 +50,8 @@
 
 ### R03-US4 · Liste
 - Umschalter Karte/Liste unten mittig (Segmented Control). Der Wechsel lädt nicht neu. Suche, Filter und Auswahl bleiben erhalten.
-- Kopf: „{n} Feste · bis {r} km“, rechts „nach Datum“.
+- Kopf: „{n} Feste im Kartenausschnitt“, rechts „nach Datum“. Darunter „um {Ort}“ (Ortsname der Kartenmitte über `/v1/geocode/reverse`) und „Ausschnitt ändern“ (wechselt zur Karte).
+- Sortierung immer nach Datum; eingegrenzt wird nur durch den Ausschnitt.
 - Karten: Bild 160 hoch, Badge „● Läuft gerade“, Herz-Button (glass), Status, Name (Serif 20), „{Zeitraum} · {Ort}“, Pills für Kategorie und Entfernung.
 - Endloses Scrollen per `cursor`. Pull-to-Refresh lädt neu.
 
@@ -56,6 +59,7 @@
 - Suchfeld „Fest oder Ort suchen“ im schwebenden Header. Ab 2 Zeichen wird nach 300 ms gesucht (`q`). ✕ leert die Suche.
 - Die Suche gilt für Karte und Liste gemeinsam.
 - Ohne Treffer: „Kein Fest für ‚{q}‘“ mit Hinweis auf die Schreibweise (01-08).
+- Die Suche gilt im sichtbaren Ausschnitt. Ist der Text ein Ort oder eine PLZ (`/v1/geocode`, erster Treffer vom Typ Stadt/PLZ), erscheint unter dem Suchfeld „Zu {Ort} springen“. Ein Tipp fliegt die Karte dorthin (Zoom 11), leert die Textsuche und schließt die Tastatur.
 
 ### R03-US6 · Kategorie-Chips
 - Horizontal scrollbare Chip-Reihe. Zuerst der Zeitraum-Chip mit ▾ (öffnet das Filter-Sheet), danach „{Emoji} {Name} {Anzahl}“ in Moderationsreihenfolge.
@@ -68,14 +72,14 @@
 - Bottom Sheet (01-05). Es bearbeitet eine **Kopie** der aktuellen Filter (Entwurf):
   - **Zeitraum:** „Alle Termine“, „Heute“, „Dieses Wochenende“, „Zeitraum wählen“. Die letzte Option zeigt ein Monatsraster für die nächsten 12 Monate mit Mehrfachauswahl (01-06, E-03).
   - **Kategorie:** Chips mit Mehrfachauswahl, nur aktive.
-  - **Entfernung:** Schieberegler 10–300 km in 10er-Schritten, Standard 150, darunter „vom Standort {Ort}“. Den Ortsnamen liefert `GET /v1/geocode/reverse` über den gerundeten Standort, einmal pro Sitzung.
+  - ~~Entfernung~~: entfällt (Kartenausschnitt statt Umkreis).
 - Der Primär-Button „{n} Feste anzeigen“ zählt live mit (`/count`, debounced 300 ms). Bei 0 heißt er „Keine Treffer – trotzdem anwenden“.
-- „Zurücksetzen“ setzt nur den Entwurf zurück (Alle Termine, alle Kategorien, 150 km).
+- „Zurücksetzen“ setzt nur den Entwurf zurück (Alle Termine, alle Kategorien).
 - Anwenden übernimmt den Entwurf, schließt das Sheet und lädt neu. Der Filter-Button zeigt die Anzahl aktiver Filter als rosa Zähler.
 - Schließen ohne Anwenden verwirft den Entwurf.
 
 ### R03-US8 · Leer- und Fehlerzustände
-- **Keine Feste mit den Filtern** (01-07): „Keine Feste im Umkreis“ mit Radius, Aktionen „Umkreis auf 300 km“ und „Filter zurücksetzen“ (setzt Filter **und** Suche zurück).
+- **Keine Feste im Ausschnitt** (01-07): „Keine Feste in diesem Kartenausschnitt“, Aktionen „Herauszoomen“ (2 Stufen) und „Filter zurücksetzen“ (setzt Filter **und** Suche zurück).
 - **Netzwerkfehler:** Toast „Feste konnten nicht geladen werden“ mit „Erneut versuchen“. Bereits geladene Marker bleiben stehen.
 - **Offline:** Die zuletzt geladenen Feste bleiben aus dem persistierten Query-Cache lesbar (TanStack Query Persist, begrenzt auf die letzte Suche). Ein dezenter Hinweis „Offline · zuletzt geladen um {Zeit}“ erscheint (Annahme).
 

@@ -27,7 +27,8 @@ function renderList(props: Partial<EventListProps> = {}) {
     <EventList
       items={[EVENT]}
       total={1}
-      radiusKm={150}
+      areaName="Aalen"
+      onChangeArea={jest.fn()}
       today="2026-09-25"
       categoryOf={() => ({name: 'Stadtfest', emoji: '🎪', color: '#FFB547'})}
       loading={false}
@@ -48,7 +49,8 @@ describe('EventList', () => {
   it('shows header, status, name and pills', async () => {
     const onOpen = jest.fn();
     await renderList({onOpen});
-    expect(screen.getByText('1 Fest · bis 150 km')).toBeOnTheScreen();
+    expect(screen.getByText('1 Fest im Kartenausschnitt')).toBeOnTheScreen();
+    expect(screen.getByText('um Aalen')).toBeOnTheScreen();
     expect(screen.getByText('Läuft gerade')).toBeOnTheScreen();
     expect(screen.getByText('Läuft · noch 8 Tage')).toBeOnTheScreen();
     expect(screen.getByText('🎪 Stadtfest')).toBeOnTheScreen();
@@ -60,7 +62,7 @@ describe('EventList', () => {
   it('shows skeletons while loading the first page', async () => {
     await renderList({items: [], loading: true});
     expect(screen.queryByText('Reichsstädter Tage')).toBeNull();
-    expect(screen.queryByTestId('discover.empty.radius')).toBeNull();
+    expect(screen.queryByTestId('discover.empty.area')).toBeNull();
   });
 
   it('shows the empty state with its actions', async () => {
@@ -69,18 +71,20 @@ describe('EventList', () => {
       items: [],
       total: 0,
       empty: {
-        testID: 'discover.empty.radius',
-        title: 'Keine Feste im Umkreis',
-        text: 'Im Umkreis von 10 km …',
+        testID: 'discover.empty.area',
+        title: 'Keine Feste in diesem Kartenausschnitt',
+        text: 'Zoome heraus …',
         primary: {
-          label: 'Umkreis auf 300 km',
+          label: 'Herauszoomen',
           onPress: expand,
-          testID: 'discover.empty.expand',
+          testID: 'discover.empty.zoomOut',
         },
       },
     });
-    expect(screen.getByText('Keine Feste im Umkreis')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByTestId('discover.empty.expand'));
+    expect(
+      screen.getByText('Keine Feste in diesem Kartenausschnitt'),
+    ).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('discover.empty.zoomOut'));
     expect(expand).toHaveBeenCalled();
   });
 

@@ -20,7 +20,6 @@ const meta = {
     filter: DEFAULT_FILTER,
     categories: CATEGORIES,
     monthOptions: monthOptions('2026-10-01'),
-    originCaption: 'vom Standort Aalen',
     previewCount: 8,
     onDraftChange: fn(),
     onApply: fn(),
@@ -47,6 +46,4 @@ export const Loading: Story = {
   args: {previewCount: undefined, previewLoading: true},
 };
 export const NoResults: Story = {args: {previewCount: 0}};
-export const Empty: Story = {
-  args: {categories: [], originCaption: 'vom Kartenmittelpunkt'},
-};
+export const Empty: Story = {args: {categories: []}};

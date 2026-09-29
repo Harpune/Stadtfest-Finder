@@ -28,8 +28,11 @@ export const strings = {
     attribution: '© MapTiler © OpenStreetMap-Mitwirkende',
     map: 'Karte',
     list: 'Liste',
-    listHeader: (n: number, km: number) =>
-      `${n} ${n === 1 ? 'Fest' : 'Feste'} · bis ${km} km`,
+    listHeader: (n: number) =>
+      `${n} ${n === 1 ? 'Fest' : 'Feste'} im Kartenausschnitt`,
+    listArea: (place: string) => `um ${place}`,
+    changeArea: 'Ausschnitt ändern',
+    jumpTo: (place: string) => `Zu ${place} springen`,
     sortedByDate: 'nach Datum',
     runningNow: 'Läuft gerade',
     photo: 'Foto',
@@ -40,10 +43,10 @@ export const strings = {
     zoomOutButton: 'Herauszoomen',
     locate: 'Auf meinen Standort zentrieren',
     cluster: (n: number) => `${n} Feste, zum Vergrößern tippen`,
-    emptyTitle: 'Keine Feste im Umkreis',
-    emptyText: (km: number) =>
-      `Im Umkreis von ${km} km gibt es mit diesen Filtern gerade nichts. Erweitere den Umkreis oder setze die Filter zurück.`,
-    expandRadius: 'Umkreis auf 300 km',
+    emptyTitle: 'Keine Feste in diesem Kartenausschnitt',
+    emptyText:
+      'Hier gibt es mit diesen Filtern gerade nichts. Zoome heraus oder setze die Filter zurück.',
+    zoomOut: 'Herauszoomen',
     resetFilters: 'Filter zurücksetzen',
     noResultsTitle: (q: string) => `Kein Fest für „${q}“`,
     noResultsText: 'Prüfe die Schreibweise oder suche nach einer Stadt.',
@@ -104,14 +107,8 @@ export const strings = {
     monthsHint: 'Monate wählen (mehrere möglich)',
     monthsChip: (n: number) => (n === 1 ? '1 Monat' : `${n} Monate`),
     category: 'Kategorie',
-    distance: 'Entfernung',
-    upTo: (km: number) => `bis ${km} km`,
-    fromLocation: (place: string) => `vom Standort ${place}`,
-    fromLocationUnknown: 'vom Standort',
-    fromMapCenter: 'vom Kartenmittelpunkt',
     reset: 'Zurücksetzen',
     apply: (n: number) => `${n} ${n === 1 ? 'Fest' : 'Feste'} anzeigen`,
     applyEmpty: 'Keine Treffer – trotzdem anwenden',
-    km: (km: number) => `${km} km`,
   },
 } as const;

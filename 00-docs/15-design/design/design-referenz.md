@@ -150,7 +150,7 @@ Die Klammer nennt jeweils den `start`-Wert im Prototyp.
 
 ### 2. Listenansicht (`liste`)
 - Gleicher Header, hier mit deckendem `bg` und unterer Linie.
-- Überschrift „{n} Feste · bis {r} km“ (Serif 22) und rechts „nach Datum“.
+- Überschrift „{n} Feste im Kartenausschnitt“ (Serif 22) und rechts „nach Datum“, darunter „um {Ort}“ und „Ausschnitt ändern“ (Entscheidung 29.09.2026: Kartenausschnitt statt Umkreis).
 - Karten: Bild 160 hoch. Oben links das Badge „● Läuft gerade“ (Amber), oben rechts der Herz-Button (40, `glass`). Darunter Status, Name (Serif 20), „{Zeitraum} · {Ort}“ sowie die Pills für Kategorie und Entfernung.
 - Such- und Filterzustand bleibt beim Wechsel zwischen Karte und Liste erhalten.
 
@@ -158,7 +158,7 @@ Die Klammer nennt jeweils den `start`-Wert im Prototyp.
 - Griff (40 × 5), Titel „Filter“ (Serif 24) und ✕.
 - **Zeitraum:** Chips „Alle Termine“, „Heute“, „Dieses Wochenende“, „Zeitraum wählen“. Bei der letzten Option erscheint ein Raster mit 4 Monaten (Mehrfachauswahl).
 - **Kategorie:** Chips mit Mehrfachauswahl, nur aktive Kategorien in der Reihenfolge der Moderation.
-- **Entfernung:** Schieberegler 10–300 km in 10er-Schritten, Standard 150. Darunter „vom Standort {Ort}“.
+- ~~Entfernung~~: entfällt, eingegrenzt wird durch Zoomen der Karte (Entscheidung 29.09.2026).
 - Fußzeile: „Zurücksetzen“ (unterstrichen) und Primär-Button „{n} Feste anzeigen“ mit Live-Zählung. Bei 0 Treffern lautet er „Keine Treffer – trotzdem anwenden“.
 - Filter werden als Entwurf bearbeitet und erst mit „anwenden“ übernommen.
 
@@ -310,7 +310,7 @@ Die Suche selbst ist ein **Backend-Dienst**. Er bekommt nur eine PLZ, ein KI-Die
 - **„Route starten“:** öffnet die Standard-Karten-App (Apple Maps / Google Maps).
 - **Laden:** Skeleton-Karten im Karussell und in der Liste, Pille „Feste werden geladen …“ auf der Karte. Nach jeder Filteränderung wird neu geladen.
 - **Leere Zustände:**
-  - Keine Feste im Umkreis: „Keine Feste im Umkreis“ mit „Umkreis auf 300 km“ und „Filter zurücksetzen“.
+  - Keine Feste im Ausschnitt: „Keine Feste in diesem Kartenausschnitt“ mit „Herauszoomen“ und „Filter zurücksetzen“.
   - Suche ohne Treffer: „Kein Fest für ‚{q}‘“.
   - Außerdem: noch keine Favoriten, keine Listen, keine Feste in einer Liste, Moderator-Suche ohne Treffer.
 - **Moderation wirkt sofort auf die App:**

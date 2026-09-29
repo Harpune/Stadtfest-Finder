@@ -5,7 +5,7 @@
  */
 import {router} from 'expo-router';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {StyleSheet, View} from 'react-native';
+import {Keyboard, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {
@@ -18,6 +18,7 @@ import {
   FilterSheet,
   LoadingPill,
   MapControls,
+  PlaceSuggestion,
   SearchBar,
   SegmentedToggle,
   Text,
@@ -42,11 +43,11 @@ import {
   activeFilterCount,
   DiscoverFilter,
   effectiveTime,
-  GeoPoint,
   monthOptions,
   pruneMonths,
   toQueryParams,
 } from './filter';
+import {inBbox, roundedDistanceKm, searchArea} from './geo';
 import {HAS_TILE_KEY} from './mapStyle';
 import {
   loadCamera,
@@ -62,14 +63,17 @@ import {
   SEARCH_PAGE_SIZE,
   useCategories,
   useEventCount,
+  useAreaName,
   useEventSearch,
-  usePlaceName,
+  usePlaceSuggestion,
 } from './useDiscoverData';
 import {useUserLocation} from './useUserLocation';
 
 /** Germany center, used without location access and without a stored camera (R03-US1). */
 const GERMANY: StoredCamera = {center: [10.45, 51.16], zoom: 6};
 const DEBOUNCE_MS = 300;
+/** Zoom after "Zu {Ort} springen": a town and its surroundings. */
+const PLACE_ZOOM = 11;
 /** How long the start waits for a first GPS fix before using the fallback camera. */
 const START_FIX_WAIT_MS = 3000;
 const VIEW_OPTIONS = [
@@ -153,21 +157,27 @@ export function DiscoverScreen() {
     [position],
   );
 
-  const reference: GeoPoint | undefined = position ?? debouncedViewport?.center;
-  const params = useMemo(
+  // The visible map area is the only spatial filter (no radius). The search loads a padded,
+  // grid-snapped area so small pans hit the cache; list and carousel show the visible part.
+  const bbox = debouncedViewport?.bbox;
+  const searchParams = useMemo(
     () =>
       toQueryParams(
         pruneMonths(state.filter, today),
-        {bbox: debouncedViewport?.bbox, reference},
+        bbox ? searchArea(bbox) : undefined,
         debouncedQuery,
       ),
-    [state.filter, today, debouncedViewport, reference, debouncedQuery],
+    [state.filter, today, bbox, debouncedQuery],
+  );
+  const countParams = useMemo(
+    () => toQueryParams(pruneMonths(state.filter, today), bbox, debouncedQuery),
+    [state.filter, today, bbox, debouncedQuery],
   );
   const ready = debouncedViewport !== null;
 
   const categories = useCategories();
-  const search = useEventSearch(params, ready);
-  const counts = useEventCount(params, ready);
+  const search = useEventSearch(searchParams, ready);
+  const counts = useEventCount(countParams, ready);
   const categoryOf = useMemo(
     () => buildCategoryLookup(categories.data),
     [categories.data],
@@ -204,8 +214,19 @@ export function DiscoverScreen() {
     // Runs once per new error, not on re-renders with a new toast/retry reference.
   }, [search.isError, search.errorUpdatedAt]);
 
-  const items: EventSummary[] =
-    search.items.length > 0 ? search.items : (offline?.items ?? []);
+  // Distances are computed on the device from the own position, else from the map center.
+  const distanceFrom = position ?? debouncedViewport?.center ?? null;
+  const loadedItems = useMemo<EventSummary[]>(() => {
+    const raw = search.items.length > 0 ? search.items : (offline?.items ?? []);
+    return raw.map(item => ({
+      ...item,
+      distanceKm: distanceFrom ? roundedDistanceKm(distanceFrom, item) : null,
+    }));
+  }, [search.items, offline, distanceFrom]);
+  const items = useMemo(
+    () => (bbox ? loadedItems.filter(item => inBbox(item, bbox)) : loadedItems),
+    [loadedItems, bbox],
+  );
   const loading = !ready || (search.isFetching && !search.isFetchingNextPage);
   const firstLoad = !ready || (search.isPending && items.length === 0);
 
@@ -247,21 +268,10 @@ export function DiscoverScreen() {
   const [draft, setDraft] = useState<DiscoverFilter>(state.filter);
   const debouncedDraft = useDebouncedValue(draft, DEBOUNCE_MS);
   const draftParams = useMemo(
-    () =>
-      toQueryParams(
-        debouncedDraft,
-        {bbox: debouncedViewport?.bbox, reference},
-        debouncedQuery,
-      ),
-    [debouncedDraft, debouncedViewport, reference, debouncedQuery],
+    () => toQueryParams(debouncedDraft, bbox, debouncedQuery),
+    [debouncedDraft, bbox, debouncedQuery],
   );
   const draftCount = useEventCount(draftParams, sheetOpen && ready);
-  const placeName = usePlaceName(position);
-  const originCaption = position
-    ? placeName.data
-      ? strings.filter.fromLocation(placeName.data.city)
-      : strings.filter.fromLocationUnknown
-    : strings.filter.fromMapCenter;
   const months = useMemo(() => monthOptions(today), [today]);
 
   // ---- empty states ---------------------------------------------------------------------
@@ -284,17 +294,14 @@ export function DiscoverScreen() {
           },
         }
       : {
-          testID: 'discover.empty.radius',
+          testID: 'discover.empty.area',
           title: strings.discover.emptyTitle,
-          text: strings.discover.emptyText(state.filter.radiusKm),
-          primary:
-            state.filter.radiusKm < 300
-              ? {
-                  label: strings.discover.expandRadius,
-                  onPress: () => dispatch({type: 'expandRadius'}),
-                  testID: 'discover.empty.expand',
-                }
-              : undefined,
+          text: strings.discover.emptyText,
+          primary: {
+            label: strings.discover.zoomOut,
+            onPress: () => mapRef.current?.zoomBy(-2),
+            testID: 'discover.empty.zoomOut',
+          },
           secondary: {
             label: strings.discover.resetFilters,
             onPress: resetAll,
@@ -316,12 +323,24 @@ export function DiscoverScreen() {
         ? strings.discover.zoomIn
         : null;
 
+  // ---- list header and place suggestion ------------------------------------------------
+  const isListView = state.view === 'list';
+  const areaName = useAreaName(debouncedViewport?.center ?? null, isListView);
+  const place = usePlaceSuggestion(state.query.trim() ? debouncedQuery : '');
+  const jumpToPlace = () => {
+    if (!place) return;
+    Keyboard.dismiss();
+    mapRef.current?.flyTo({lat: place.lat, lon: place.lon}, PLACE_ZOOM);
+    // The search text named the place, not an event: show all events there.
+    dispatch({type: 'setQuery', query: ''});
+  };
+
   // ---- layout -----------------------------------------------------------------------------
   const isList = state.view === 'list';
   const headerTop = insets.top + 8;
   const toggleBottom = insets.bottom + 6;
   const carouselBottom = toggleBottom + 48 + 10;
-  const headerHeight = 50 + 12 + 50;
+  const headerHeight = 50 + 12 + 50 + (place ? 52 : 0);
 
   return (
     <View
@@ -336,7 +355,7 @@ export function DiscoverScreen() {
             lat: startCamera.center[1],
           }}
           initialZoom={startCamera.zoom}
-          items={items}
+          items={loadedItems}
           selectedId={state.selectedEventId}
           categoryOf={categoryOf}
           showUserLocation={position !== null}
@@ -351,7 +370,8 @@ export function DiscoverScreen() {
           <EventList
             items={items}
             total={counts.data?.total}
-            radiusKm={state.filter.radiusKm}
+            areaName={areaName.data?.city}
+            onChangeArea={() => dispatch({type: 'setView', view: 'map'})}
             today={today}
             categoryOf={categoryOf}
             loading={firstLoad}
@@ -467,6 +487,15 @@ export function DiscoverScreen() {
             testID="discover.profile"
           />
         </View>
+        {place ? (
+          <View style={styles.suggestion}>
+            <PlaceSuggestion
+              label={strings.discover.jumpTo(place.label)}
+              onPress={jumpToPlace}
+              testID="discover.place.jump"
+            />
+          </View>
+        ) : null}
         <ChipRow testID="discover.chips">
           <Chip
             label={timeChipLabel(state.filter)}
@@ -508,7 +537,6 @@ export function DiscoverScreen() {
         filter={state.filter}
         categories={categories.data ?? []}
         monthOptions={months}
-        originCaption={originCaption}
         previewCount={draftCount.data?.total}
         previewLoading={draftCount.isFetching}
         onDraftChange={setDraft}
@@ -539,6 +567,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   bottom: {position: 'absolute', left: 0, right: 0},
+  suggestion: {paddingHorizontal: 16},
   emptyWrap: {paddingHorizontal: 16},
   pill: {position: 'absolute', left: 0, right: 0, alignItems: 'center'},
   toggle: {position: 'absolute', left: 0, right: 0, alignItems: 'center'},

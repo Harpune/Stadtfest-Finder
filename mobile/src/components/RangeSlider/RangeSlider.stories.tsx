@@ -13,12 +13,15 @@ const meta = {
   title: 'Filter/RangeSlider',
   component: RangeSlider,
   args: {
-    value: 150,
+    label: 'Radius',
+    formatValue: (v: number) => `bis ${v} km`,
+    unit: 'km',
+    value: 25,
     onChange: fn(),
-    min: 10,
-    max: 300,
-    step: 10,
-    caption: 'vom Standort Aalen',
+    min: 5,
+    max: 150,
+    step: 5,
+    caption: 'um Aalen',
     testID: 'story.radius',
   },
   render: args => <Stateful {...args} />,
@@ -28,7 +31,5 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
-export const MapCenter: Story = {
-  args: {caption: 'vom Kartenmittelpunkt', value: 10},
-};
+export const Minimum: Story = {args: {value: 5}};
 export const Disabled: Story = {args: {disabled: true}};

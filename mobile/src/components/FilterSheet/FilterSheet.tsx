@@ -4,9 +4,6 @@ import {Pressable, StyleSheet, View} from 'react-native';
 import {
   DEFAULT_FILTER,
   DiscoverFilter,
-  MAX_RADIUS_KM,
-  MIN_RADIUS_KM,
-  RADIUS_STEP_KM,
   TimeKind,
   toggleValue,
 } from '@/features/discover/filter';
@@ -16,7 +13,6 @@ import {BottomSheet} from '../BottomSheet/BottomSheet';
 import {Button} from '../Button/Button';
 import {Chip} from '../Chip/Chip';
 import {MonthGrid, MonthGridOption} from '../MonthGrid/MonthGrid';
-import {RangeSlider} from '../RangeSlider/RangeSlider';
 import {Text} from '../Text/Text';
 
 export interface FilterSheetCategory {
@@ -31,8 +27,6 @@ export interface FilterSheetProps {
   filter: DiscoverFilter;
   categories: readonly FilterSheetCategory[];
   monthOptions: readonly MonthGridOption[];
-  /** "vom Standort Aalen" or "vom Kartenmittelpunkt". */
-  originCaption: string;
   /** Live count for the draft (`/v1/events/count`); undefined while unknown. */
   previewCount: number | undefined;
   previewLoading?: boolean;
@@ -48,13 +42,15 @@ const TIME_OPTIONS: {kind: TimeKind; label: string}[] = [
   {kind: 'months', label: strings.filter.timeMonths},
 ];
 
-/** Filter sheet (screens 01-05/01-06): time, categories, distance; applied only on confirm. */
+/**
+ * Filter sheet (screens 01-05/01-06): time and categories, applied only on confirm. The map
+ * area is narrowed by zooming, there is no distance filter.
+ */
 export function FilterSheet({
   visible,
   filter,
   categories,
   monthOptions,
-  originCaption,
   previewCount,
   previewLoading = false,
   onDraftChange,
@@ -156,16 +152,6 @@ export function FilterSheet({
           ))}
         </View>
       </View>
-
-      <RangeSlider
-        value={draft.radiusKm}
-        onChange={radiusKm => update({radiusKm})}
-        min={MIN_RADIUS_KM}
-        max={MAX_RADIUS_KM}
-        step={RADIUS_STEP_KM}
-        caption={originCaption}
-        testID="filter.radius"
-      />
     </BottomSheet>
   );
 }

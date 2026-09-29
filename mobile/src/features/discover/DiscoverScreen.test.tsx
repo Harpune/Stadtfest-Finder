@@ -119,13 +119,17 @@ describe('Discover screen', () => {
       /Stadtfest\s*1/,
     );
 
+    // The search loads a padded, grid-snapped area; the count uses the visible area.
     const search = requests.find(r => r.pathname === '/v1/events');
-    expect(search?.searchParams.get('bbox')).toBe('9.6,48.6,10.6,49.1');
+    expect(search?.searchParams.get('bbox')).toBe('9,48,11,49.5');
+    const count = requests.find(r => r.pathname === '/v1/events/count');
+    expect(count?.searchParams.get('bbox')).toBe('9.6,48.6,10.6,49.1');
     // The first page has no cursor (regression: `cursor=0` was rejected with 422).
     expect(search?.searchParams.get('cursor')).toBeNull();
     expect(search?.searchParams.get('limit')).toBe('500');
-    // Without location access the distance refers to the map center.
-    expect(search?.searchParams.get('lat')).toBe('48.84');
+    // No position and no radius are sent; distances are computed on the device.
+    expect(search?.searchParams.get('lat')).toBeNull();
+    expect(search?.searchParams.get('radiusKm')).toBeNull();
   });
 
   it('keeps data when switching to the list and back without reloading', async () => {
@@ -135,12 +139,15 @@ describe('Discover screen', () => {
     await waitFor(() =>
       expect(screen.getByText('Reichsstädter Tage')).toBeOnTheScreen(),
     );
-    const before = requests.length;
+    // Only event requests count: the list additionally loads the area name.
+    const eventRequests = () =>
+      requests.filter(r => r.pathname.startsWith('/v1/events')).length;
+    const before = eventRequests();
 
     await fireEvent.press(screen.getByTestId('discover.toggle.list'));
-    expect(screen.getByText('1 Fest · bis 150 km')).toBeOnTheScreen();
+    expect(screen.getByText('1 Fest im Kartenausschnitt')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('discover.toggle.map'));
-    expect(requests.length).toBe(before);
+    expect(eventRequests()).toBe(before);
   });
 
   it('filters by category chip', async () => {
@@ -162,19 +169,72 @@ describe('Discover screen', () => {
     );
   });
 
-  it('shows the empty state and resets filter and search', async () => {
+  it('offers zooming out when the map area has no events', async () => {
+    const camera = (
+      globalThis as unknown as {mockCameraApi: {zoomTo: jest.Mock}}
+    ).mockCameraApi;
+    camera.zoomTo.mockClear();
     mockApi(api([]));
     await renderScreen();
     await settle();
     await waitFor(() =>
-      expect(screen.getByText('Keine Feste im Umkreis')).toBeOnTheScreen(),
+      expect(
+        screen.getByText('Keine Feste in diesem Kartenausschnitt'),
+      ).toBeOnTheScreen(),
     );
-    await fireEvent.press(screen.getByTestId('discover.empty.expand'));
+    await fireEvent.press(screen.getByTestId('discover.empty.zoomOut'));
+    expect(camera.zoomTo).toHaveBeenCalledWith(8, expect.anything());
+  });
+
+  it('hides events outside the visible area from the carousel', async () => {
+    const outside = {
+      ...EVENT,
+      id: 'e2',
+      name: 'Ulmer Donaufest',
+      lat: 48.4,
+      lon: 9.99,
+    };
+    mockApi(api([EVENT, outside]));
+    await renderScreen();
     await settle();
     await waitFor(() =>
-      expect(requests.some(r => r.searchParams.get('radiusKm') === '300')).toBe(
-        true,
-      ),
+      expect(screen.getByText('Reichsstädter Tage')).toBeOnTheScreen(),
+    );
+    expect(screen.queryByText('Ulmer Donaufest')).toBeNull();
+  });
+
+  it('suggests jumping to a place found by the search text', async () => {
+    const camera = (
+      globalThis as unknown as {mockCameraApi: {flyTo: jest.Mock}}
+    ).mockCameraApi;
+    camera.flyTo.mockClear();
+    mockApi(url =>
+      url.pathname === '/v1/geocode'
+        ? {
+            status: 200,
+            body: [
+              {
+                label: '89073 Ulm',
+                postalCode: '89073',
+                city: 'Ulm',
+                lat: 48.4,
+                lon: 9.99,
+                kind: 'postcode',
+              },
+            ],
+          }
+        : api([])(url),
+    );
+    await renderScreen();
+    await fireEvent.changeText(
+      screen.getByTestId('discover.search.input'),
+      'Ulm',
+    );
+    await settle();
+    await fireEvent.press(await screen.findByTestId('discover.place.jump'));
+    expect(screen.getByTestId('discover.search.input')).toHaveDisplayValue('');
+    expect(camera.flyTo).toHaveBeenCalledWith(
+      expect.objectContaining({center: [9.99, 48.4], zoom: 11}),
     );
   });
 

@@ -1,6 +1,9 @@
 /**
  * Discover filters (R03-US6/US7): model, defaults, active-filter count, month grid and the
  * mapping to the query parameters of `GET /v1/events` and `/v1/events/count`.
+ *
+ * There is no radius: the visible map area (viewport) is the only spatial restriction. The
+ * user narrows the area by zooming (decision 29.09.2026).
  */
 import type {operations} from '@/api/generated/schema';
 
@@ -13,20 +16,14 @@ export interface DiscoverFilter {
   /** Selected months `YYYY-MM`; only used for `time === 'months'`. */
   months: string[];
   categoryIds: string[];
-  radiusKm: number;
 }
 
-export const MIN_RADIUS_KM = 10;
-export const MAX_RADIUS_KM = 300;
-export const RADIUS_STEP_KM = 10;
-export const DEFAULT_RADIUS_KM = 150;
 export const MONTH_GRID_SIZE = 12;
 
 export const DEFAULT_FILTER: DiscoverFilter = {
   time: 'all',
   months: [],
   categoryIds: [],
-  radiusKm: DEFAULT_RADIUS_KM,
 };
 
 /** "Zeitraum wählen" without a month behaves like "Alle Termine". */
@@ -36,13 +33,9 @@ export function effectiveTime(filter: DiscoverFilter): TimeKind {
     : filter.time;
 }
 
-/** Badge count on the filter button: time (1) + each category + radius (1). */
+/** Badge count on the filter button: time (1) + each category. */
 export function activeFilterCount(filter: DiscoverFilter): number {
-  return (
-    (effectiveTime(filter) !== 'all' ? 1 : 0) +
-    filter.categoryIds.length +
-    (filter.radiusKm !== DEFAULT_RADIUS_KM ? 1 : 0)
-  );
+  return (effectiveTime(filter) !== 'all' ? 1 : 0) + filter.categoryIds.length;
 }
 
 export function toggleValue(values: string[], value: string): string[] {
@@ -63,11 +56,6 @@ export function pruneCategories(
   return kept.length === filter.categoryIds.length
     ? filter
     : {...filter, categoryIds: kept};
-}
-
-export function clampRadius(km: number): number {
-  const stepped = Math.round(km / RADIUS_STEP_KM) * RADIUS_STEP_KM;
-  return Math.min(MAX_RADIUS_KM, Math.max(MIN_RADIUS_KM, stepped));
 }
 
 export interface MonthOption {
@@ -118,39 +106,29 @@ export interface GeoPoint {
   lon: number;
 }
 
-/** Where to search: map viewport plus the distance reference (location or map center). */
-export interface SearchArea {
-  bbox?: Bbox;
-  reference?: GeoPoint;
-}
-
 type CountQuery = NonNullable<operations['countEvents']['parameters']['query']>;
 
 const round = (value: number, decimals: number) =>
   Math.round(value * 10 ** decimals) / 10 ** decimals;
 
 /**
- * Query parameters shared by search and count. Coordinates are rounded (bbox ~100 m,
- * reference ~1 km) so small map movements hit the same cache entry and exact positions are
- * never sent.
+ * Query parameters shared by search and count: filters and the map area. No position is
+ * sent; distances are computed on the device (`geo.ts`).
  */
 export function toQueryParams(
   filter: DiscoverFilter,
-  area: SearchArea,
+  bbox: Bbox | undefined,
   query: string,
 ): CountQuery {
-  const params: CountQuery = {radiusKm: filter.radiusKm};
+  const params: CountQuery = {};
   const time = effectiveTime(filter);
   if (time !== 'all') params.when = time;
   if (time === 'months') params.months = [...filter.months].sort();
-  if (filter.categoryIds.length > 0)
+  if (filter.categoryIds.length > 0) {
     params.categories = [...filter.categoryIds].sort();
+  }
   const text = query.trim();
   if (text.length >= 2) params.q = text;
-  if (area.bbox) params.bbox = area.bbox.map(v => round(v, 3));
-  if (area.reference) {
-    params.lat = round(area.reference.lat, 2);
-    params.lon = round(area.reference.lon, 2);
-  }
+  if (bbox) params.bbox = bbox.map(v => round(v, 4));
   return params;
 }

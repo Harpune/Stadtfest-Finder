@@ -41,6 +41,7 @@ import {useAuth} from '../auth/AuthProvider';
 import {buildCategoryLookup} from '../discover/categoryLookup';
 import {offlineStyle} from '../discover/mapStyle';
 import {useCategories} from '../discover/useDiscoverData';
+import {roundedDistanceKm} from '../discover/geo';
 import {useTileStyle} from '../discover/useTileStyle';
 import {
   formatDateRange,
@@ -49,6 +50,7 @@ import {
   todayInBerlin,
 } from '../events/dates';
 import {eventStatus} from '../events/status';
+import {useDevicePosition} from '../events/useDevicePosition';
 import {displayHost, eventShareUrl, mapsRouteUrl, safeWebUrl} from './links';
 import {useEventDetail} from './useEventDetail';
 
@@ -70,6 +72,7 @@ export function EventDetailScreen({eventId}: {eventId: string}) {
     useEventDetail(eventId);
   const categories = useCategories();
   const tileStyle = useTileStyle(theme.scheme);
+  const position = useDevicePosition();
   const today = todayInBerlin();
 
   if (notFound) {
@@ -99,7 +102,9 @@ export function EventDetailScreen({eventId}: {eventId: string}) {
     detail?.category ?? (summary ? categoryOf(summary.categoryId) : undefined);
   const status = base ? eventStatus(base, today) : undefined;
   const cancelled = base?.status === 'cancelled';
-  const distanceKm = detail?.distanceKm ?? summary?.distanceKm;
+  // Distance only with location access, computed on the device (no position is sent).
+  const distanceKm =
+    position && base ? roundedDistanceKm(position, base) : undefined;
   const websiteUrl = safeWebUrl(detail?.websiteUrl);
 
   const openRoute = async () => {
