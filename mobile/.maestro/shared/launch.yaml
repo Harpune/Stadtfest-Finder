@@ -1,0 +1,18 @@
+# Starts the app and, for development builds, connects the dev client to the local Metro
+# (http://localhost:8081). Release builds ignore the deep link and start directly.
+appId: de.stadtfestfinder.app
+---
+- launchApp:
+    clearState: true
+    permissions:
+      location: ${LOCATION}
+- openLink: de.stadtfestfinder.app://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081
+- runFlow:
+    when:
+      visible: 'Öffnen|Open'
+    commands:
+      - tapOn: 'Öffnen|Open'
+- extendedWaitUntil:
+    visible:
+      id: discover.screen
+    timeout: 60000

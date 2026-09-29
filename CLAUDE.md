@@ -252,7 +252,8 @@ Tools are thin adapters: parse input, call the use case, map the result. No busi
   can target it. Do not change existing `testID`s without updating the flows.
 - API access only through the generated client + TanStack Query hooks.
 - Auth only via OIDC + PKCE against the IdP; store tokens in secure storage only.
-- Map: MapLibre with OSM-based vector tiles; no Google Maps SDK.
+- Map: MapLibre with OSM-based vector tiles from MapTiler Cloud (ADR 0009, key via
+  `EXPO_PUBLIC_MAPTILER_KEY`; without a key an offline background style is used); no Google Maps SDK.
 - Push: register the token matching `PUSH_PROVIDER` via the API (Expo push token for
   `expo`, native device token via `getDevicePushTokenAsync` for `direct`); handle
   invitation and reminder notifications by ID and fetch details from the API.
