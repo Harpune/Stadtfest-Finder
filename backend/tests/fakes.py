@@ -6,7 +6,7 @@ import copy
 import json
 from dataclasses import dataclass, field
 from datetime import date
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from stadtfest.application.events.criteria import PageCursor, SearchCriteria
 from stadtfest.application.events.views import (
@@ -16,6 +16,14 @@ from stadtfest.application.events.views import (
     EventSummaryView,
 )
 from stadtfest.application.geocoding.ports import GeocodingUnavailableError, Place
+from stadtfest.application.identity.ports import (
+    Claims,
+    IdpUnavailableError,
+    InvalidTokenError,
+    JobQueueUnavailableError,
+    RegionRecord,
+    UserRecord,
+)
 from stadtfest.application.shared.ports import JsonValue
 from stadtfest.domain.events.geo import GeoPoint
 
@@ -105,3 +113,70 @@ class FakeGeocoding:
         if self.unavailable:
             raise GeocodingUnavailableError
         return self.reverse_result
+
+
+@dataclass
+class FakeUserRepository:
+    users: dict[str, UserRecord] = field(default_factory=dict)
+    deleted: list[str] = field(default_factory=list)
+
+    async def get_or_create(self, subject: str, first_name: str, last_name: str) -> UserRecord:
+        if subject not in self.users:
+            self.users[subject] = UserRecord(uuid4(), first_name, last_name)
+        return self.users[subject]
+
+    async def update_name(self, subject: str, first_name: str, last_name: str) -> UserRecord | None:
+        existing = self.users.get(subject)
+        if existing is None:
+            return None
+        self.users[subject] = UserRecord(existing.id, first_name, last_name)
+        return self.users[subject]
+
+    async def delete_personal_data(self, subject: str) -> bool:
+        self.deleted.append(subject)
+        return self.users.pop(subject, None) is not None
+
+
+@dataclass
+class FakeRegionDirectory:
+    regions: dict[str, RegionRecord] = field(default_factory=dict)
+
+    async def get_by_key(self, key: str) -> RegionRecord | None:
+        return self.regions.get(key)
+
+
+@dataclass
+class FakeIdpAdmin:
+    unavailable: bool = False
+    deleted: list[str] = field(default_factory=list)
+
+    async def delete_user(self, subject: str) -> None:
+        if self.unavailable:
+            raise IdpUnavailableError
+        self.deleted.append(subject)
+
+
+@dataclass
+class FakeAccountJobs:
+    unavailable: bool = False
+    enqueued: list[str] = field(default_factory=list)
+
+    async def enqueue_idp_deletion(self, subject: str) -> None:
+        if self.unavailable:
+            raise JobQueueUnavailableError
+        self.enqueued.append(subject)
+
+
+@dataclass
+class FakeTokenVerifier:
+    """Maps opaque test tokens to claims; unknown tokens are invalid."""
+
+    tokens: dict[str, dict[str, object]] = field(default_factory=dict)
+    unavailable: bool = False
+
+    async def verify(self, token: str) -> Claims:
+        if self.unavailable:
+            raise IdpUnavailableError
+        if token not in self.tokens:
+            raise InvalidTokenError
+        return self.tokens[token]

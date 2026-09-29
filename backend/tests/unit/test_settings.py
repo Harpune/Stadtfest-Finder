@@ -36,6 +36,7 @@ def test_valid_environment_loads(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("NOMINATIM_URL", "http://nominatim:8080")
     # `make` exports the local .env (often GEOCODING_PROVIDER=fake) into the environment.
     monkeypatch.delenv("GEOCODING_PROVIDER", raising=False)
+    _set_prod_auth(monkeypatch)
 
     settings = load_settings()
 
@@ -63,3 +64,62 @@ def test_nominatim_requires_url(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(SettingsError, match="NOMINATIM_URL"):
         load_settings()
+
+
+def _set_prod_auth(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AUTH_ISSUER", "https://stadtfest.eu1.zitadel.cloud")
+    monkeypatch.setenv("IDP_ADMIN_PROVIDER", "zitadel")
+    monkeypatch.setenv("IDP_ADMIN_TOKEN", "pat-value")
+    for name in ("IDP_ADMIN_CLIENT_ID", "IDP_ADMIN_CLIENT_SECRET", "AUTH_JWKS_URL"):
+        monkeypatch.delenv(name, raising=False)
+
+
+def _prod(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir("/")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/db")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.setenv("ENV", "prod")
+    monkeypatch.setenv("GEOCODING_PROVIDER", "nominatim")
+    monkeypatch.setenv("NOMINATIM_URL", "http://nominatim:8080")
+    _set_prod_auth(monkeypatch)
+
+
+def test_http_issuer_is_rejected_in_prod(monkeypatch: pytest.MonkeyPatch) -> None:
+    _prod(monkeypatch)
+    monkeypatch.setenv("AUTH_ISSUER", "http://zitadel.local")
+
+    with pytest.raises(SettingsError) as exc_info:
+        load_settings()
+
+    assert "AUTH_ISSUER" in str(exc_info.value)
+
+
+def test_fake_idp_admin_is_rejected_in_prod(monkeypatch: pytest.MonkeyPatch) -> None:
+    _prod(monkeypatch)
+    monkeypatch.setenv("IDP_ADMIN_PROVIDER", "fake")
+
+    with pytest.raises(SettingsError) as exc_info:
+        load_settings()
+
+    assert "IDP_ADMIN_PROVIDER" in str(exc_info.value)
+
+
+def test_idp_admin_credentials_are_required(monkeypatch: pytest.MonkeyPatch) -> None:
+    _prod(monkeypatch)
+    monkeypatch.delenv("IDP_ADMIN_TOKEN")
+
+    with pytest.raises(SettingsError) as exc_info:
+        load_settings()
+
+    assert "IDP_ADMIN_TOKEN" in str(exc_info.value)
+    assert "pat-value" not in str(exc_info.value)
+
+
+def test_keycloak_admin_needs_client_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    _prod(monkeypatch)
+    monkeypatch.setenv("IDP_ADMIN_PROVIDER", "keycloak")
+
+    with pytest.raises(SettingsError) as exc_info:
+        load_settings()
+
+    assert "IDP_ADMIN_CLIENT_SECRET" in str(exc_info.value)

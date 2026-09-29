@@ -40,6 +40,19 @@ class RegionRow(Base):
     postal_codes: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
 
 
+class AppUserRow(Base):
+    """Table `app_user` (R05). No email address and no provider list (E-08)."""
+
+    __tablename__ = "app_user"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    idp_subject: Mapped[str] = mapped_column(unique=True)
+    first_name: Mapped[str] = mapped_column(default="")
+    last_name: Mapped[str] = mapped_column(default="")
+    created_at: Mapped[datetime] = mapped_column(server_default="now()")
+    updated_at: Mapped[datetime] = mapped_column(server_default="now()")
+
+
 class EventRow(Base):
     """Table `event`."""
 
