@@ -16,3 +16,6 @@
 | IP-Adressen | API (Transport) | nicht geloggt (Uvicorn-Access-Log aus, eigener Request-Log ohne IP), nur gehasht und 2 s lang für Rate-Limits (Nr. 3) |
 | Query-Parameter (z. B. `lat`, `lon`, `q`) | API | aus Logs entfernt (`bootstrap/logging.py`, Test `test_logging.py`) |
 | Tokens | API | nie geloggt |
+| Eigener Standort (App) | Gerät | nie gespeichert, weder lokal noch im Backend; nur gerundet (~1 km) als Query-Parameter an `/v1/events*`, für den Ortsnamen einmal pro Sitzung auf ~1 km gerundet an `/v1/geocode/reverse` |
+| Letzter Kartenausschnitt (App) | Gerät (AsyncStorage) | nur **ohne** Standortfreigabe gespeichert (dann ist er nicht die eigene Position), auf 2 Nachkommastellen gerundet; Startansicht beim nächsten Öffnen (R03-US1) |
+| Letztes Suchergebnis (App) | Gerät (AsyncStorage) | nur öffentliche Festdaten und Zeitpunkt, keine Position; Offline-Lesen (R03-US8) |

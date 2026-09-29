@@ -2,10 +2,10 @@
  * Data hooks of the discover screen, built on the generated API hooks (`$api`).
  * Map and list use the same search query, so switching views never reloads.
  */
-import {keepPreviousData} from '@tanstack/react-query';
+import {keepPreviousData, useInfiniteQuery} from '@tanstack/react-query';
 import {useMemo} from 'react';
 
-import {$api} from '@/api/client';
+import {$api, fetchClient} from '@/api/client';
 import type {components} from '@/api/generated/schema';
 
 import type {GeoPoint} from './filter';
@@ -28,21 +28,28 @@ export function useCategories() {
   });
 }
 
-/** Event search for map and list, paged via `cursor` (endless scrolling in the list). */
+/**
+ * Event search for map and list, paged via `cursor` (endless scrolling in the list).
+ * Built on TanStack directly: openapi-react-query would send `cursor=0` on the first page.
+ */
 export function useEventSearch(params: CountParams, enabled = true) {
-  const query = $api.useInfiniteQuery(
-    'get',
-    '/v1/events',
-    {params: {query: {...params, limit: SEARCH_PAGE_SIZE}}},
-    {
-      enabled,
-      pageParamName: 'cursor',
-      initialPageParam: undefined,
-      getNextPageParam: page => page.nextCursor ?? undefined,
-      // Markers stay on the map until the answer for the new viewport arrives (R03-US2).
-      placeholderData: keepPreviousData,
+  const query = useInfiniteQuery({
+    queryKey: ['get', '/v1/events', params] as const,
+    enabled,
+    initialPageParam: null as string | null,
+    queryFn: async ({pageParam, signal}) => {
+      const cursor = pageParam ? {cursor: pageParam} : {};
+      const {data, error} = await fetchClient.GET('/v1/events', {
+        params: {query: {...params, limit: SEARCH_PAGE_SIZE, ...cursor}},
+        signal,
+      });
+      if (error) throw error;
+      return data;
     },
-  );
+    getNextPageParam: page => page.nextCursor ?? null,
+    // Markers stay on the map until the answer for the new viewport arrives (R03-US2).
+    placeholderData: keepPreviousData,
+  });
   const items = useMemo<EventSummary[]>(
     () => query.data?.pages.flatMap(page => page.items) ?? [],
     [query.data],

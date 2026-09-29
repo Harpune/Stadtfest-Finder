@@ -1,12 +1,12 @@
-# Smoke test: the app starts and shows the start screen.
+# Smoke test: the app starts on the discover screen (map + toggle).
 appId: de.stadtfestfinder.app
 name: Smoke – App startet
 ---
-- launchApp:
-    clearState: true
+- runFlow:
+    file: shared/launch.yaml
+    env:
+      LOCATION: never
 - assertVisible:
-    id: start.title
-- tapOn:
-    id: start.discover
+    id: discover.search.input
 - assertVisible:
-    id: toast
+    id: discover.toggle

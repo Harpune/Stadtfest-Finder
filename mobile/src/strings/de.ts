@@ -27,6 +27,7 @@ export const strings = {
     loadFailed: 'Feste konnten nicht geladen werden',
     offline: (time: string) => `Offline · zuletzt geladen um ${time}`,
     zoomIn: 'Zoome hinein, um alle Feste zu sehen',
+    attribution: '© MapTiler © OpenStreetMap-Mitwirkende',
     map: 'Karte',
     list: 'Liste',
     listHeader: (n: number, km: number) =>

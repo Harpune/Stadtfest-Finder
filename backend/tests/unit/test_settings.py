@@ -34,6 +34,8 @@ def test_valid_environment_loads(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
     monkeypatch.setenv("ENV", "prod")
     monkeypatch.setenv("NOMINATIM_URL", "http://nominatim:8080")
+    # `make` exports the local .env (often GEOCODING_PROVIDER=fake) into the environment.
+    monkeypatch.delenv("GEOCODING_PROVIDER", raising=False)
 
     settings = load_settings()
 

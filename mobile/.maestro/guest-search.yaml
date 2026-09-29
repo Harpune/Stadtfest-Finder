@@ -1,0 +1,60 @@
+# Guest search (R03): requires the local stack with `make seed` and a running Metro.
+# Location is set to Aalen; IDs are the deterministic seed IDs (seed/catalog.py).
+appId: de.stadtfestfinder.app
+name: Gastsuche – Karte, Chip, Filter, Liste, Suche
+env:
+  STADTFEST_CATEGORY: a991ee9e-506b-5afc-a7ed-bd282ec0c87b # "Stadtfest"
+---
+- setLocation:
+    latitude: 48.8375
+    longitude: 10.0933
+- runFlow:
+    file: shared/launch.yaml
+    env:
+      LOCATION: inuse
+- extendedWaitUntil:
+    visible:
+      id: discover.carousel
+    timeout: 30000
+
+# Category chip (multi-select), counter on the filter button
+- tapOn:
+    id: discover.chip.${STADTFEST_CATEGORY}
+- assertVisible:
+    id: discover.filter.open.badge
+
+# Filter sheet: "Heute" and apply
+- tapOn:
+    id: discover.filter.open
+- assertVisible:
+    id: filter.sheet
+- tapOn:
+    id: filter.time.today
+- tapOn:
+    id: filter.apply
+- assertNotVisible:
+    id: filter.sheet
+- assertVisible: 'Heute'
+
+# List keeps search and filter
+- tapOn:
+    id: discover.toggle.list
+- assertVisible:
+    id: discover.list.header
+
+# Search without results, then reset filter and search
+- tapOn:
+    id: discover.search.input
+- inputText: Zzyzxfest
+- extendedWaitUntil:
+    visible: 'Kein Fest für „Zzyzxfest“'
+    timeout: 10000
+- hideKeyboard
+- tapOn:
+    id: discover.empty.reset
+- extendedWaitUntil:
+    visible:
+      id: discover.list.header
+    timeout: 10000
+- assertNotVisible:
+    id: discover.filter.open.badge

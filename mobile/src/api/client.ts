@@ -16,6 +16,8 @@ export const fetchClient = createFetchClient<paths>({
   baseUrl: API_BASE_URL,
   // The spec uses `style: form, explode: false` for arrays: `bbox=1,2,3,4`.
   querySerializer: {array: {style: 'form', explode: false}},
+  // Resolve fetch per call (not at import) so tests can replace it.
+  fetch: request => globalThis.fetch(request),
 });
 
 /** Typed TanStack Query hooks, e.g. `$api.useQuery('get', '/v1/health/live')`. */

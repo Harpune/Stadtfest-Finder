@@ -1,10 +1,18 @@
 import React from 'react';
 import {StyleProp, StyleSheet, View, ViewStyle} from 'react-native';
-import Svg, {Defs, Line, Pattern, Rect} from 'react-native-svg';
+import Svg, {Line} from 'react-native-svg';
 
 import {useTheme} from '@/theme';
 
 import {Text} from '../Text/Text';
+
+// Diagonal stripes (135°, 10 px). Drawn as lines: react-native-svg ignores patternTransform.
+const STRIPE_WIDTH = 10;
+const STRIPE_EXTENT = 600; // covers the largest placeholder; the view clips the rest
+const STRIPES = Array.from(
+  {length: Math.ceil((2 * STRIPE_EXTENT) / (STRIPE_WIDTH * 2 * Math.SQRT2))},
+  (_, i) => -STRIPE_EXTENT + i * STRIPE_WIDTH * 2 * Math.SQRT2,
+);
 
 export interface ImagePlaceholderProps {
   /** Caption bottom left, e.g. "Foto" or "Festfoto". */
@@ -32,26 +40,17 @@ export function ImagePlaceholder({
       ]}
     >
       <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
-        <Defs>
-          <Pattern
-            id="stripes"
-            patternUnits="userSpaceOnUse"
-            width={20}
-            height={20}
-            patternTransform="rotate(45)"
-          >
-            <Rect width={20} height={20} fill={c.placeholderB} />
-            <Line
-              x1={0}
-              y1={0}
-              x2={0}
-              y2={20}
-              stroke={c.placeholderA}
-              strokeWidth={20}
-            />
-          </Pattern>
-        </Defs>
-        <Rect width="100%" height="100%" fill="url(#stripes)" />
+        {STRIPES.map(offset => (
+          <Line
+            key={offset}
+            x1={offset}
+            y1={STRIPE_EXTENT}
+            x2={offset + STRIPE_EXTENT}
+            y2={0}
+            stroke={c.placeholderA}
+            strokeWidth={STRIPE_WIDTH}
+          />
+        ))}
       </Svg>
       <Text
         variant="caption"
