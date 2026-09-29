@@ -13,7 +13,7 @@
 | Karte | Karte lädt | Liste | Liste lädt |
 |---|---|---|---|
 | <img src="../screenshots/01-01-karte.png" width="200"> | <img src="../screenshots/01-02-karte-laden.png" width="200"> | <img src="../screenshots/01-03-liste.png" width="200"> | <img src="../screenshots/01-04-liste-laden.png" width="200"> |
-| **Filter** | **Filter: Zeitraum wählen** | **Keine Feste im Umkreis** | **Suche ohne Treffer** |
+| **Filter** | **Filter: Zeitraum wählen** | **Keine Feste im Ausschnitt** (Screenshot noch mit Umkreis) | **Suche ohne Treffer** |
 | <img src="../screenshots/01-05-filter.png" width="200"> | <img src="../screenshots/01-06-filter-zeitraum.png" width="200"> | <img src="../screenshots/01-07-keine-feste-im-umkreis.png" width="200"> | <img src="../screenshots/01-08-suche-ohne-treffer.png" width="200"> |
 | **Hellmodus** | | | |
 | <img src="../screenshots/01-09-karte-hell.png" width="200"> | | | |
@@ -28,7 +28,7 @@ flowchart TD
   LOC & FB --> Q[GET /v1/categories<br/>GET /v1/events …]
   Q -->|lädt| SK[Skeleton + „Feste werden geladen …“]
   Q -->|Treffer| K[Karte mit Markern, Clustern, Karussell]
-  Q -->|0 Treffer| LE[Leerzustand + „Umkreis auf 300 km“]
+  Q -->|0 Treffer| LE[Leerzustand + „Herauszoomen“]
   K <-->|Toggle| L[Liste]
   K -->|Karte verschieben / zoomen| Q
   K -->|Chip| Q
@@ -54,13 +54,14 @@ flowchart TD
 | 8 | 01-01 | Text in die Suche eingeben | Filtert nach Name oder Ort, ✕ leert die Suche. | `GET /v1/events?q=…` (debounced 300 ms, ab 2 Zeichen) | sync |
 | 9 | 01-05 | Filter öffnen | Das Sheet zeigt eine Kopie der aktuellen Filter als Entwurf. Die Zahl im Button („8 Feste anzeigen“) aktualisiert sich live. | `GET /v1/events/count?…` (Vorschau, debounced) | sync |
 | 10 | 01-06 | „Zeitraum wählen“ | Monatsraster mit Mehrfachauswahl. | – | lokal |
-| 11 | 01-05 | Entfernung schieben | 10–300 km in 10er-Schritten, vom aktuellen Standort. | Vorschau wie Schritt 9 | sync |
+| 11 | – | ~~Entfernung schieben~~ | Entfällt: Kartenausschnitt statt Umkreis, eingegrenzt wird durch Zoomen (Entscheidung 29.09.2026). | – | – |
 | 12 | 01-05 | „n Feste anzeigen“ | Übernimmt den Entwurf, schließt das Sheet, lädt neu. Der Filter-Button zeigt die Zahl aktiver Filter. | `GET /v1/events?…` | sync |
-| 13 | 01-05 | „Zurücksetzen“ | Setzt den Entwurf auf Standard zurück (alle Termine, alle Kategorien, 150 km). | – | lokal |
+| 13 | 01-05 | „Zurücksetzen“ | Setzt den Entwurf auf Standard zurück (alle Termine, alle Kategorien). | – | lokal |
 | 14 | 01-01 ↔ 01-03 | Toggle Karte / Liste | Wechselt die Ansicht. Suche, Filter und Auswahl bleiben erhalten, es wird nicht neu geladen. | – | lokal |
 | 15 | 01-03 | Herz in der Liste | Gast: Hinweis ([03](03-authentifizierung.md)). Nutzer: Favorit umschalten ([04](04-favoriten-und-zeitleiste.md)). | `PUT/DELETE /v1/me/favorites/{id}` | sync (optimistisch) |
 | 16 | 01-01 | Standort-Button | Zentriert auf die eigene Position, Zoom 10. | Nachladen wie Schritt 2 | sync |
-| 17 | 01-07 | „Umkreis auf 300 km“ | Setzt den Radius auf 300 km und lädt neu. | `GET /v1/events?radiusKm=300` | sync |
+| 17 | 01-07 | „Herauszoomen“ | Zoomt die Karte 2 Stufen heraus und lädt für den neuen Ausschnitt. | `GET /v1/events?bbox=…` | sync |
+| 17a | 01-01 | Ort oder PLZ in die Suche tippen | Unter dem Suchfeld erscheint „Zu {Ort} springen“. Ein Tipp fliegt die Karte dorthin und leert die Suche. | `GET /v1/geocode?q=…` | sync, debounced |
 | 18 | 01-07 | „Filter zurücksetzen“ | Setzt Filter und Suche zurück und lädt neu. | `GET /v1/events` | sync |
 
 ## Zustände
@@ -68,7 +69,7 @@ flowchart TD
 | Zustand | Darstellung |
 |---|---|
 | Laden | Skeleton-Karten im Karussell bzw. in der Liste, Pille „Feste werden geladen …“ auf der Karte (01-02, 01-04). |
-| Keine Feste mit den Filtern | Karte „Keine Feste im Umkreis“ mit Radius und zwei Aktionen (01-07). |
+| Keine Feste im Ausschnitt | Karte „Keine Feste in diesem Kartenausschnitt“ mit „Herauszoomen“ und „Filter zurücksetzen“ (01-07). |
 | Suche ohne Treffer | „Kein Fest für ‚{q}‘“ mit Hinweis auf die Schreibweise (01-08). |
 | Keine Standortfreigabe | Karte startet auf dem letzten bekannten Ort bzw. Deutschland-Mitte. Die Entfernung wird zum Kartenmittelpunkt berechnet (Annahme). |
 | Netzwerkfehler | Toast „Feste konnten nicht geladen werden“ mit „Erneut versuchen“. Bereits geladene Marker bleiben stehen (Annahme). |
