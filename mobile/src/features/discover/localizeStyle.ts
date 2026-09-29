@@ -51,3 +51,27 @@ export function localizeStyle(
     }),
   };
 }
+
+/**
+ * Removes sources without data (`url`, `tiles`, `data` or `urls`) that no layer uses.
+ * MapTiler ships `maptiler_attribution` only to carry the attribution text; MapLibre Native
+ * warns "source must have tiles" for it. The attribution is rendered as visible text instead.
+ */
+export function dropEmptySources(
+  style: StyleSpecification,
+): StyleSpecification {
+  const used = new Set(
+    style.layers
+      .map(layer => ('source' in layer ? layer.source : undefined))
+      .filter(Boolean),
+  );
+  const sources = Object.fromEntries(
+    Object.entries(style.sources).filter(([name, source]) => {
+      const hasData = ['url', 'tiles', 'data', 'urls'].some(
+        key => key in source,
+      );
+      return hasData || used.has(name);
+    }),
+  );
+  return {...style, sources};
+}

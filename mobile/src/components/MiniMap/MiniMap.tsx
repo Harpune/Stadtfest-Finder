@@ -21,6 +21,12 @@ export interface MiniMapProps {
   testID?: string;
 }
 
+function styleKey(style: string | StyleSpecification): string {
+  return typeof style === 'string'
+    ? style
+    : `${style.name ?? 'style'}:${style.layers.length}`;
+}
+
 /** Static mini map (160 high) with a centered amber pin; a tap starts the route. */
 export function MiniMap({
   lat,
@@ -45,6 +51,9 @@ export function MiniMap({
     >
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <Map
+          // Remount when the style changes (offline -> MapTiler): a second map instance
+          // otherwise keeps the style background but never draws the vector tiles.
+          key={styleKey(mapStyle)}
           style={StyleSheet.absoluteFill}
           mapStyle={mapStyle}
           dragPan={false}

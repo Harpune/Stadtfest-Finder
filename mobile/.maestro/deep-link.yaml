@@ -1,0 +1,40 @@
+# Deep link (R04-US6): stadtfest://f/{id} opens the detail; "Zurück" leads to the map.
+appId: de.stadtfestfinder.app
+name: Deep Link auf ein Fest
+env:
+  EVENT: 24b84e9c-31ad-5e4a-83fa-799fd1273ed7 # "Reichsstädter Tage"
+---
+- runFlow:
+    file: shared/launch.yaml
+    env:
+      LOCATION: never
+- openLink: stadtfest://f/${EVENT}
+- runFlow:
+    when:
+      visible: 'Öffnen|Open'
+    commands:
+      - tapOn: 'Öffnen|Open'
+- extendedWaitUntil:
+    visible:
+      id: detail.title
+    timeout: 15000
+- assertVisible: 'Reichsstädter Tage'
+- tapOn:
+    id: detail.back
+- assertVisible:
+    id: discover.screen
+
+# Unknown event: not-found hint
+- openLink: stadtfest://f/00000000-0000-0000-0000-000000000000
+- runFlow:
+    when:
+      visible: 'Öffnen|Open'
+    commands:
+      - tapOn: 'Öffnen|Open'
+- extendedWaitUntil:
+    visible: 'Dieses Fest ist nicht mehr verfügbar'
+    timeout: 15000
+- tapOn:
+    id: detail.toMap
+- assertVisible:
+    id: discover.screen
