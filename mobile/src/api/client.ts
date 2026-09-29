@@ -12,7 +12,11 @@ import type {paths} from './generated/schema';
 export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 
-export const fetchClient = createFetchClient<paths>({baseUrl: API_BASE_URL});
+export const fetchClient = createFetchClient<paths>({
+  baseUrl: API_BASE_URL,
+  // The spec uses `style: form, explode: false` for arrays: `bbox=1,2,3,4`.
+  querySerializer: {array: {style: 'form', explode: false}},
+});
 
 /** Typed TanStack Query hooks, e.g. `$api.useQuery('get', '/v1/health/live')`. */
 export const $api = createClient(fetchClient);

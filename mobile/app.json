@@ -35,7 +35,17 @@
           }
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "@maplibre/maplibre-react-native",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Stadtfest-Finder nutzt deinen Standort, um Feste in deiner Nähe zu zeigen und Entfernungen zu berechnen. Der Standort wird nicht gespeichert.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false
+        }
+      ]
     ],
     "scheme": "stadtfest",
     "experiments": {
