@@ -3,6 +3,7 @@ import {act, fireEvent, screen, waitFor} from '@testing-library/react-native';
 import * as Location from 'expo-location';
 import React from 'react';
 
+import {AuthProvider} from '@/features/auth/AuthProvider';
 import {renderWithProviders} from '@/test-utils';
 
 import StartScreen from '@/app/index';
@@ -89,7 +90,9 @@ async function renderScreen() {
   const client = new QueryClient({defaultOptions: {queries: {retry: false}}});
   await renderWithProviders(
     <QueryClientProvider client={client}>
-      <StartScreen />
+      <AuthProvider>
+        <StartScreen />
+      </AuthProvider>
     </QueryClientProvider>,
   );
 }

@@ -88,3 +88,52 @@ export function formatDateRange(start: IsoDate, end: IsoDate): string {
   }
   return `${formatDayMonth(start)} – ${formatDayMonth(end)}`;
 }
+
+/** Full German month names ("19. September – 4. Oktober 2026"). */
+const MONTHS_LONG = [
+  'Januar',
+  'Februar',
+  'März',
+  'April',
+  'Mai',
+  'Juni',
+  'Juli',
+  'August',
+  'September',
+  'Oktober',
+  'November',
+  'Dezember',
+] as const;
+
+const WEEKDAYS_SHORT = ['SO', 'MO', 'DI', 'MI', 'DO', 'FR', 'SA'] as const;
+
+function monthLong(month: number): string {
+  return MONTHS_LONG[(month - 1 + 12) % 12] ?? '';
+}
+
+/**
+ * Long date range for the detail page: "27. September 2026", "11.–13. September 2026",
+ * "19. September – 4. Oktober 2026", "28. Dezember 2026 – 2. Januar 2027".
+ */
+export function formatDateRangeLong(start: IsoDate, end: IsoDate): string {
+  const s = parseIsoDate(start);
+  const e = parseIsoDate(end);
+  if (start === end) return `${s.day}. ${monthLong(s.month)} ${s.year}`;
+  if (s.year !== e.year) {
+    return `${s.day}. ${monthLong(s.month)} ${s.year} – ${e.day}. ${monthLong(e.month)} ${e.year}`;
+  }
+  if (s.month === e.month) {
+    return `${s.day}.–${e.day}. ${monthLong(e.month)} ${e.year}`;
+  }
+  return `${s.day}. ${monthLong(s.month)} – ${e.day}. ${monthLong(e.month)} ${e.year}`;
+}
+
+/** Program date block: weekday "SA" and day "19.9.". */
+export function formatProgramDate(value: IsoDate): {
+  weekday: string;
+  day: string;
+} {
+  const {year, month, day} = parseIsoDate(value);
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return {weekday: WEEKDAYS_SHORT[weekday] ?? '', day: `${day}.${month}.`};
+}

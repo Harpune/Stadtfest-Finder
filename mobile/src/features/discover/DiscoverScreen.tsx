@@ -25,6 +25,7 @@ import {
 import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
 
+import {useAuth} from '../auth/AuthProvider';
 import {todayInBerlin} from '../events/dates';
 import {buildCategoryLookup} from './categoryLookup';
 import {
@@ -94,6 +95,7 @@ export function DiscoverScreen() {
   const toast = useToast();
   const {state, dispatch} = useDiscover();
   const {location, locate} = useUserLocation();
+  const {requestAccountAction} = useAuth();
   const mapRef = useRef<DiscoverMapHandle>(null);
   const today = todayInBerlin();
 
@@ -362,7 +364,9 @@ export function DiscoverScreen() {
               if (search.hasNextPage) void search.fetchNextPage();
             }}
             onOpen={selectOrOpen}
-            onFavorite={() => toast(strings.discover.favoriteSoon)}
+            onFavorite={event =>
+              requestAccountAction({type: 'favorite', eventId: event.id})
+            }
           />
         </View>
       ) : (

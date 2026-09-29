@@ -45,7 +45,8 @@
           "isAndroidBackgroundLocationEnabled": false,
           "isAndroidForegroundServiceEnabled": false
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "scheme": "stadtfest",
     "experiments": {

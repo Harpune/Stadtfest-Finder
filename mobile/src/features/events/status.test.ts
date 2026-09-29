@@ -1,4 +1,10 @@
-import {daysBetween, formatDateRange, todayInBerlin} from './dates';
+import {
+  daysBetween,
+  formatDateRange,
+  formatDateRangeLong,
+  formatProgramDate,
+  todayInBerlin,
+} from './dates';
 import {eventStatus} from './status';
 
 const TODAY = '2026-09-25';
@@ -82,5 +88,35 @@ describe('todayInBerlin', () => {
     // 23:30 UTC on 25 Sep is already 26 Sep in Berlin (CEST, UTC+2).
     expect(todayInBerlin(new Date('2026-09-25T23:30:00Z'))).toBe('2026-09-26');
     expect(todayInBerlin(new Date('2026-12-31T22:59:00Z'))).toBe('2026-12-31');
+  });
+});
+
+describe('formatDateRangeLong', () => {
+  it('formats days, same-month, cross-month and cross-year ranges', () => {
+    expect(formatDateRangeLong('2026-09-27', '2026-09-27')).toBe(
+      '27. September 2026',
+    );
+    expect(formatDateRangeLong('2026-09-11', '2026-09-13')).toBe(
+      '11.–13. September 2026',
+    );
+    expect(formatDateRangeLong('2026-09-19', '2026-10-04')).toBe(
+      '19. September – 4. Oktober 2026',
+    );
+    expect(formatDateRangeLong('2026-12-28', '2027-01-02')).toBe(
+      '28. Dezember 2026 – 2. Januar 2027',
+    );
+  });
+});
+
+describe('formatProgramDate', () => {
+  it('returns the weekday and the short day', () => {
+    expect(formatProgramDate('2026-09-19')).toEqual({
+      weekday: 'SA',
+      day: '19.9.',
+    });
+    expect(formatProgramDate('2026-10-04')).toEqual({
+      weekday: 'SO',
+      day: '4.10.',
+    });
   });
 });

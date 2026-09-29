@@ -26,7 +26,8 @@ import {Text} from '../Text/Text';
 export interface BottomSheetProps {
   visible: boolean;
   onClose: () => void;
-  title: string;
+  /** Serif title with ✕; without a title the sheet has only the handle. */
+  title?: string;
   testID: string;
   /** Fixed footer below the scrollable content (e.g. primary action). */
   footer?: ReactNode;
@@ -103,19 +104,21 @@ export function BottomSheet({
         ]}
       >
         <View style={[styles.handle, {backgroundColor: c.outline}]} />
-        <View style={styles.header}>
-          <Text variant="displayL" accessibilityRole="header">
-            {title}
-          </Text>
-          <IconButton
-            icon={<Icon name="close" size={20} />}
-            accessibilityLabel={strings.common.close}
-            onPress={onClose}
-            testID={`${testID}.close`}
-            variant="surface"
-            size={40}
-          />
-        </View>
+        {title ? (
+          <View style={styles.header}>
+            <Text variant="displayL" accessibilityRole="header">
+              {title}
+            </Text>
+            <IconButton
+              icon={<Icon name="close" size={20} />}
+              accessibilityLabel={strings.common.close}
+              onPress={onClose}
+              testID={`${testID}.close`}
+              variant="surface"
+              size={40}
+            />
+          </View>
+        ) : null}
         <ScrollView
           style={styles.body}
           contentContainerStyle={styles.bodyContent}

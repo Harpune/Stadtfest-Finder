@@ -11,6 +11,7 @@ export * from './EventListCard/EventListCard';
 export * from './EventMarker/EventMarker';
 export * from './FilterButton/FilterButton';
 export * from './FilterSheet/FilterSheet';
+export * from './GuestHintSheet/GuestHintSheet';
 export * from './Icon/Icon';
 export * from './IconButton/IconButton';
 export * from './ImagePlaceholder/ImagePlaceholder';
