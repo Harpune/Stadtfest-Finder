@@ -189,6 +189,32 @@ describe('Discover screen', () => {
     );
   });
 
+  it('centers the map on a carousel card on the first tap', async () => {
+    const camera = (
+      globalThis as unknown as {mockCameraApi: {easeTo: jest.Mock}}
+    ).mockCameraApi;
+    camera.easeTo.mockClear();
+    mockApi(api());
+    await renderScreen();
+    await settle();
+    await waitFor(() =>
+      expect(screen.getByTestId('discover.carousel.card.e1')).toBeOnTheScreen(),
+    );
+    await fireEvent.press(screen.getByTestId('discover.carousel.card.e1'));
+    expect(camera.easeTo).toHaveBeenCalledWith(
+      expect.objectContaining({center: [10.09, 48.84]}),
+    );
+    expect(screen.getByTestId('discover.carousel.card.e1')).toBeSelected();
+
+    // The second tap opens the detail (placeholder) instead of moving again.
+    camera.easeTo.mockClear();
+    await fireEvent.press(screen.getByTestId('discover.carousel.card.e1'));
+    expect(camera.easeTo).not.toHaveBeenCalled();
+    expect(
+      screen.getByText('Die Detailseite folgt in Kürze.'),
+    ).toBeOnTheScreen();
+  });
+
   it('does not hang when location is granted but no GPS fix arrives', async () => {
     jest
       .mocked(Location.requestForegroundPermissionsAsync)

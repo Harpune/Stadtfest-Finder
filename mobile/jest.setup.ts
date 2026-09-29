@@ -5,6 +5,16 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
 
+// Spies for MapLibre camera calls (map movements), shared with tests via `global`.
+const mockCameraApi = {
+  easeTo: jest.fn(),
+  flyTo: jest.fn(),
+  zoomTo: jest.fn(),
+  jumpTo: jest.fn(),
+};
+(globalThis as {mockCameraApi?: typeof mockCameraApi}).mockCameraApi =
+  mockCameraApi;
+
 // MapLibre is native-only: render its components as plain views. The Map reports one
 // viewport around Aalen after mounting so screens can start their queries.
 jest.mock('@maplibre/maplibre-react-native', () => {
@@ -36,7 +46,11 @@ jest.mock('@maplibre/maplibre-react-native', () => {
     }, []);
     return React.createElement(View, {testID}, children);
   };
-  const Camera = React.forwardRef(() => null);
+  // Camera methods are spies on a shared object so tests can assert map movements.
+  const Camera = React.forwardRef((_props: unknown, ref: unknown) => {
+    React.useImperativeHandle(ref, () => mockCameraApi);
+    return null;
+  });
   const Marker = ({children, onPress, id}: MockMarkerProps) =>
     React.createElement(
       require('react-native').Pressable,

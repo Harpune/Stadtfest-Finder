@@ -217,12 +217,22 @@ export function DiscoverScreen() {
     },
     [state.selectedEventId, dispatch, toast],
   );
+  // Selecting from the carousel (swipe or first tap) centers the map on the event.
   const onCarouselSettle = useCallback(
     (event: EventSummary) => {
       dispatch({type: 'select', eventId: event.id});
-      mapRef.current?.ensureVisible({lat: event.lat, lon: event.lon});
+      mapRef.current?.centerOn({lat: event.lat, lon: event.lon});
     },
     [dispatch],
+  );
+  const onCarouselPress = useCallback(
+    (event: EventSummary) => {
+      if (state.selectedEventId !== event.id) {
+        mapRef.current?.centerOn({lat: event.lat, lon: event.lon});
+      }
+      selectOrOpen(event);
+    },
+    [state.selectedEventId, selectOrOpen],
   );
 
   // ---- filter sheet ---------------------------------------------------------------------
@@ -396,7 +406,7 @@ export function DiscoverScreen() {
                 today={today}
                 categoryOf={categoryOf}
                 onSettle={onCarouselSettle}
-                onPressCard={selectOrOpen}
+                onPressCard={onCarouselPress}
               />
             )}
           </View>

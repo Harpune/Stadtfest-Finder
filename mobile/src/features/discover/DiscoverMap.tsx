@@ -43,8 +43,8 @@ export interface MapViewport {
 export interface DiscoverMapHandle {
   flyTo: (center: GeoPoint, zoom?: number) => void;
   zoomBy: (delta: number) => void;
-  /** Moves the map only if the point is outside the visible area (carousel swipe). */
-  ensureVisible: (point: GeoPoint) => void;
+  /** Centers the map on a point, keeping the zoom (selection from the carousel). */
+  centerOn: (point: GeoPoint) => void;
 }
 
 export interface DiscoverMapProps {
@@ -108,20 +108,11 @@ export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
             Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, viewport.zoom + delta)),
             {duration: 250},
           ),
-        ensureVisible: point => {
-          const [w, s, e, n] = viewport.bbox;
-          if (
-            point.lon < w ||
-            point.lon > e ||
-            point.lat < s ||
-            point.lat > n
-          ) {
-            camera.current?.easeTo({
-              center: [point.lon, point.lat],
-              duration: 400,
-            });
-          }
-        },
+        centerOn: point =>
+          camera.current?.easeTo({
+            center: [point.lon, point.lat],
+            duration: 400,
+          }),
       }),
       [viewport],
     );
