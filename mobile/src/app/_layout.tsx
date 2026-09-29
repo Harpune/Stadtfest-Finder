@@ -22,6 +22,9 @@ import {ThemeProvider, useTheme} from '@/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
+/** Deep links into /f/{id} get the map as stack base, so "Zurück" leads to it (R04-US6). */
+export const unstable_settings = {initialRouteName: 'index'};
+
 function ThemedStack() {
   const theme = useTheme();
   return (

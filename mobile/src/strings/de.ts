@@ -21,7 +21,6 @@ export const strings = {
     activeFilters: (n: number) => `${n} aktive Filter`,
     profile: 'Profil',
     profileSoon: 'Anmeldung und Profil folgen in Kürze.',
-    detailSoon: 'Die Detailseite folgt in Kürze.',
     loadingEvents: 'Feste werden geladen …',
     loadFailed: 'Feste konnten nicht geladen werden',
     offline: (time: string) => `Offline · zuletzt geladen um ${time}`,
