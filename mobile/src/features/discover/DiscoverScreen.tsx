@@ -3,6 +3,7 @@
  * Map and list share one query; the map stays mounted below the list, so switching views
  * keeps search, filter, selection and camera without reloading.
  */
+import {router} from 'expo-router';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -25,6 +26,7 @@ import {
 import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
 
+import {useAuth} from '../auth/AuthProvider';
 import {todayInBerlin} from '../events/dates';
 import {buildCategoryLookup} from './categoryLookup';
 import {
@@ -94,6 +96,7 @@ export function DiscoverScreen() {
   const toast = useToast();
   const {state, dispatch} = useDiscover();
   const {location, locate} = useUserLocation();
+  const {requestAccountAction} = useAuth();
   const mapRef = useRef<DiscoverMapHandle>(null);
   const today = todayInBerlin();
 
@@ -210,12 +213,12 @@ export function DiscoverScreen() {
   const selectOrOpen = useCallback(
     (event: EventSummary) => {
       if (state.selectedEventId === event.id) {
-        toast(strings.discover.detailSoon); // detail page follows in R04
+        router.push(`/f/${event.id}`);
       } else {
         dispatch({type: 'select', eventId: event.id});
       }
     },
-    [state.selectedEventId, dispatch, toast],
+    [state.selectedEventId, dispatch],
   );
   const clearSelection = useCallback(() => {
     if (state.selectedEventId) dispatch({type: 'select', eventId: null});
@@ -361,8 +364,10 @@ export function DiscoverScreen() {
             onEndReached={() => {
               if (search.hasNextPage) void search.fetchNextPage();
             }}
-            onOpen={selectOrOpen}
-            onFavorite={() => toast(strings.discover.favoriteSoon)}
+            onOpen={event => router.push(`/f/${event.id}`)}
+            onFavorite={event =>
+              requestAccountAction({type: 'favorite', eventId: event.id})
+            }
           />
         </View>
       ) : (

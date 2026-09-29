@@ -1,6 +1,6 @@
 import type {StyleSpecification} from '@maplibre/maplibre-react-native';
 
-import {localizeStyle} from './localizeStyle';
+import {dropEmptySources, localizeStyle} from './localizeStyle';
 
 const GERMAN = ['coalesce', ['get', 'name:de'], ['get', 'name']];
 
@@ -53,5 +53,31 @@ describe('localizeStyle', () => {
     const style = styleWith(['{name:en}']);
     localizeStyle(style);
     expect(fields(style)).toEqual(['{name:en}']);
+  });
+});
+
+describe('dropEmptySources', () => {
+  it('removes unused sources without data and keeps the rest', () => {
+    const style = {
+      version: 8,
+      sources: {
+        maptiler_planet: {
+          type: 'vector',
+          url: 'https://api.maptiler.com/tiles/v3/tiles.json',
+        },
+        maptiler_attribution: {type: 'vector', attribution: '© MapTiler'},
+      },
+      layers: [
+        {
+          id: 'water',
+          type: 'fill',
+          source: 'maptiler_planet',
+          'source-layer': 'water',
+        },
+      ],
+    } as unknown as StyleSpecification;
+    expect(Object.keys(dropEmptySources(style).sources)).toEqual([
+      'maptiler_planet',
+    ]);
   });
 });

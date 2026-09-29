@@ -1,0 +1,45 @@
+# Guest detail (R04): map → carousel card (2 taps) → detail → heart → guest hint → dismiss.
+# Requires the local stack with `make seed`; IDs are the deterministic seed IDs.
+appId: de.stadtfestfinder.app
+name: Fest-Details – Gast-Hinweis
+env:
+  EVENT: 24b84e9c-31ad-5e4a-83fa-799fd1273ed7 # "Reichsstädter Tage"
+---
+- setLocation:
+    latitude: 48.8375
+    longitude: 10.0933
+- runFlow:
+    file: shared/launch.yaml
+    env:
+      LOCATION: inuse
+- extendedWaitUntil:
+    visible:
+      id: discover.carousel.card.${EVENT}
+    timeout: 30000
+- tapOn:
+    id: discover.carousel.card.${EVENT}
+- tapOn:
+    id: discover.carousel.card.${EVENT}
+- extendedWaitUntil:
+    visible:
+      id: detail.title
+    timeout: 10000
+- assertVisible: 'Reichsstädter Tage'
+- extendedWaitUntil:
+    visible:
+      id: detail.about
+    timeout: 10000
+
+# Heart as guest: hint with remembered action, "Weiter ohne Konto" closes it
+- tapOn:
+    id: detail.favorite
+- assertVisible: 'Lieblingsfeste merken'
+- tapOn:
+    id: guestHint.dismiss
+- assertNotVisible: 'Lieblingsfeste merken'
+
+# Back to the map
+- tapOn:
+    id: detail.back
+- assertVisible:
+    id: discover.screen

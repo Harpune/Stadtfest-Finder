@@ -16,6 +16,18 @@ const NAMES: IconName[] = [
   'heart',
   'user',
   'chevronDown',
+  'chevronLeft',
+  'share',
+  'calendar',
+  'clock',
+  'ticket',
+  'navigation',
+  'userPlus',
+  'users',
+  'train',
+  'parking',
+  'globe',
+  'arrowUpRight',
 ];
 
 const meta = {

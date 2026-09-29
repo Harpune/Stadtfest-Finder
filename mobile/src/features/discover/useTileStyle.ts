@@ -8,7 +8,7 @@ import {useQuery} from '@tanstack/react-query';
 
 import type {ColorScheme} from '@/theme';
 
-import {localizeStyle} from './localizeStyle';
+import {dropEmptySources, localizeStyle} from './localizeStyle';
 import {tileStyleUrl} from './mapStyle';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -25,7 +25,9 @@ export function useTileStyle(scheme: ColorScheme): StyleSpecification | null {
     queryFn: async ({signal}) => {
       const response = await fetch(url as string, {signal});
       if (!response.ok) throw new Error(`Tile style: HTTP ${response.status}`);
-      return localizeStyle((await response.json()) as StyleSpecification);
+      return localizeStyle(
+        dropEmptySources((await response.json()) as StyleSpecification),
+      );
     },
   });
   return query.data ?? null;

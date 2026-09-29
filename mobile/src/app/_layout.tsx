@@ -17,9 +17,13 @@ import {SafeAreaProvider} from 'react-native-safe-area-context';
 
 import {createQueryClient} from '@/api/client';
 import {ToastProvider} from '@/components';
+import {AuthProvider} from '@/features/auth/AuthProvider';
 import {ThemeProvider, useTheme} from '@/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+/** Deep links into /f/{id} get the map as stack base, so "Zurück" leads to it (R04-US6). */
+export const unstable_settings = {initialRouteName: 'index'};
 
 function ThemedStack() {
   const theme = useTheme();
@@ -64,7 +68,9 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
             <ToastProvider>
-              <ThemedStack />
+              <AuthProvider>
+                <ThemedStack />
+              </AuthProvider>
             </ToastProvider>
           </ThemeProvider>
         </QueryClientProvider>

@@ -80,3 +80,21 @@ jest.mock('expo-location', () => ({
   getCurrentPositionAsync: jest.fn(),
   Accuracy: {Balanced: 3},
 }));
+
+jest.mock('expo-web-browser', () => ({
+  openBrowserAsync: jest.fn(async () => ({type: 'opened'})),
+}));
+
+// Navigation spies; screens are rendered without a navigator in unit tests.
+jest.mock('expo-router', () => {
+  const actual = jest.requireActual('expo-router');
+  return {
+    ...actual,
+    router: {
+      push: jest.fn(),
+      back: jest.fn(),
+      replace: jest.fn(),
+      canGoBack: jest.fn(() => true),
+    },
+  };
+});

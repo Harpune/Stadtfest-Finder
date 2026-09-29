@@ -18,7 +18,21 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "de.stadtfestfinder.app"
+      "package": "de.stadtfestfinder.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "stadtfest.herderstreet.de",
+              "pathPrefix": "/f/"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "plugins": [
       "expo-router",
@@ -45,7 +59,8 @@
           "isAndroidBackgroundLocationEnabled": false,
           "isAndroidForegroundServiceEnabled": false
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "scheme": "stadtfest",
     "experiments": {

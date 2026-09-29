@@ -1,8 +1,10 @@
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {act, fireEvent, screen, waitFor} from '@testing-library/react-native';
 import * as Location from 'expo-location';
+import {router} from 'expo-router';
 import React from 'react';
 
+import {AuthProvider} from '@/features/auth/AuthProvider';
 import {renderWithProviders} from '@/test-utils';
 
 import StartScreen from '@/app/index';
@@ -89,7 +91,9 @@ async function renderScreen() {
   const client = new QueryClient({defaultOptions: {queries: {retry: false}}});
   await renderWithProviders(
     <QueryClientProvider client={client}>
-      <StartScreen />
+      <AuthProvider>
+        <StartScreen />
+      </AuthProvider>
     </QueryClientProvider>,
   );
 }
@@ -206,13 +210,11 @@ describe('Discover screen', () => {
     );
     expect(screen.getByTestId('discover.carousel.card.e1')).toBeSelected();
 
-    // The second tap opens the detail (placeholder) instead of moving again.
+    // The second tap opens the detail page instead of moving again.
     camera.easeTo.mockClear();
     await fireEvent.press(screen.getByTestId('discover.carousel.card.e1'));
     expect(camera.easeTo).not.toHaveBeenCalled();
-    expect(
-      screen.getByText('Die Detailseite folgt in Kürze.'),
-    ).toBeOnTheScreen();
+    expect(router.push).toHaveBeenCalledWith('/f/e1');
   });
 
   it('clears the selection when the map itself is tapped', async () => {

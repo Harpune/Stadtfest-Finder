@@ -1,0 +1,19 @@
+# Static host for App Links (R04-US6). Deployed with the production stack (R16).
+# Serves only static files: assetlinks.json and a fallback page for /f/{id}.
+stadtfest.herderstreet.de {
+	root * /srv/deeplinks
+	encode gzip
+
+	@assetlinks path /.well-known/assetlinks.json
+	header @assetlinks Content-Type application/json
+
+	# Every event link without the installed app shows the same fallback page.
+	@event path_regexp event ^/f/[A-Za-z0-9-]+/?$
+	rewrite @event /f/index.html
+
+	file_server
+	log {
+		# No access logs with IPs (00-docs/30-privacy/toms.md).
+		output discard
+	}
+}
