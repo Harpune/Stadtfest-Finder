@@ -1,5 +1,6 @@
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {act, fireEvent, screen, waitFor} from '@testing-library/react-native';
+import * as Location from 'expo-location';
 import React from 'react';
 
 import {renderWithProviders} from '@/test-utils';
@@ -187,6 +188,27 @@ describe('Discover screen', () => {
       ).toBeOnTheScreen(),
     );
   });
+
+  it('does not hang when location is granted but no GPS fix arrives', async () => {
+    jest
+      .mocked(Location.requestForegroundPermissionsAsync)
+      .mockResolvedValueOnce({
+        granted: true,
+      } as Location.LocationPermissionResponse);
+    jest
+      .mocked(Location.getCurrentPositionAsync)
+      .mockReturnValueOnce(
+        new Promise<Location.LocationObject>(() => undefined),
+      );
+    mockApi(api());
+    await renderScreen();
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 3500));
+    });
+    await waitFor(() =>
+      expect(screen.getByText('Reichsstädter Tage')).toBeOnTheScreen(),
+    );
+  }, 15000);
 
   it('shows a toast with retry when loading fails', async () => {
     mockApi(url =>

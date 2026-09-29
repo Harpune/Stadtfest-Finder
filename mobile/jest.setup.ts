@@ -48,7 +48,6 @@ jest.mock('@maplibre/maplibre-react-native', () => {
     Camera,
     Marker,
     UserLocation: () => null,
-    TransformRequestManager: {addHeader: jest.fn()},
   };
 });
 

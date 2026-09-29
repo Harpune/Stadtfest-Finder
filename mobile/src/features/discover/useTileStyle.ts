@@ -9,7 +9,7 @@ import {useQuery} from '@tanstack/react-query';
 import type {ColorScheme} from '@/theme';
 
 import {localizeStyle} from './localizeStyle';
-import {TILE_USER_AGENT, tileStyleUrl} from './mapStyle';
+import {tileStyleUrl} from './mapStyle';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -23,10 +23,7 @@ export function useTileStyle(scheme: ColorScheme): StyleSpecification | null {
     gcTime: DAY_MS,
     retry: 1,
     queryFn: async ({signal}) => {
-      const response = await fetch(url as string, {
-        headers: {'User-Agent': TILE_USER_AGENT},
-        signal,
-      });
+      const response = await fetch(url as string, {signal});
       if (!response.ok) throw new Error(`Tile style: HTTP ${response.status}`);
       return localizeStyle((await response.json()) as StyleSpecification);
     },

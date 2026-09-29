@@ -68,6 +68,8 @@ import {useUserLocation} from './useUserLocation';
 /** Germany center, used without location access and without a stored camera (R03-US1). */
 const GERMANY: StoredCamera = {center: [10.45, 51.16], zoom: 6};
 const DEBOUNCE_MS = 300;
+/** How long the start waits for a first GPS fix before using the fallback camera. */
+const START_FIX_WAIT_MS = 3000;
 const VIEW_OPTIONS = [
   {value: 'map', label: strings.discover.map, icon: 'map'},
   {value: 'list', label: strings.discover.list, icon: 'list'},
@@ -96,18 +98,39 @@ export function DiscoverScreen() {
   const today = todayInBerlin();
 
   // ---- start camera: position (zoom 10), else last stored camera, else Germany -------------
+  // Wait briefly for a first GPS fix; never block the screen on it (R03-US1).
   const [startCamera, setStartCamera] = useState<StoredCamera | null>(null);
+  const [fixTimedOut, setFixTimedOut] = useState(false);
   useEffect(() => {
-    if (startCamera || location.status === 'pending') return;
+    const timer = setTimeout(() => setFixTimedOut(true), START_FIX_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (startCamera) return;
     if (location.status === 'granted' && location.position) {
       const {lat, lon} = location.position;
       setStartCamera({center: [lon, lat], zoom: LOCATED_ZOOM});
-    } else {
+    } else if (
+      fixTimedOut || // permission dialog or GPS fix still pending: start anyway
+      location.status === 'denied' ||
+      (location.status === 'granted' && !location.locating)
+    ) {
       void loadCamera().then(stored => setStartCamera(stored ?? GERMANY));
     }
-  }, [location, startCamera]);
+  }, [location, startCamera, fixTimedOut]);
 
   const position = location.status === 'granted' ? location.position : null;
+
+  // A fix that arrives after the map started elsewhere moves the map there once.
+  const flewToFix = useRef(false);
+  useEffect(() => {
+    if (!position || !startCamera || flewToFix.current) return;
+    flewToFix.current = true;
+    const [lon, lat] = startCamera.center;
+    if (lon !== position.lon || lat !== position.lat) {
+      mapRef.current?.flyTo(position, LOCATED_ZOOM);
+    }
+  }, [position, startCamera]);
 
   // ---- viewport and query -------------------------------------------------------------
   const [viewport, setViewport] = useState<MapViewport | null>(null);

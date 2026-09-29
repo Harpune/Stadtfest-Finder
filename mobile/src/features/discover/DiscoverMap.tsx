@@ -26,12 +26,9 @@ import {useTheme} from '@/theme';
 import type {CategoryLook} from './categoryLookup';
 import {clusterItems} from './cluster';
 import type {Bbox, GeoPoint} from './filter';
-import {configureTileRequests, offlineStyle} from './mapStyle';
+import {offlineStyle} from './mapStyle';
 import {useTileStyle} from './useTileStyle';
 import type {EventSummary} from './useDiscoverData';
-
-// Before the first map mounts: the style request must already carry the header.
-configureTileRequests();
 
 export const MIN_ZOOM = 6;
 export const MAX_ZOOM = 13;

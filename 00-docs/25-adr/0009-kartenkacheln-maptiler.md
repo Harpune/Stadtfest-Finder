@@ -16,11 +16,10 @@ Die Karte (R03) braucht OSM-basierte Vektorkacheln mit einem dunklen und einem h
   - dunkel: Standard `streets-v2-dark`
   - hell: Standard `streets-v2`
   - Beide IDs lassen sich per ENV ändern (`EXPO_PUBLIC_MAPTILER_STYLE_DARK`, `EXPO_PUBLIC_MAPTILER_STYLE_LIGHT`).
-- Der **API-Schlüssel** kommt aus `EXPO_PUBLIC_MAPTILER_KEY`. Er ist ein öffentlicher Client-Schlüssel und steckt zwangsläufig im App-Bundle. Er wird deshalb im MapTiler-Konto eingeschränkt, siehe Runbook.
+- Der **API-Schlüssel** kommt aus `EXPO_PUBLIC_MAPTILER_KEY`. Er ist ein öffentlicher Client-Schlüssel und steckt zwangsläufig im App-Bundle. Seine Nutzung wird im MapTiler-Dashboard beobachtet, bei Missbrauch wird er rotiert (siehe Runbook).
 - **Ohne Schlüssel** (lokale Entwicklung, Tests, Storybook) nutzt die App einen eingebauten Offline-Stil nur mit Hintergrundfarbe. Marker, Cluster und Auswahl funktionieren weiter, es wird kein externer Dienst angefragt.
 - Die Attribution „© MapTiler © OpenStreetMap-Mitwirkende“ bleibt als Text sichtbar (Pflicht laut MapTiler- und OSM-Lizenz).
 - **Sprache:** Die Standardstile beschriften mit `name:en`. Die App lädt den Stil selbst und schreibt alle Beschriftungen auf `name:de` mit Rückfall auf den lokalen Namen um (`localizeStyle.ts`).
-- **User-Agent:** Alle MapTiler-Anfragen tragen `de.stadtfestfinder.app`; der Schlüssel ist im MapTiler-Konto darauf beschränkt.
 - Lädt der Stil nicht (Schlüssel gesperrt, offline), fällt die Karte auf den Offline-Stil zurück, Marker und Suche funktionieren weiter.
 
 ## Datenschutz

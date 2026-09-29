@@ -16,8 +16,7 @@ Vektorkacheln und Kartenstile (dunkel/hell) für die Karte der App ([ADR 0009](.
 2. **API-Schlüssel anlegen:** *Account → API keys → New key*, Name z. B. `stadtfest-app-prod`. Für Entwicklung einen eigenen Schlüssel `stadtfest-app-dev` anlegen.
 3. **Schlüssel einschränken:**
    - Den Prod-Schlüssel auf die benötigten Dienste (Maps/Tiles) beschränken.
-   - Unter *Restrictions → User-Agent* den Wert `de.stadtfestfinder.app` eintragen. Die App sendet diesen User-Agent bei allen MapTiler-Anfragen (`features/discover/mapStyle.ts`). Andere Clients erhalten dann `403 Key usage restricted`.
-   - Ein mobiler Schlüssel ist nie geheim; die Einschränkung begrenzt nur Missbrauch.
+   - Keine User-Agent- oder Origin-Beschränkung setzen: Die App sendet keinen eigenen User-Agent, und jeder Client kann diese Werte ohnehin frei setzen. Ein mobiler Schlüssel ist nie geheim. Stattdessen die Nutzung im Dashboard beobachten und den Schlüssel bei Missbrauch rotieren.
 4. **Stile prüfen:** Die App nutzt standardmäßig `streets-v2-dark` und `streets-v2`. Andere Stile (auch eigene aus dem MapTiler-Editor) über ihre ID setzen.
 5. **Schlüssel hinterlegen** (nie ins Repo):
    - Lokal in `mobile/.env`:
@@ -33,7 +32,7 @@ Vektorkacheln und Kartenstile (dunkel/hell) für die Karte der App ([ADR 0009](.
 ## Prüfung
 
 - Die App zeigt eine Karte mit Straßen und **deutschen** Ortsnamen (z. B. „Sachsen“, „Bayern“), im Dunkelmodus dunkel, im Hellmodus hell.
-- Schlüssel prüfen, ohne ihn auszugeben: `curl -s -o /dev/null -w "%{http_code}" -A de.stadtfestfinder.app "https://api.maptiler.com/maps/streets-v2/style.json?key=$KEY"` liefert `200`.
+- Schlüssel prüfen, ohne ihn auszugeben: `curl -s -o /dev/null -w "%{http_code}" "https://api.maptiler.com/maps/streets-v2/style.json?key=$KEY"` liefert `200`.
 - Unten links steht die Attribution „© MapTiler © OpenStreetMap-Mitwirkende“.
 - Im MapTiler-Dashboard (*Analytics*) erscheinen Abrufe für den Schlüssel.
 - Ohne Schlüssel zeigt die App nur den Hintergrund mit Markern (Offline-Stil), das ist gewollt.
