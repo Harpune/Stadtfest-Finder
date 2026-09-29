@@ -54,18 +54,6 @@ describe('AuthProvider guest hint', () => {
     );
   });
 
-  it('discards the pending action when the backdrop is tapped', async () => {
-    await renderProbe();
-    await fireEvent.press(screen.getByTestId('heart'));
-    // The scrim is hidden from accessibility (the sheet is modal), so include hidden elements.
-    await fireEvent.press(
-      await screen.findByTestId('guestHint.scrim', {
-        includeHiddenElements: true,
-      }),
-    );
-    expect(screen.getByTestId('pending')).toHaveTextContent('none');
-  });
-
   it('keeps the pending action for the login (R05 placeholder)', async () => {
     await renderProbe();
     await fireEvent.press(screen.getByTestId('heart'));

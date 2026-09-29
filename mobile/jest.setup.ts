@@ -98,3 +98,33 @@ jest.mock('expo-router', () => {
     },
   };
 });
+
+// @gorhom/bottom-sheet: official mock, but the modal renders its footer too so sheet actions
+// are testable. Gestures (swipe down) are covered by Maestro flows.
+jest.mock('@gorhom/bottom-sheet', () => {
+  const mock = require('@gorhom/bottom-sheet/mock');
+  const React = require('react');
+  const {View} = require('react-native');
+  class MockBottomSheetModal extends React.Component<{
+    children?: unknown;
+    footerComponent?: (props: object) => unknown;
+  }> {
+    present() {}
+    dismiss() {}
+    close() {}
+    render() {
+      const {children, footerComponent} = this.props;
+      return React.createElement(
+        View,
+        null,
+        children,
+        footerComponent?.({}) ?? null,
+      );
+    }
+  }
+  return {
+    ...mock,
+    BottomSheetModal: MockBottomSheetModal,
+    BottomSheetFooter: ({children}: {children?: unknown}) => children,
+  };
+});

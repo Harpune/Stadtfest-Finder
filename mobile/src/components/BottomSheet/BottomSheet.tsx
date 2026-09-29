@@ -1,19 +1,20 @@
+import {
+  BottomSheetBackdrop,
+  type BottomSheetBackdropProps,
+  BottomSheetFooter,
+  type BottomSheetFooterProps,
+  BottomSheetModal,
+  BottomSheetScrollView,
+} from '@gorhom/bottom-sheet';
 import React, {
   PropsWithChildren,
   ReactNode,
+  useCallback,
   useEffect,
   useRef,
   useState,
 } from 'react';
-import {
-  Animated,
-  Easing,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import {StyleSheet, useWindowDimensions, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {strings} from '@/strings/de';
@@ -33,9 +34,15 @@ export interface BottomSheetProps {
   footer?: ReactNode;
 }
 
+/** Space the fixed footer takes at the end of the scrollable content. */
+const FOOTER_SPACE = 96;
+/** Fallback: unmount even if the dismiss callback does not arrive (tests, interrupted animation). */
+const UNMOUNT_FALLBACK_MS = 600;
+
 /**
- * Bottom sheet (radius 28, handle 40 × 5, serif title, ✕). Slides in from below in 340 ms,
- * the scrim fades in 300 ms. Tapping the scrim, ✕ or Android back closes it.
+ * Bottom sheet (radius 28, handle, serif title, ✕) on @gorhom/bottom-sheet. It sizes to its
+ * content (max 88 % of the screen), scrolls inside, and closes by swiping down (at the top of
+ * the content), tapping the backdrop, ✕ or Android back.
  */
 export function BottomSheet({
   visible,
@@ -46,64 +53,100 @@ export function BottomSheet({
   children,
 }: PropsWithChildren<BottomSheetProps>) {
   const theme = useTheme();
+  const c = theme.colors;
   const insets = useSafeAreaInsets();
-  const progress = useRef(new Animated.Value(0)).current;
+  const {height} = useWindowDimensions();
+  const ref = useRef<BottomSheetModal>(null);
   const [mounted, setMounted] = useState(visible);
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
 
   useEffect(() => {
-    if (visible) setMounted(true);
-    Animated.timing(progress, {
-      toValue: visible ? 1 : 0,
-      duration: theme.motion.sheet.duration,
-      easing: Easing.bezier(0.2, 0.8, 0.2, 1),
-      useNativeDriver: true,
-    }).start(({finished}) => {
-      if (finished && !visible) setMounted(false);
-    });
-  }, [visible, progress, theme.motion.sheet.duration]);
+    if (visible) {
+      setMounted(true);
+      return undefined;
+    }
+    ref.current?.dismiss();
+    const timer = setTimeout(() => setMounted(false), UNMOUNT_FALLBACK_MS);
+    return () => clearTimeout(timer);
+  }, [visible]);
+
+  useEffect(() => {
+    if (mounted && visible) ref.current?.present();
+  }, [mounted, visible]);
+
+  // Swipe down, backdrop and Android back end here; report them as a close request.
+  const onDismiss = useCallback(() => {
+    setMounted(false);
+    if (visibleRef.current) onClose();
+  }, [onClose]);
+
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        appearsOnIndex={0}
+        disappearsOnIndex={-1}
+        pressBehavior="close"
+        opacity={1}
+        style={[props.style, {backgroundColor: c.scrim}]}
+      />
+    ),
+    [c.scrim],
+  );
+
+  const renderFooter = useCallback(
+    (props: BottomSheetFooterProps) =>
+      footer ? (
+        <BottomSheetFooter {...props}>
+          <View
+            style={[
+              styles.footer,
+              {
+                backgroundColor: c.sheet,
+                borderTopColor: c.outline,
+                paddingBottom: Math.max(insets.bottom, 16),
+              },
+            ]}
+          >
+            {footer}
+          </View>
+        </BottomSheetFooter>
+      ) : null,
+    [footer, c.sheet, c.outline, insets.bottom],
+  );
 
   if (!mounted) return null;
 
-  const translateY = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [800, 0],
-  });
-  const c = theme.colors;
   return (
-    <Modal
-      transparent
-      visible
-      animationType="none"
-      onRequestClose={onClose}
-      statusBarTranslucent
+    <BottomSheetModal
+      ref={ref}
+      enableDynamicSizing
+      maxDynamicContentSize={height * 0.88}
+      enablePanDownToClose
+      onDismiss={onDismiss}
+      backdropComponent={renderBackdrop}
+      footerComponent={renderFooter}
+      backgroundStyle={{
+        backgroundColor: c.sheet,
+        borderTopLeftRadius: theme.radius.sheet,
+        borderTopRightRadius: theme.radius.sheet,
+      }}
+      handleIndicatorStyle={{backgroundColor: c.outline, width: 40, height: 5}}
+      accessibilityViewIsModal
     >
-      <Animated.View
-        style={[
-          StyleSheet.absoluteFill,
-          {backgroundColor: c.scrim, opacity: progress},
-        ]}
-      >
-        <Pressable
-          testID={`${testID}.scrim`}
-          accessibilityLabel={strings.common.close}
-          style={StyleSheet.absoluteFill}
-          onPress={onClose}
-        />
-      </Animated.View>
-      <Animated.View
+      <BottomSheetScrollView
         testID={testID}
-        accessibilityViewIsModal
-        style={[
-          styles.sheet,
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[
+          styles.body,
           {
-            backgroundColor: c.sheet,
-            borderTopLeftRadius: theme.radius.sheet,
-            borderTopRightRadius: theme.radius.sheet,
-            transform: [{translateY}],
+            paddingBottom: footer
+              ? FOOTER_SPACE + insets.bottom
+              : 22 + insets.bottom,
           },
         ]}
       >
-        <View style={[styles.handle, {backgroundColor: c.outline}]} />
         {title ? (
           <View style={styles.header}>
             <Text variant="displayL" accessibilityRole="header">
@@ -119,52 +162,20 @@ export function BottomSheet({
             />
           </View>
         ) : null}
-        <ScrollView
-          style={styles.body}
-          contentContainerStyle={styles.bodyContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          {children}
-        </ScrollView>
-        {footer ? (
-          <View
-            style={[
-              styles.footer,
-              {
-                borderTopColor: c.outline,
-                paddingBottom: Math.max(insets.bottom, 16),
-              },
-            ]}
-          >
-            {footer}
-          </View>
-        ) : (
-          <View style={{height: insets.bottom}} />
-        )}
-      </Animated.View>
-    </Modal>
+        {children}
+      </BottomSheetScrollView>
+    </BottomSheetModal>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: {position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '88%'},
-  handle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 5,
-    borderRadius: 3,
-    marginTop: 10,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 8,
+    paddingTop: 4,
   },
-  body: {flexGrow: 0},
-  bodyContent: {paddingHorizontal: 20, paddingBottom: 22, gap: 22},
+  body: {paddingHorizontal: 20, gap: 22},
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
