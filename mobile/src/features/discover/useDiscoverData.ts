@@ -68,21 +68,40 @@ export function useEventCount(params: CountParams, enabled = true) {
 }
 
 /**
- * Place name for "vom Standort {Ort}" - once per session (R03-US7). The position is rounded
- * to ~1 km before it leaves the device; the backend rounds again and never stores it.
+ * Place name of the map center for the list header "um {Ort}" (R03-US4). The center is
+ * rounded to ~1 km; the backend rounds again and never stores it.
  */
-export function usePlaceName(location: GeoPoint | null) {
-  const lat = location ? Math.round(location.lat * 100) / 100 : 0;
-  const lon = location ? Math.round(location.lon * 100) / 100 : 0;
+export function useAreaName(center: GeoPoint | null, enabled: boolean) {
+  const lat = center ? Math.round(center.lat * 100) / 100 : 0;
+  const lon = center ? Math.round(center.lon * 100) / 100 : 0;
   return $api.useQuery(
     'get',
     '/v1/geocode/reverse',
     {params: {query: {lat, lon}}},
     {
-      enabled: location !== null,
+      enabled: enabled && center !== null,
       staleTime: Infinity,
-      gcTime: Infinity,
       retry: false,
+      placeholderData: keepPreviousData,
     },
   );
+}
+
+export type Place = components['schemas']['GeocodeResult'];
+
+/**
+ * First city or ZIP code matching the search text, for "Zu {Ort} springen" (R03-US5).
+ * Street addresses are not offered.
+ */
+export function usePlaceSuggestion(query: string) {
+  const q = query.trim();
+  const result = $api.useQuery(
+    'get',
+    '/v1/geocode',
+    {params: {query: {q, limit: 3}}},
+    {enabled: q.length >= 2, staleTime: 5 * 60_000, retry: false},
+  );
+  return q.length >= 2
+    ? result.data?.find(place => place.kind !== 'address')
+    : undefined;
 }

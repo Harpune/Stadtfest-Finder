@@ -1,6 +1,12 @@
 /** List view of the discover screen (R03-US4): header, cards, endless scroll, refresh. */
 import React from 'react';
-import {FlatList, RefreshControl, StyleSheet, View} from 'react-native';
+import {
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  View,
+} from 'react-native';
 
 import {
   EmptyState,
@@ -20,7 +26,10 @@ import type {EventSummary} from './useDiscoverData';
 export interface EventListProps {
   items: readonly EventSummary[];
   total: number | undefined;
-  radiusKm: number;
+  /** Place at the map center, e.g. "Aalen" ("um Aalen"). */
+  areaName?: string;
+  /** Switches to the map to move or zoom the area. */
+  onChangeArea: () => void;
   today: string;
   categoryOf: (id: string) => CategoryLook;
   loading: boolean;
@@ -39,7 +48,8 @@ export interface EventListProps {
 export function EventList({
   items,
   total,
-  radiusKm,
+  areaName,
+  onChangeArea,
   today,
   categoryOf,
   loading,
@@ -77,12 +87,40 @@ export function EventList({
       onEndReached={onEndReached}
       ListHeaderComponent={
         <View style={styles.header}>
-          <Text variant="displayM" testID="discover.list.header">
-            {strings.discover.listHeader(total ?? items.length, radiusKm)}
-          </Text>
-          <Text variant="meta" tone="muted">
-            {strings.discover.sortedByDate}
-          </Text>
+          <View style={styles.headerRow}>
+            <Text
+              variant="displayM"
+              testID="discover.list.header"
+              style={styles.title}
+            >
+              {strings.discover.listHeader(total ?? items.length)}
+            </Text>
+            <Text variant="meta" tone="muted">
+              {strings.discover.sortedByDate}
+            </Text>
+          </View>
+          <View style={styles.areaRow}>
+            {areaName ? (
+              <Text
+                variant="meta"
+                tone="muted"
+                numberOfLines={1}
+                style={styles.area}
+              >
+                {strings.discover.listArea(areaName)}
+              </Text>
+            ) : null}
+            <Pressable
+              testID="discover.list.changeArea"
+              accessibilityRole="button"
+              onPress={onChangeArea}
+              hitSlop={10}
+            >
+              <Text variant="meta" tone="primary" style={styles.link}>
+                {strings.discover.changeArea}
+              </Text>
+            </Pressable>
+          </View>
         </View>
       }
       ListEmptyComponent={
@@ -125,11 +163,16 @@ export function EventList({
 
 const styles = StyleSheet.create({
   content: {paddingHorizontal: 16, gap: 16},
-  header: {
+  header: {marginTop: 4, gap: 4},
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
-    marginTop: 4,
+    gap: 12,
   },
+  title: {flexShrink: 1},
+  areaRow: {flexDirection: 'row', alignItems: 'center', gap: 10},
+  area: {flexShrink: 1},
+  link: {fontFamily: 'Outfit_600SemiBold'},
   skeletons: {gap: 16},
 });

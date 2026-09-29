@@ -2,12 +2,17 @@ import Slider from '@react-native-community/slider';
 import React from 'react';
 import {StyleSheet, View} from 'react-native';
 
-import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
 
 import {Text} from '../Text/Text';
 
 export interface RangeSliderProps {
+  /** Section label, e.g. "Radius". */
+  label: string;
+  /** Value text on the right, e.g. "bis 25 km". */
+  formatValue: (value: number) => string;
+  /** Unit for the min/max labels, e.g. "km". */
+  unit: string;
   value: number;
   onChange: (value: number) => void;
   min: number;
@@ -19,8 +24,11 @@ export interface RangeSliderProps {
   disabled?: boolean;
 }
 
-/** Distance slider with "bis {n} km" and min/max labels (R03-US7). */
+/** Range slider with label, value text and min/max labels (e.g. notification radius, R11). */
 export function RangeSlider({
+  label,
+  formatValue,
+  unit,
   value,
   onChange,
   min,
@@ -35,14 +43,14 @@ export function RangeSlider({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text variant="label">{strings.filter.distance}</Text>
+        <Text variant="label">{label}</Text>
         <Text variant="bodyStrong" testID={`${testID}.value`}>
-          {strings.filter.upTo(value)}
+          {formatValue(value)}
         </Text>
       </View>
       <Slider
         testID={testID}
-        accessibilityLabel={strings.filter.distance}
+        accessibilityLabel={label}
         value={value}
         minimumValue={min}
         maximumValue={max}
@@ -56,7 +64,7 @@ export function RangeSlider({
       />
       <View style={styles.labels}>
         <Text variant="meta" tone="muted">
-          {strings.filter.km(min)}
+          {`${min} ${unit}`}
         </Text>
         <Text
           variant="meta"
@@ -67,7 +75,7 @@ export function RangeSlider({
           {caption}
         </Text>
         <Text variant="meta" tone="muted">
-          {strings.filter.km(max)}
+          {`${max} ${unit}`}
         </Text>
       </View>
     </View>

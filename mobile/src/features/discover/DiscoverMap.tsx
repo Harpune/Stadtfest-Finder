@@ -17,7 +17,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import {NativeSyntheticEvent, StyleSheet} from 'react-native';
+import {Keyboard, NativeSyntheticEvent, StyleSheet} from 'react-native';
 
 import {ClusterMarker, EventMarker, SelectedPin} from '@/components';
 import {strings} from '@/strings/de';
@@ -102,6 +102,7 @@ export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
     };
 
     const handleMapPress = () => {
+      Keyboard.dismiss();
       const pressedAt = Date.now();
 
       setTimeout(() => {
@@ -188,6 +189,11 @@ export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
         touchRotate={false}
         // Visible text attribution is rendered by the screen (MapTiler/OSM require text).
         attribution={false}
+        // Touching the map ends typing in the search field.
+
+        onRegionWillChange={event => {
+          if (event.nativeEvent.userInteraction) Keyboard.dismiss();
+        }}
         onRegionDidChange={onRegionDidChange}
         onPress={handleMapPress}
       >

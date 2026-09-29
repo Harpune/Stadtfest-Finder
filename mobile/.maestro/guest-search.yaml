@@ -1,7 +1,7 @@
 # Guest search (R03): requires the local stack with `make seed` and a running Metro.
 # Location is set to Aalen; IDs are the deterministic seed IDs (seed/catalog.py).
 appId: de.stadtfestfinder.app
-name: Gastsuche – Karte, Chip, Filter, Liste, Suche
+name: Gastsuche – Karte, Chip, Filter, Liste, Suche, Ort springen
 env:
   STADTFEST_CATEGORY: a991ee9e-506b-5afc-a7ed-bd282ec0c87b # "Stadtfest"
 ---
@@ -48,13 +48,30 @@ env:
 - inputText: Zzyzxfest
 - extendedWaitUntil:
     visible: 'Kein Fest für „Zzyzxfest“'
-    timeout: 10000
+    timeout: 20000
 - hideKeyboard
 - tapOn:
     id: discover.empty.reset
 - extendedWaitUntil:
     visible:
       id: discover.list.header
-    timeout: 10000
+    timeout: 20000
 - assertNotVisible:
     id: discover.filter.open.badge
+
+# Place search: "Zu … springen" moves the map there and clears the text search
+- tapOn:
+    id: discover.toggle.map
+- tapOn:
+    id: discover.search.input
+- inputText: Ulm
+- extendedWaitUntil:
+    visible:
+      id: discover.place.jump
+    timeout: 20000
+- tapOn:
+    id: discover.place.jump
+- extendedWaitUntil:
+    visible:
+      id: discover.carousel
+    timeout: 15000

@@ -6,7 +6,6 @@
 import {
   DEFAULT_FILTER,
   DiscoverFilter,
-  MAX_RADIUS_KM,
   pruneCategories,
   toggleValue,
 } from './filter';
@@ -32,7 +31,6 @@ export type DiscoverAction =
   | {type: 'setQuery'; query: string}
   | {type: 'applyFilter'; filter: DiscoverFilter}
   | {type: 'toggleCategory'; categoryId: string}
-  | {type: 'expandRadius'}
   | {type: 'resetAll'}
   | {type: 'select'; eventId: string | null}
   | {type: 'pruneCategories'; activeCategoryIds: readonly string[]};
@@ -56,8 +54,6 @@ export function discoverReducer(
           categoryIds: toggleValue(state.filter.categoryIds, action.categoryId),
         },
       };
-    case 'expandRadius':
-      return {...state, filter: {...state.filter, radiusKm: MAX_RADIUS_KM}};
     case 'resetAll':
       // "Filter zurücksetzen" in the empty state resets filters AND search (R03-US8).
       return {...state, filter: DEFAULT_FILTER, query: ''};

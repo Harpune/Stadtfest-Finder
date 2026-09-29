@@ -27,7 +27,6 @@ async function renderSheet(props: Partial<FilterSheetProps> = {}) {
       filter={DEFAULT_FILTER}
       categories={CATEGORIES}
       monthOptions={monthOptions('2026-10-01')}
-      originCaption="vom Standort Aalen"
       previewCount={8}
       {...handlers}
       {...props}
@@ -69,12 +68,16 @@ describe('FilterSheet', () => {
   });
 
   it('resets only the draft', async () => {
-    const applied = {...DEFAULT_FILTER, time: 'weekend' as const, radiusKm: 50};
+    const applied = {
+      ...DEFAULT_FILTER,
+      time: 'weekend' as const,
+      categoryIds: ['c1'],
+    };
     const {onApply} = await renderSheet({filter: applied});
     expect(screen.getByTestId('filter.time.weekend')).toBeSelected();
     await fireEvent.press(screen.getByTestId('filter.reset'));
     expect(screen.getByTestId('filter.time.all')).toBeSelected();
-    expect(screen.getByText('bis 150 km')).toBeOnTheScreen();
+    expect(screen.getByTestId('filter.category.c1')).not.toBeSelected();
     expect(onApply).not.toHaveBeenCalled();
   });
 

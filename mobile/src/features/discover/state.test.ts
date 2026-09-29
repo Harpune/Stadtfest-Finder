@@ -21,19 +21,13 @@ describe('discoverReducer', () => {
     expect(state.filter.categoryIds).toEqual(['b']);
   });
 
-  it('expands the radius to 300 km', () => {
-    expect(discoverReducer(S, {type: 'expandRadius'}).filter.radiusKm).toBe(
-      300,
-    );
-  });
-
   it('resets filter and search, but keeps the view', () => {
     const state = discoverReducer(
       {
         ...S,
         view: 'list',
         query: 'xyz',
-        filter: {...DEFAULT_FILTER, radiusKm: 10},
+        filter: {...DEFAULT_FILTER, categoryIds: ['a']},
       },
       {type: 'resetAll'},
     );

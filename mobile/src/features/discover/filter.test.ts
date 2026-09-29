@@ -1,6 +1,5 @@
 import {
   activeFilterCount,
-  clampRadius,
   DEFAULT_FILTER,
   DiscoverFilter,
   monthOptions,
@@ -20,10 +19,9 @@ describe('activeFilterCount', () => {
     expect(activeFilterCount(DEFAULT_FILTER)).toBe(0);
   });
 
-  it('counts time, each category and a changed radius', () => {
+  it('counts the time filter and each category', () => {
     expect(activeFilterCount(f({time: 'today'}))).toBe(1);
     expect(activeFilterCount(f({categoryIds: ['a', 'b']}))).toBe(2);
-    expect(activeFilterCount(f({categoryIds: ['a'], radiusKm: 10}))).toBe(2); // screen 01-07
   });
 
   it('does not count "Zeitraum wählen" without months', () => {
@@ -61,48 +59,39 @@ describe('monthOptions', () => {
 });
 
 describe('toQueryParams', () => {
-  it('maps the default filter to radius only', () => {
-    expect(toQueryParams(DEFAULT_FILTER, {}, '')).toEqual({radiusKm: 150});
+  it('sends nothing for the default filter without area', () => {
+    expect(toQueryParams(DEFAULT_FILTER, undefined, '')).toEqual({});
   });
 
-  it('maps time, months, categories, text and area with rounding', () => {
+  it('maps time, months, categories, text and the map area; never a position', () => {
     const params = toQueryParams(
       f({
         time: 'months',
         months: ['2026-12', '2026-11'],
         categoryIds: ['c2', 'c1'],
       }),
-      {
-        bbox: [9.12345, 48.12345, 10.98765, 49.98765],
-        reference: {lat: 48.83712, lon: 10.09341},
-      },
+      [9.123456, 48.123456, 10.987654, 49.987654],
       '  Aalen ',
     );
     expect(params).toEqual({
-      radiusKm: 150,
       when: 'months',
       months: ['2026-11', '2026-12'],
       categories: ['c1', 'c2'],
       q: 'Aalen',
-      bbox: [9.123, 48.123, 10.988, 49.988],
-      lat: 48.84,
-      lon: 10.09,
+      bbox: [9.1235, 48.1235, 10.9877, 49.9877],
     });
+    expect(params).not.toHaveProperty('lat');
+    expect(params).not.toHaveProperty('radiusKm');
   });
 
   it('ignores search text shorter than 2 characters and empty month selections', () => {
-    expect(toQueryParams(f({time: 'months'}), {}, 'a')).toEqual({
-      radiusKm: 150,
-    });
+    expect(toQueryParams(f({time: 'months'}), undefined, 'a')).toEqual({});
   });
 });
 
-describe('helpers', () => {
-  it('toggles values and clamps the radius to 10 km steps', () => {
+describe('toggleValue', () => {
+  it('adds and removes values', () => {
     expect(toggleValue(['a'], 'b')).toEqual(['a', 'b']);
     expect(toggleValue(['a', 'b'], 'a')).toEqual(['b']);
-    expect(clampRadius(4)).toBe(10);
-    expect(clampRadius(147)).toBe(150);
-    expect(clampRadius(999)).toBe(300);
   });
 });

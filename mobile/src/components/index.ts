@@ -23,6 +23,7 @@ export * from './MapControls/MapControls';
 export * from './MiniMap/MiniMap';
 export * from './MonthGrid/MonthGrid';
 export * from './Pills/Pills';
+export * from './PlaceSuggestion/PlaceSuggestion';
 export * from './ProgramList/ProgramList';
 export * from './RangeSlider/RangeSlider';
 export * from './SearchBar/SearchBar';
