@@ -217,6 +217,10 @@ export function DiscoverScreen() {
     },
     [state.selectedEventId, dispatch, toast],
   );
+  const clearSelection = useCallback(() => {
+    if (state.selectedEventId) dispatch({type: 'select', eventId: null});
+  }, [state.selectedEventId, dispatch]);
+
   // Selecting from the carousel (swipe or first tap) centers the map on the event.
   const onCarouselSettle = useCallback(
     (event: EventSummary) => {
@@ -335,6 +339,7 @@ export function DiscoverScreen() {
           showUserLocation={position !== null}
           onViewportChange={onViewportChange}
           onMarkerPress={selectOrOpen}
+          onMapPress={clearSelection}
         />
       ) : null}
 

@@ -30,6 +30,9 @@ import {offlineStyle} from './mapStyle';
 import {useTileStyle} from './useTileStyle';
 import type {EventSummary} from './useDiscoverData';
 
+/** A map press within this time of a marker press belongs to the marker. */
+const MARKER_PRESS_WINDOW_MS = 120;
+
 export const MIN_ZOOM = 6;
 export const MAX_ZOOM = 13;
 export const LOCATED_ZOOM = 10;
@@ -56,6 +59,8 @@ export interface DiscoverMapProps {
   showUserLocation: boolean;
   onViewportChange: (viewport: MapViewport) => void;
   onMarkerPress: (event: EventSummary) => void;
+  /** Tap on the map itself (not on a marker): clears the selection. */
+  onMapPress: () => void;
 }
 
 export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
@@ -69,6 +74,7 @@ export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
       showUserLocation,
       onViewportChange,
       onMarkerPress,
+      onMapPress,
     },
     ref,
   ) => {
@@ -82,6 +88,30 @@ export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
     const [styleFailed, setStyleFailed] = useState(false);
 
     const tileStyle = useTileStyle(theme.scheme);
+
+    // MapLibre also reports a map press when a marker is tapped (in either order). A map
+
+    // press only clears the selection if no marker press happens close to it.
+
+    const lastMarkerPress = useRef(0);
+
+    const handleMarkerPress = (event: EventSummary) => {
+      lastMarkerPress.current = Date.now();
+
+      onMarkerPress(event);
+    };
+
+    const handleMapPress = () => {
+      const pressedAt = Date.now();
+
+      setTimeout(() => {
+        if (
+          Math.abs(lastMarkerPress.current - pressedAt) > MARKER_PRESS_WINDOW_MS
+        ) {
+          onMapPress();
+        }
+      }, MARKER_PRESS_WINDOW_MS);
+    };
 
     const [viewport, setViewport] = useState<MapViewport>({
       center: initialCenter,
@@ -159,6 +189,7 @@ export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
         // Visible text attribution is rendered by the screen (MapTiler/OSM require text).
         attribution={false}
         onRegionDidChange={onRegionDidChange}
+        onPress={handleMapPress}
       >
         <Camera
           ref={camera}
@@ -207,7 +238,7 @@ export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
                 lngLat={[event.lon, event.lat]}
                 anchor={align}
                 offset={[align === 'right' ? 22 : -22, 0]}
-                onPress={() => onMarkerPress(event)}
+                onPress={() => handleMarkerPress(event)}
               >
                 <SelectedPin
                   label={event.shortName}
@@ -224,7 +255,7 @@ export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
               id={event.id}
               lngLat={[event.lon, event.lat]}
               accessibilityLabel={event.name}
-              onPress={() => onMarkerPress(event)}
+              onPress={() => handleMarkerPress(event)}
             >
               <EventMarker
                 emoji={category.emoji}

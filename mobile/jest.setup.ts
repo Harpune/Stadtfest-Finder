@@ -19,18 +19,23 @@ const mockCameraApi = {
 // viewport around Aalen after mounting so screens can start their queries.
 jest.mock('@maplibre/maplibre-react-native', () => {
   const React = require('react');
-  const {View} = require('react-native');
   interface MockMapProps {
     children?: unknown;
     testID?: string;
     onRegionDidChange?: (event: {nativeEvent: object}) => void;
+    onPress?: () => void;
   }
   interface MockMarkerProps {
     children?: unknown;
     id?: string;
     onPress?: () => void;
   }
-  const Map = ({children, onRegionDidChange, testID}: MockMapProps) => {
+  const Map = ({
+    children,
+    onRegionDidChange,
+    onPress,
+    testID,
+  }: MockMapProps) => {
     React.useEffect(() => {
       onRegionDidChange?.({
         nativeEvent: {
@@ -44,7 +49,11 @@ jest.mock('@maplibre/maplibre-react-native', () => {
         },
       });
     }, []);
-    return React.createElement(View, {testID}, children);
+    return React.createElement(
+      require('react-native').Pressable,
+      {testID, onPress},
+      children,
+    );
   };
   // Camera methods are spies on a shared object so tests can assert map movements.
   const Camera = React.forwardRef((_props: unknown, ref: unknown) => {

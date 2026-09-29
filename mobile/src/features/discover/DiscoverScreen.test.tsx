@@ -215,6 +215,23 @@ describe('Discover screen', () => {
     ).toBeOnTheScreen();
   });
 
+  it('clears the selection when the map itself is tapped', async () => {
+    mockApi(api());
+    await renderScreen();
+    await settle();
+    await waitFor(() =>
+      expect(screen.getByTestId('discover.carousel.card.e1')).toBeOnTheScreen(),
+    );
+    await fireEvent.press(screen.getByTestId('discover.carousel.card.e1'));
+    expect(screen.getByTestId('discover.pin.selected.e1')).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByTestId('discover.map'));
+    await waitFor(() =>
+      expect(screen.queryByTestId('discover.pin.selected.e1')).toBeNull(),
+    );
+    expect(screen.getByTestId('discover.carousel.card.e1')).not.toBeSelected();
+  });
+
   it('does not hang when location is granted but no GPS fix arrives', async () => {
     jest
       .mocked(Location.requestForegroundPermissionsAsync)
