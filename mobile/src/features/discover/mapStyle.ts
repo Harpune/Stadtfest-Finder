@@ -3,7 +3,10 @@
  * (local dev, tests, Storybook) an offline style with only the background color is used, so
  * no external service is contacted.
  */
-import type {StyleSpecification} from '@maplibre/maplibre-react-native';
+import {
+  type StyleSpecification,
+  TransformRequestManager,
+} from '@maplibre/maplibre-react-native';
 
 import type {ColorScheme} from '@/theme';
 
@@ -29,11 +32,29 @@ export function offlineStyle(background: string): StyleSpecification {
   };
 }
 
-export function mapStyleFor(
-  scheme: ColorScheme,
-  background: string,
-): string | StyleSpecification {
-  if (!HAS_TILE_KEY) return offlineStyle(background);
+/** Style URL of the tile provider for the scheme, or null without a key. */
+export function tileStyleUrl(scheme: ColorScheme): string | null {
+  if (!HAS_TILE_KEY) return null;
   const style = encodeURIComponent(STYLE_IDS[scheme]);
   return `https://api.maptiler.com/maps/${style}/style.json?key=${encodeURIComponent(KEY)}`;
+}
+
+/**
+ * App identifier sent as User-Agent to MapTiler. The API key is restricted to it in the
+ * MapTiler account (00-docs/40-operations/maptiler.md); MapLibre's default agent differs.
+ */
+export const TILE_USER_AGENT = 'de.stadtfestfinder.app';
+
+let requestsConfigured = false;
+
+/** Adds the User-Agent header to all MapTiler requests (style, tiles, glyphs, sprites). */
+export function configureTileRequests(): void {
+  if (requestsConfigured || !HAS_TILE_KEY) return;
+  TransformRequestManager.addHeader({
+    id: 'maptiler-user-agent',
+    match: /^https:\/\/api\.maptiler\.com\//,
+    name: 'User-Agent',
+    value: TILE_USER_AGENT,
+  });
+  requestsConfigured = true;
 }

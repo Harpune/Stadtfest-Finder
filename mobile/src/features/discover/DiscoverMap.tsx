@@ -26,8 +26,12 @@ import {useTheme} from '@/theme';
 import type {CategoryLook} from './categoryLookup';
 import {clusterItems} from './cluster';
 import type {Bbox, GeoPoint} from './filter';
-import {mapStyleFor} from './mapStyle';
+import {configureTileRequests, offlineStyle} from './mapStyle';
+import {useTileStyle} from './useTileStyle';
 import type {EventSummary} from './useDiscoverData';
+
+// Before the first map mounts: the style request must already carry the header.
+configureTileRequests();
 
 export const MIN_ZOOM = 6;
 export const MAX_ZOOM = 13;
@@ -73,6 +77,15 @@ export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
   ) => {
     const theme = useTheme();
     const camera = useRef<CameraRef>(null);
+
+    // If the tile style cannot be loaded (key revoked, offline), fall back to the offline
+
+    // style so markers and the viewport still work instead of hanging in "loading".
+
+    const [styleFailed, setStyleFailed] = useState(false);
+
+    const tileStyle = useTileStyle(theme.scheme);
+
     const [viewport, setViewport] = useState<MapViewport>({
       center: initialCenter,
       zoom: initialZoom,
@@ -145,7 +158,12 @@ export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
       <Map
         testID="discover.map"
         style={StyleSheet.absoluteFill}
-        mapStyle={mapStyleFor(theme.scheme, theme.colors.background)}
+        mapStyle={
+          !styleFailed && tileStyle
+            ? tileStyle
+            : offlineStyle(theme.colors.background)
+        }
+        onDidFailLoadingMap={() => setStyleFailed(true)}
         logo={false}
         compass={false}
         touchPitch={false}

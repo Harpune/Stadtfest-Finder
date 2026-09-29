@@ -43,7 +43,13 @@ jest.mock('@maplibre/maplibre-react-native', () => {
       {testID: `marker.${id}`, onPress},
       children,
     );
-  return {Map, Camera, Marker, UserLocation: () => null};
+  return {
+    Map,
+    Camera,
+    Marker,
+    UserLocation: () => null,
+    TransformRequestManager: {addHeader: jest.fn()},
+  };
 });
 
 jest.mock('expo-location', () => ({

@@ -329,24 +329,38 @@ export function DiscoverScreen() {
         </View>
       ) : (
         <>
-          <View style={[styles.controls, {bottom: carouselBottom + 130}]}>
-            <MapControls
-              onZoomIn={() => mapRef.current?.zoomBy(1)}
-              onZoomOut={() => mapRef.current?.zoomBy(-1)}
-              onLocate={
-                location.status === 'granted'
-                  ? async () => {
-                      const next = await locate();
-                      if (next) mapRef.current?.flyTo(next, LOCATED_ZOOM);
-                    }
-                  : undefined
-              }
-            />
-          </View>
           <View
             style={[styles.bottom, {bottom: carouselBottom}]}
             pointerEvents="box-none"
           >
+            {/* Attribution (left) and map controls (right) sit directly above the carousel or
+                the empty-state card, so they never overlap it. */}
+            <View style={styles.aboveCards} pointerEvents="box-none">
+              {HAS_TILE_KEY ? (
+                <Text
+                  variant="micro"
+                  tone="muted"
+                  testID="discover.attribution"
+                  style={styles.attribution}
+                >
+                  {strings.discover.attribution}
+                </Text>
+              ) : (
+                <View />
+              )}
+              <MapControls
+                onZoomIn={() => mapRef.current?.zoomBy(1)}
+                onZoomOut={() => mapRef.current?.zoomBy(-1)}
+                onLocate={
+                  location.status === 'granted'
+                    ? async () => {
+                        const next = await locate();
+                        if (next) mapRef.current?.flyTo(next, LOCATED_ZOOM);
+                      }
+                    : undefined
+                }
+              />
+            </View>
             {empty ? (
               <View style={styles.emptyWrap}>
                 <EmptyState {...empty} />
@@ -363,16 +377,6 @@ export function DiscoverScreen() {
               />
             )}
           </View>
-          {HAS_TILE_KEY ? (
-            <View
-              style={[styles.attribution, {bottom: carouselBottom + 136}]}
-              pointerEvents="none"
-            >
-              <Text variant="micro" tone="muted" testID="discover.attribution">
-                {strings.discover.attribution}
-              </Text>
-            </View>
-          ) : null}
           {statusPill ? (
             <View
               style={[styles.pill, {top: headerTop + headerHeight + 12}]}
@@ -491,10 +495,16 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 16,
   },
-  controls: {position: 'absolute', right: 16},
   bottom: {position: 'absolute', left: 0, right: 0},
   emptyWrap: {paddingHorizontal: 16},
   pill: {position: 'absolute', left: 0, right: 0, alignItems: 'center'},
   toggle: {position: 'absolute', left: 0, right: 0, alignItems: 'center'},
-  attribution: {position: 'absolute', left: 16},
+  aboveCards: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  attribution: {flexShrink: 1, marginRight: 12, marginBottom: 2},
 });
