@@ -45,13 +45,13 @@ cd mobile && pnpm ios   # bzw. pnpm android
   - Drawer zeigt Initialen, Name und E-Mail. „Abmelden“ zeigt „Du bist abgemeldet“.
   - Konto-Seite: Name ändern, dann „Konto löschen“. Danach darf der Nutzer in der Keycloak-Admin-Konsole (http://localhost:58080) nicht mehr existieren.
 - [ ] **Dasselbe auf Android.** Das ist der größte Unsicherheitsfaktor, siehe Risiken 1 und 2 unten.
-- [ ] **Moderatorrolle prüfen:** Mit `moderator@example.test` anmelden. `GET /v1/me` muss `roles: ["user","moderator"]` und `region.key = "ostalb"` liefern.
-- [ ] **Maestro-Flow** `mobile/.maestro/login.yaml` grün bekommen (`make test-e2e`). Den Flow habe ich blind geschrieben. Wahrscheinliche Stellen zum Nachjustieren:
+- [x] **Moderatorrolle prüfen** (30.09., per Token vom Client `stadtfest-tests`, alle drei Testnutzer korrekt): Mit `moderator@example.test` anmelden. `GET /v1/me` muss `roles: ["user","moderator"]` und `region.key = "ostalb"` liefern.
+- [ ] **Maestro-Flow** `mobile/.maestro/login.yaml` grün bekommen (`make test-e2e`). Stand 30.09.: läuft bis „Mit E-Mail anmelden“ grün (Start jetzt per Deep Link). Danach öffnet sich der Browser nicht, weil `Crypto.digestStringAsync` (PKCE) auf dem überlasteten Mac (Load > 300 nach macOS-Update) minutenlang nicht zurückkommt. Auf ruhigem Rechner wiederholen; hängt es dort auch, ist es ein echter Fehler. Den Flow habe ich blind geschrieben. Wahrscheinliche Stellen zum Nachjustieren:
   - der iOS-Dialog „… möchte zum Anmelden verwenden“ (Text „Fortfahren“/„Continue“)
   - die Keycloak-Feld-IDs `username`, `password`, `kc-login`
   - Timeouts
 - [ ] **Stille Token-Erneuerung testen:** Das Access-Token läuft nach 5 Minuten ab. Die App länger offen lassen und prüfen, dass Requests ohne Abmeldung weiterlaufen.
-- [ ] **Fehlerfall testen:** Den Keycloak-Container stoppen und „Konto löschen“ auslösen. Die API muss `204` liefern, im Worker-Log erscheint `idp_deletion_deferred`. Nach dem Neustart von Keycloak löscht der Job den Nutzer (erster Retry nach 1 Minute).
+- [x] **Fehlerfall testen** (30.09., per API: `204`, `idp_deletion_deferred`, Retry nach 60 s löscht den Nutzer; auch Löschen bei laufendem Keycloak geprüft): Den Keycloak-Container stoppen und „Konto löschen“ auslösen. Die API muss `204` liefern, im Worker-Log erscheint `idp_deletion_deferred`. Nach dem Neustart von Keycloak löscht der Job den Nutzer (erster Retry nach 1 Minute).
 - [ ] Nach erfolgreicher Prüfung: **diese Datei löschen**, PR-Beschreibung ergänzen, mergen (nur bei grüner Pipeline).
 
 ### Bekannte Risiken, die ich in der Cloud nicht prüfen konnte
