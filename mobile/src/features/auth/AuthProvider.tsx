@@ -39,7 +39,10 @@ export type AuthStatus = 'restoring' | 'guest' | 'signedIn';
 /** IdP operations; replaced by fakes in tests. */
 export interface AuthGateway {
   session: Session;
-  login: (method: LoginMethod) => Promise<LoginResult>;
+  login: (
+    method: LoginMethod,
+    isAborted?: () => boolean,
+  ) => Promise<LoginResult>;
   revoke: (refreshToken: string) => Promise<void>;
 }
 
@@ -65,7 +68,10 @@ interface AuthContextValue {
   /** Opens the login entry screen. */
   openLogin: () => void;
   /** Runs the login; resolves with the outcome so the entry screen can close itself. */
-  login: (method: LoginMethod) => Promise<LoginResult['type']>;
+  login: (
+    method: LoginMethod,
+    isAborted?: () => boolean,
+  ) => Promise<LoginResult['type']>;
   logout: () => Promise<void>;
   deleteAccount: () => Promise<boolean>;
   updateName: (firstName: string, lastName: string) => Promise<boolean>;
@@ -166,8 +172,8 @@ export function AuthProvider({
   );
 
   const login = useCallback(
-    async (method: LoginMethod) => {
-      const result = await gateway.login(method);
+    async (method: LoginMethod, isAborted?: () => boolean) => {
+      const result = await gateway.login(method, isAborted);
       if (result.type === 'error') {
         toast(strings.login.failed);
       }

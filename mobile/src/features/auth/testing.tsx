@@ -5,6 +5,7 @@ import React, {PropsWithChildren} from 'react';
 
 import {AuthGateway, AuthProvider, Me} from './AuthProvider';
 import {authSession} from './authSession';
+import type {LoginMethod} from './config';
 import type {LoginResult} from './oidc';
 import type {TokenSet} from './tokens';
 
@@ -37,7 +38,9 @@ export function fakeGateway(
 ) {
   const gateway = {
     session: authSession,
-    login: jest.fn(async () => result),
+    login: jest.fn<Promise<LoginResult>, [LoginMethod, (() => boolean)?]>(
+      async () => result,
+    ),
     revoke: jest.fn(async () => undefined),
   } satisfies AuthGateway;
   return gateway;

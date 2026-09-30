@@ -4,7 +4,7 @@
  */
 import {router} from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import React, {useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {Platform, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
@@ -27,9 +27,20 @@ export function LoginScreen() {
   const {login} = useAuth();
   const [busy, setBusy] = useState<LoginMethod | null>(null);
 
+  // Closing the screen while a login is being prepared aborts it: no browser opens later
+  // and a late result does not navigate away from whatever screen is open by then.
+  const mounted = useRef(true);
+  useEffect(
+    () => () => {
+      mounted.current = false;
+    },
+    [],
+  );
+
   const start = async (method: LoginMethod) => {
     setBusy(method);
-    const outcome = await login(method);
+    const outcome = await login(method, () => !mounted.current);
+    if (!mounted.current) return;
     setBusy(null);
     // Cancel keeps the entry screen open without a toast; errors show a toast.
     if (outcome === 'success' && router.canGoBack()) router.back();

@@ -39,8 +39,16 @@ function toTokenSet(response: AuthSession.TokenResponse): TokenSet {
 export type LoginResult =
   {type: 'success'; tokens: TokenSet} | {type: 'cancel'} | {type: 'error'};
 
-/** Runs the login in the browser sheet and exchanges the code for tokens. */
-export async function loginWithIdp(method: LoginMethod): Promise<LoginResult> {
+/**
+ * Runs the login in the browser sheet and exchanges the code for tokens.
+ *
+ * `isAborted` is asked right before the browser opens: if the user has left the entry
+ * screen while the login was being prepared (slow network), no browser pops up later.
+ */
+export async function loginWithIdp(
+  method: LoginMethod,
+  isAborted?: () => boolean,
+): Promise<LoginResult> {
   try {
     const document = await loadDiscovery();
     const {scopes, extraParams} = authorizeOptions(method);
@@ -51,6 +59,9 @@ export async function loginWithIdp(method: LoginMethod): Promise<LoginResult> {
       extraParams,
       usePKCE: true,
     });
+    // Prepares PKCE and state up front, so the check below sits directly before the prompt.
+    await request.makeAuthUrlAsync(document);
+    if (isAborted?.()) return {type: 'cancel'};
     const result = await request.promptAsync(document);
     if (result.type === 'cancel' || result.type === 'dismiss') {
       return {type: 'cancel'};
