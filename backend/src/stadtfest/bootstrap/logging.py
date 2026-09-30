@@ -137,3 +137,7 @@ def configure_logging(settings: Settings) -> None:
 
     # Uvicorn's access log contains client IPs and query strings; we log requests ourselves.
     logging.getLogger("uvicorn.access").disabled = True
+    # httpx logs every outgoing request with its full URL at INFO: search text and
+    # coordinates (Nominatim) and IdP user IDs (account deletion) would end up in the log.
+    for name in ("httpx", "httpcore"):
+        logging.getLogger(name).setLevel(logging.WARNING)

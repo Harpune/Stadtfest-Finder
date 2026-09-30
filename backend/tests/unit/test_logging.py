@@ -53,3 +53,19 @@ def test_stdlib_log_output_contains_no_personal_data(capsys: pytest.CaptureFixtu
         assert fragment not in output
     lines = [json.loads(line) for line in output.strip().splitlines()]
     assert lines[0]["path"] == "/v1/events"
+
+
+def test_outgoing_http_request_urls_are_not_logged(capsys: pytest.CaptureFixture[str]) -> None:
+    configure_logging(_settings())
+
+    # httpx logs "HTTP Request: GET <full url>" at INFO for every outgoing call.
+    logging.getLogger("httpx").info(
+        'HTTP Request: %s %s "%s"', "GET", "http://nominatim/search?q=Aalen", "HTTP/1.1 200 OK"
+    )
+    logging.getLogger("httpx").info(
+        'HTTP Request: %s %s "%s"', "DELETE", "http://idp/admin/users/subject-123", "HTTP/1.1 204"
+    )
+
+    output = capsys.readouterr().out
+    assert "Aalen" not in output
+    assert "subject-123" not in output
