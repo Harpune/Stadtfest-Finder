@@ -9,6 +9,7 @@
 | Nutzerkonto (`app_user`) | IdP-Subject, Vor- und Nachname | bis zur Kontolöschung | `DeleteAccount`, Schritt 1 | `test_identity_use_cases.py`, `test_accounts.py` | R05 |
 | Audit-Felder (`event.created_by`, `event.updated_by`) | Verweis auf die Nutzer-ID eines Moderators | bis zur Kontolöschung | `DeleteAccount`, Schritt 1: auf `null` | `test_accounts.py` | R05 |
 | Favoriten (`favorite`) | Nutzer-ID, Fest-ID, Zeitpunkt | bis zum Entfernen oder zur Kontolöschung; Vorschlag 24 Monate nach Festende (Job ab R11) | `DELETE /v1/me/favorites/{id}`; `DeleteAccount`, Schritt 1: `favorite_count` der betroffenen Feste wird verringert, die Zeilen löscht `ON DELETE CASCADE` | `test_favorites.py` | R06 |
+| Outbox (`outbox`) | keiner: nur Fest-IDs und Feldnamen | 14 Tage nach Versand | täglicher Job `purge_outbox` (03:30 Uhr) | `test_moderation.py` | R07 |
 | Konto beim IdP (Zitadel/Keycloak) | E-Mail, Name, Anmeldedaten, Rollen, Region | bis zur Kontolöschung | `DeleteAccount`, Schritt 2 (IdP-Admin-Port, ADR 0010) | `test_idp_admin_adapters.py`, `test_keycloak_login.py` | R05 |
 | Retry-Job `delete_idp_user` (Redis) | IdP-Subject im Job | bis zum Erfolg, höchstens ca. 2 Tage (15 Versuche) | automatisch nach Ausführung | `test_worker_jobs.py` | R05 |
 | Sperrvermerk gelöschter Konten (Redis, `sf:deleted:<hash>`) | SHA-256-Hash des IdP-Subjects | Restlaufzeit des letzten Access-Tokens plus Toleranz (`AUTH_LEEWAY_SECONDS`) | automatischer Ablauf (Redis-TTL) | `test_identity_use_cases.py`, `test_deleted_accounts.py` | R05 |

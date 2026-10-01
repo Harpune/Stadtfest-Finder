@@ -1,6 +1,6 @@
 # 0005 · Domain-Events über Transactional Outbox
 
-- **Status:** angenommen (Umsetzung in R07)
+- **Status:** angenommen, umgesetzt in R07
 - **Datum:** 2026-09-28
 - **Bezug:** E-13
 

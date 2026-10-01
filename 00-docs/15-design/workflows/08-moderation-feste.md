@@ -105,6 +105,15 @@ flowchart TD
 | Adresse oder Pin | – | ✓, innerhalb der Region | „Bitte gib eine Adresse ein oder setze einen Pin.“ |
 | Öffnungszeiten, Beschreibung, Programm, Eintritt, Anfahrt, Website, Bilder | – | – | – |
 
+## Stand der Umsetzung (R07)
+
+- Bilder (08-04 unten) folgen in R08, die KI-Suche („Suchen“) in R10, der Tab „Kategorien“ in R09; bis dahin zeigt der Tab einen Hinweis.
+- Datumsfelder nutzen die Systemauswahl (`@react-native-community/datetimepicker`, Entscheidung 01.10.2026).
+- Die Status-Chips der Übersicht zeigen die Anzahl je Status und filtern auf dem Gerät.
+- „Als Entwurf“ bei einem veröffentlichten Fest speichert die Änderungen und zieht das Fest danach zurück (`PATCH` + `POST …/unpublish`).
+- Abgesagte Feste lassen sich nur noch in Textfeldern ändern; der Button „Als Entwurf“ entfällt dort.
+- Die Benachrichtigungen aus der Tabelle „Asynchrone Folgen“ kommen mit R11; die Events werden schon jetzt über die Outbox erzeugt.
+
 ## Regeln
 
 - Die Übersicht ist sortiert: anstehende Feste aufsteigend, danach vergangene absteigend.
