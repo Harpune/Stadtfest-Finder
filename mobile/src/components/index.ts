@@ -29,6 +29,7 @@ export * from './ModEventRow/ModEventRow';
 export * from './ModTabBar/ModTabBar';
 export * from './MonthGrid/MonthGrid';
 export * from './Pills/Pills';
+export * from './LocationPicker/LocationPicker';
 export * from './PinMap/PinMap';
 export * from './PlaceSuggestion/PlaceSuggestion';
 export * from './ProgramList/ProgramList';

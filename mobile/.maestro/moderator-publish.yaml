@@ -81,11 +81,10 @@ env:
 - inputText: Marktplatz Aalen
 - extendedWaitUntil:
     visible:
-      id: mod.form.address.suggestions
+      id: mod.form.address.suggestion.0
     timeout: 20000
 - tapOn:
-    id: 'mod.form.address.suggestion.*'
-    index: 0
+    id: mod.form.address.suggestion.0
 - tapOn:
     id: mod.form.publish
 - extendedWaitUntil:

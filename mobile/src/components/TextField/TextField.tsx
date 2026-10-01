@@ -14,6 +14,7 @@ export interface TextFieldProps extends Pick<
   | 'placeholder'
   | 'keyboardType'
   | 'autoCapitalize'
+  | 'onFocus'
 > {
   label: string;
   value: string;

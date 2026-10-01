@@ -152,6 +152,11 @@ export const strings = {
     moderator: 'Moderator-Ansicht',
   },
   mod: {
+    picker: {
+      title: 'Ort auf der Karte wählen',
+      hint: 'Karte verschieben und zoomen, der Pin bleibt in der Mitte.',
+      confirm: 'Pin übernehmen',
+    },
     banner: 'Moderator-Ansicht',
     bannerSubtitle: (region: string, name: string) =>
       name ? `Region ${region} · ${name}` : `Region ${region}`,
@@ -192,7 +197,12 @@ export const strings = {
       locationAddress: 'Adresse',
       locationPin: 'Pin auf Karte',
       addressPlaceholder: 'Straße oder Platz, PLZ Ort',
-      pinHint: 'Tippe, um den Pin zu setzen',
+      pinHint: 'Tippe, um den Pin auf der Karte zu setzen',
+      pinEdit: 'Tippe, um den Pin zu verschieben',
+      addressSearching: 'Suche Orte …',
+      addressNoMatch: 'Kein Ort gefunden. Setze sonst einen Pin auf der Karte.',
+      addressUnavailable:
+        'Ortssuche gerade nicht erreichbar. Setze sonst einen Pin.',
       pinLabel: (lat: string, lon: string) => `Pin ${lat}, ${lon}`,
       description: 'Beschreibung',
       descriptionPlaceholder: 'Was erwartet die Besucher?',

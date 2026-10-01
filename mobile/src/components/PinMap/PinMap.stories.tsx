@@ -13,8 +13,8 @@ const meta = {
     lon: 9.7986,
     fallback: {lat: 48.84, lon: 10.09},
     mapStyle: offlineStyle('#15111C'),
-    editable: false,
-    onPick: fn(),
+    active: false,
+    onPress: fn(),
     caption: '48.7996, 9.7986',
     testID: 'story.pinMap',
   },
@@ -25,7 +25,8 @@ type Story = StoryObj<typeof meta>;
 
 export const WithPin: Story = {};
 export const PinMode: Story = {
-  args: {editable: true, caption: 'Tippe, um den Pin zu setzen'},
+  args: {active: true, caption: 'Tippe, um den Pin zu verschieben'},
 };
 export const Empty: Story = {args: {lat: null, lon: null, caption: undefined}};
+export const ReadOnly: Story = {args: {onPress: undefined}};
 export const Invalid: Story = {args: {lat: null, lon: null, invalid: true}};

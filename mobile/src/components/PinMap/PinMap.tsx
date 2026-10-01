@@ -6,7 +6,7 @@ import {
   type StyleSpecification,
 } from '@maplibre/maplibre-react-native';
 import React, {useEffect, useRef} from 'react';
-import {StyleSheet, View} from 'react-native';
+import {Pressable, StyleSheet, View} from 'react-native';
 
 import {useTheme} from '@/theme';
 
@@ -19,23 +19,31 @@ export interface PinMapProps {
   /** Map center when no pin is set yet (e.g. the region). */
   fallback: {lat: number; lon: number};
   mapStyle: string | StyleSpecification;
-  /** Pin mode (08-07): a tap sets the pin; the frame turns turquoise. */
-  editable: boolean;
-  onPick: (lat: number, lon: number) => void;
+  /** Pin mode (08-07): the frame turns turquoise. */
+  active: boolean;
+  /** Opens the full-screen picker (`LocationPicker`); without it the map is read-only. */
+  onPress?: () => void;
+  /** Accessible name of the tap target, e.g. "Tippe, um den Pin zu verschieben". */
+  pressLabel?: string;
   /** Label in the lower left corner, e.g. coordinates or "Tippe, um den Pin zu setzen". */
   caption?: string;
   invalid?: boolean;
   testID: string;
 }
 
-/** Location map of the moderation form (08-03, 08-07) with a turquoise pin. */
+/**
+ * Location preview of the moderation form (08-03, 08-07) with a turquoise pin. The map
+ * itself takes no gestures, so it never fights the form's scrolling; a tap opens the
+ * full-screen picker instead.
+ */
 export function PinMap({
   lat,
   lon,
   fallback,
   mapStyle,
-  editable,
-  onPick,
+  active,
+  onPress,
+  pressLabel,
   caption,
   invalid = false,
   testID,
@@ -45,12 +53,12 @@ export function PinMap({
   const camera = useRef<CameraRef>(null);
   const hasPin = lat !== null && lon !== null;
 
-  // Follow a new pin from the address search; taps in pin mode keep the camera still.
+  // Follow a new pin from the address search or the picker.
   useEffect(() => {
-    if (hasPin && !editable) {
-      camera.current?.easeTo({center: [lon, lat], zoom: 14, duration: 400});
+    if (hasPin) {
+      camera.current?.easeTo({center: [lon, lat], zoom: 15, duration: 400});
     }
-  }, [hasPin, lat, lon, editable]);
+  }, [hasPin, lat, lon]);
 
   return (
     <View
@@ -60,7 +68,7 @@ export function PinMap({
         {
           borderRadius: theme.radius.block,
           backgroundColor: c.surface,
-          borderColor: invalid ? c.error : editable ? c.mod.primary : c.outline,
+          borderColor: invalid ? c.error : active ? c.mod.primary : c.outline,
         },
       ]}
     >
@@ -70,20 +78,17 @@ export function PinMap({
         logo={false}
         compass={false}
         attribution={false}
+        dragPan={false}
+        touchZoom={false}
         touchRotate={false}
         touchPitch={false}
-        onPress={event => {
-          if (!editable) return;
-          const [pressedLon, pressedLat] = event.nativeEvent.lngLat;
-          onPick(pressedLat, pressedLon);
-        }}
         testID={`${testID}.map`}
       >
         <Camera
           ref={camera}
           initialViewState={{
             center: hasPin ? [lon, lat] : [fallback.lon, fallback.lat],
-            zoom: hasPin ? 14 : 9,
+            zoom: hasPin ? 15 : 9,
           }}
         />
         {hasPin ? (
@@ -97,6 +102,15 @@ export function PinMap({
           </Marker>
         ) : null}
       </Map>
+      {onPress ? (
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          accessibilityRole="button"
+          accessibilityLabel={pressLabel ?? caption}
+          onPress={onPress}
+          testID={`${testID}.open`}
+        />
+      ) : null}
       {caption ? (
         <View
           style={[styles.caption, {backgroundColor: c.glass}]}
@@ -112,7 +126,7 @@ export function PinMap({
 }
 
 const styles = StyleSheet.create({
-  frame: {height: 180, overflow: 'hidden', borderWidth: 1.5},
+  frame: {height: 200, overflow: 'hidden', borderWidth: 1.5},
   caption: {
     position: 'absolute',
     left: 10,
