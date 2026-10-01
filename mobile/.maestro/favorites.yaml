@@ -1,0 +1,93 @@
+# Favorites (R06): guest heart → login → the remembered favorite is set → drawer timeline
+# shows the event → open it from the timeline → remove the heart → empty state.
+# Requires the local stack (`make dev`, `make seed`) with Keycloak and the dev realm, and a
+# test user without favorites. Tag `typing`: see login.yaml.
+appId: de.stadtfestfinder.app
+name: Favoriten und Zeitleiste
+tags:
+  - typing
+env:
+  EVENT: 24b84e9c-31ad-5e4a-83fa-799fd1273ed7 # "Reichsstädter Tage"
+  USERNAME: nutzer@example.test # dev realm test user (infra/dev/keycloak)
+  PASSWORD: stadtfest-dev
+---
+- runFlow:
+    file: shared/launch.yaml
+    env:
+      LOCATION: never
+- openLink: stadtfest://f/${EVENT}
+- runFlow:
+    when:
+      visible: 'Öffnen|Open'
+    commands:
+      - tapOn: 'Öffnen|Open'
+- extendedWaitUntil:
+    visible:
+      id: detail.title
+    timeout: 15000
+
+# Heart as guest → login; the favorite is set right after the login
+- tapOn:
+    id: detail.favorite
+- extendedWaitUntil:
+    visible: 'Lieblingsfeste merken'
+    timeout: 10000
+- tapOn:
+    id: guestHint.login
+- tapOn:
+    id: login.email
+- tapOn:
+    text: 'Fortfahren|Continue'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: username
+    timeout: 60000
+- tapOn:
+    id: username
+- inputText: ${USERNAME}
+- tapOn:
+    id: password
+- inputText: ${PASSWORD}
+- tapOn:
+    id: kc-login
+- extendedWaitUntil:
+    visible: 'Angemeldet · Fest gemerkt'
+    timeout: 60000
+
+# The timeline in the drawer shows the event as running
+- tapOn:
+    id: detail.back
+- tapOn:
+    id: discover.profile
+- extendedWaitUntil:
+    visible:
+      id: favorites.entry.${EVENT}
+    timeout: 10000
+- assertVisible: '1 Favorit steht an'
+
+# Open it from the timeline and remove the heart
+- tapOn:
+    id: favorites.entry.${EVENT}
+- extendedWaitUntil:
+    visible:
+      id: detail.title
+    timeout: 10000
+- tapOn:
+    id: detail.favorite
+- extendedWaitUntil:
+    visible: 'Aus Favoriten entfernt'
+    timeout: 10000
+- tapOn:
+    id: detail.back
+- tapOn:
+    id: discover.profile
+- extendedWaitUntil:
+    visible:
+      id: favorites.empty
+    timeout: 10000
+- assertVisible: 'Noch keine Favoriten'
+
+# Clean up: log out again
+- tapOn:
+    id: drawer.logout

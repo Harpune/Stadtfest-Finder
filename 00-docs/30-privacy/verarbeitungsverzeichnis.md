@@ -1,6 +1,6 @@
 # Verzeichnis der Verarbeitungstätigkeiten (VVT)
 
-> Stand R05: Gespeichert wird das Nutzerkonto (Nr. 5, nur IdP-Subject und Name). Die Suche verarbeitet Standortdaten nur flüchtig. Pro Verarbeitung eine Zeile.
+> Stand R06: Gespeichert werden das Nutzerkonto (Nr. 5, nur IdP-Subject und Name) und die Favoriten (Nr. 7). Die Suche verarbeitet Standortdaten nur flüchtig. Pro Verarbeitung eine Zeile.
 
 | Nr. | Verarbeitung | Zweck | Betroffene | Datenkategorien (Felder) | Rechtsgrundlage | Empfänger / Auftragsverarbeiter | Drittland | Frist | Löschweg | Inkrement |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -10,6 +10,8 @@
 | 3 | Rate-Limit Geocoding | Schutz vor Missbrauch | Gäste, Nutzer | gehashte IP-Adresse | Art. 6 (1) f | keine | nein | 2 Sekunden (Redis-TTL) | automatischer Ablauf | R02 |
 | 5 | Nutzerkonto | Anmeldung, Zuordnung von Favoriten, Listen und Einladungen, Anzeige des Namens | Nutzer, Moderatoren | Tabelle `app_user`: interne ID, IdP-Subject (`idp_subject`), Vorname, Nachname, Zeitstempel. **Keine** E-Mail-Adresse, keine Anbieterliste (E-08). Rollen und Region stehen nur im Token und werden nicht gespeichert. | Art. 6 (1) b (Nutzungsvertrag) | keine; eigener Server (EU) | nein | bis zur Kontolöschung | `DELETE /v1/me` → Use Case `DeleteAccount` ([Löschkonzept](loeschkonzept.md)) | R05 |
 | 6 | Anmeldung beim IdP | Authentifizierung (Apple, Google, E-Mail), Rollenvergabe | Nutzer, Moderatoren | beim IdP: E-Mail, Name, Anmeldedaten, Rollen, Region-Metadatum (Moderatoren); ggf. Verknüpfung mit Apple/Google | Art. 6 (1) b | Zitadel Cloud (EU-Region, ADR 0003); lokal Keycloak | nein | bis zur Kontolöschung | IdP-Admin-Port löscht den Nutzer beim IdP (ADR 0010), Retry per Job | R05 |
+| 7 | Favoriten | Merkliste und Zeitleiste „Deine Festsaison“; ab R11 Erinnerungen vor Festbeginn | Nutzer, Moderatoren | Tabelle `favorite`: Nutzer-ID, Fest-ID, Zeitpunkt des Merkens. `event.favorite_count` ist nur eine Summe ohne Personenbezug. | Art. 6 (1) b (Nutzungsvertrag) | keine; eigener Server (EU) | nein | bis zum Entfernen durch den Nutzer oder bis zur Kontolöschung; vergangene Favoriten bleiben für die Zeitleiste. Vorschlag: 24 Monate nach Festende automatisch löschen (Job ab R11) | `DELETE /v1/me/favorites/{id}`; Kontolöschung über `ON DELETE CASCADE` ([Löschkonzept](loeschkonzept.md)) | R06 |
+| – | Darstellung (App) | Dunkelmodus-Wahl auf dem Gerät | Gäste, Nutzer | `theme-preference` in AsyncStorage (`dark`, `light`, `system`), kein Personenbezug | – | keine; nur Gerät | nein | bis zur Deinstallation | langer Druck auf „Dunkelmodus“ setzt auf „System“ zurück | R06 |
 
 ## Nicht gespeicherte, nur verarbeitete Daten
 
