@@ -157,8 +157,22 @@ export function AuthProvider({
       setPendingAction(null);
       switch (action?.type) {
         case 'favorite':
-          // R06 sets the favorite here (PUT /v1/me/favorites/{id}).
-          toast(strings.login.favoriteSaved);
+          // The heart tapped as a guest is set now (R06-US1).
+          void fetchClient
+            .PUT('/v1/me/favorites/{eventId}', {
+              params: {path: {eventId: action.eventId}},
+            })
+            .catch(() => null)
+            .then(result => {
+              toast(
+                result?.response.ok
+                  ? strings.login.favoriteSaved
+                  : strings.favorites.failed,
+              );
+              return queryClient.invalidateQueries({
+                queryKey: ['get', '/v1/me/favorites'],
+              });
+            });
           return;
         case 'invite':
           // R14 reopens the invitation here.
@@ -168,7 +182,7 @@ export function AuthProvider({
           toast(strings.login.welcome(me?.firstName ?? ''));
       }
     },
-    [toast],
+    [toast, queryClient],
   );
 
   const login = useCallback(

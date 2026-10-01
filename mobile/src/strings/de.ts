@@ -114,6 +114,13 @@ export const strings = {
     sessionExpired: 'Bitte melde dich erneut an',
     loggedOut: 'Du bist abgemeldet',
   },
+  favorites: {
+    added: 'Zu Favoriten hinzugefügt',
+    removed: 'Aus Favoriten entfernt',
+    failed: 'Das hat nicht geklappt',
+    add: (name: string) => `${name} merken`,
+    remove: (name: string) => `${name} aus Favoriten entfernen`,
+  },
   drawer: {
     guestTitle: 'Deine Festsaison auf einen Blick',
     guestText:
@@ -123,6 +130,23 @@ export const strings = {
     openAccount: 'Konto öffnen',
     logout: 'Abmelden',
     title: 'Deine Festsaison',
+    upcoming: (n: number) =>
+      n === 1 ? '1 Favorit steht an' : `${n} Favoriten stehen an`,
+    showPast: (n: number) => `↑ Vergangene einblenden (${n})`,
+    hidePast: '↓ Vergangene ausblenden',
+    today: (day: string) => `HEUTE · ${day}`,
+    past: 'vorbei',
+    emptyTitle: 'Noch keine Favoriten',
+    emptyText:
+      'Tippe bei einem Fest auf das Herz. Es erscheint dann hier auf deiner Zeitleiste, sortiert nach Datum.',
+    discover: 'Feste entdecken',
+    loadFailed: 'Favoriten konnten nicht geladen werden',
+    retry: 'Erneut versuchen',
+    darkMode: 'Dunkelmodus',
+    darkModeHint: 'Lange drücken: wieder wie das System',
+    darkModeSystem: 'Darstellung folgt wieder dem System',
+    moderator: 'Moderator-Ansicht',
+    moderatorSoon: 'Die Moderator-Ansicht folgt in Kürze',
   },
   name: {
     title: 'Wie heißt du?',

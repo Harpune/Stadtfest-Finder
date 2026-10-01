@@ -43,6 +43,8 @@ export interface EventListProps {
   onEndReached: () => void;
   onOpen: (event: EventSummary) => void;
   onFavorite: (event: EventSummary) => void;
+  /** Events marked as favorite by the signed-in user (filled hearts). */
+  favoriteIds?: ReadonlySet<string>;
 }
 
 export function EventList({
@@ -62,12 +64,14 @@ export function EventList({
   onEndReached,
   onOpen,
   onFavorite,
+  favoriteIds,
 }: EventListProps) {
   const theme = useTheme();
   const showSkeleton = loading && items.length === 0;
   return (
     <FlatList
       testID="discover.list"
+      extraData={favoriteIds}
       data={showSkeleton ? [] : items}
       keyExtractor={item => item.id}
       style={{backgroundColor: theme.colors.background}}
@@ -154,6 +158,7 @@ export function EventList({
             }
             onPress={() => onOpen(item)}
             onFavoritePress={() => onFavorite(item)}
+            isFavorite={favoriteIds?.has(item.id) ?? false}
           />
         );
       }}

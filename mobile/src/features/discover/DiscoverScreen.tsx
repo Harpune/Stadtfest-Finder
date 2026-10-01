@@ -30,6 +30,11 @@ import {useTheme} from '@/theme';
 import {ProfileDrawer} from '../account/ProfileDrawer';
 import {initialsOf, useAuth} from '../auth/AuthProvider';
 import {todayInBerlin} from '../events/dates';
+import {
+  favoriteEntryFrom,
+  useFavoriteIds,
+  useToggleFavorite,
+} from '../favorites/useFavorites';
 import {buildCategoryLookup} from './categoryLookup';
 import {
   DiscoverMap,
@@ -184,6 +189,16 @@ export function DiscoverScreen() {
     () => buildCategoryLookup(categories.data),
     [categories.data],
   );
+
+  const favoriteIds = useFavoriteIds();
+  const toggle = useToggleFavorite();
+  const toggleFavorite = (event: EventSummary) => {
+    if (!requestAccountAction({type: 'favorite', eventId: event.id})) return;
+    void toggle(
+      favoriteEntryFrom(event, categoryOf(event.categoryId)),
+      !favoriteIds.has(event.id),
+    );
+  };
 
   // Selected categories that were deactivated disappear silently (R03-US6).
   useEffect(() => {
@@ -387,9 +402,8 @@ export function DiscoverScreen() {
               if (search.hasNextPage) void search.fetchNextPage();
             }}
             onOpen={event => router.push(`/f/${event.id}`)}
-            onFavorite={event =>
-              requestAccountAction({type: 'favorite', eventId: event.id})
-            }
+            onFavorite={toggleFavorite}
+            favoriteIds={favoriteIds}
           />
         </View>
       ) : (
