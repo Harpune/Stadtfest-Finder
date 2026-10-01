@@ -12,6 +12,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.routing import compile_path
 
 from stadtfest.application.shared.errors import (
+    ConflictError,
+    ForbiddenError,
     InvalidInputError,
     NotFoundError,
     ServiceUnavailableError,
@@ -31,6 +33,12 @@ _STATUS_ERRORS: dict[int, tuple[str, str]] = {
     422: ("validation_failed", "Bitte fülle die markierten Pflichtfelder aus"),
     429: ("rate_limited", "Bitte kurz warten"),
     503: ("service_unavailable", "Der Dienst ist gerade nicht erreichbar. Bitte später erneut."),
+}
+# Messages for specific error codes (moderation, R07).
+_CODE_MESSAGES: dict[str, str] = {
+    "version_conflict": "Dieses Fest wurde inzwischen geändert.",
+    "invalid_transition": "Das ist in diesem Status nicht möglich.",
+    "region_mismatch": "Der Ort liegt außerhalb deiner Region.",
 }
 _INTERNAL_ERROR = ("internal_error", "Da ist etwas schiefgelaufen. Bitte versuche es erneut.")
 
@@ -103,8 +111,17 @@ async def _handle_not_found(_: Request, exc: Exception) -> JSONResponse:
 
 async def _handle_invalid_input(_: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, InvalidInputError)  # noqa: S101  # registered for this type
-    error, message = _STATUS_ERRORS[422]
-    return error_response(422, error, message, exc.fields)
+    message = _CODE_MESSAGES.get(exc.code, _STATUS_ERRORS[422][1])
+    return error_response(422, exc.code, message, exc.fields)
+
+
+async def _handle_forbidden(_: Request, exc: Exception) -> JSONResponse:
+    return error_response(403, *_STATUS_ERRORS[403])
+
+
+async def _handle_conflict(_: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, ConflictError)  # noqa: S101  # registered for this type
+    return error_response(409, exc.code, _CODE_MESSAGES.get(exc.code, _STATUS_ERRORS[409][1]))
 
 
 async def _handle_unavailable(_: Request, exc: Exception) -> JSONResponse:
@@ -128,5 +145,7 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, _handle_validation_error)
     app.add_exception_handler(NotFoundError, _handle_not_found)
     app.add_exception_handler(InvalidInputError, _handle_invalid_input)
+    app.add_exception_handler(ForbiddenError, _handle_forbidden)
+    app.add_exception_handler(ConflictError, _handle_conflict)
     app.add_exception_handler(ServiceUnavailableError, _handle_unavailable)
     app.add_exception_handler(Exception, _handle_unexpected)

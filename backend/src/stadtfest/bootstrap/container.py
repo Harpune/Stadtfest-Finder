@@ -29,7 +29,17 @@ from stadtfest.adapters.outbound.persistence.accounts import SqlRegionDirectory,
 from stadtfest.adapters.outbound.persistence.catalog import SqlCatalog
 from stadtfest.adapters.outbound.persistence.database import DatabaseProbe, create_engine
 from stadtfest.adapters.outbound.persistence.favorites import SqlFavoriteRepository
-from stadtfest.adapters.outbound.queue.arq_jobs import ArqAccountJobs, create_arq_redis
+from stadtfest.adapters.outbound.persistence.moderation import (
+    SqlActiveCategories,
+    SqlManagedEventRepository,
+    SqlModRegionDirectory,
+)
+from stadtfest.adapters.outbound.persistence.outbox import SqlEventFavorites, SqlOutboxStore
+from stadtfest.adapters.outbound.queue.arq_jobs import (
+    ArqAccountJobs,
+    ArqEventQueue,
+    create_arq_redis,
+)
 from stadtfest.application.collections.use_cases import (
     AddFavorite,
     IsFavorite,
@@ -55,6 +65,17 @@ from stadtfest.application.identity.use_cases import (
     GetMe,
     UpdateMe,
 )
+from stadtfest.application.moderation.use_cases import (
+    CancelModEvent,
+    CreateModEvent,
+    DeleteModEvent,
+    GetModEvent,
+    ListModEvents,
+    PublishModEvent,
+    UnpublishModEvent,
+    UpdateModEvent,
+)
+from stadtfest.application.outbox.use_cases import HandleDomainEvent, PurgeOutbox, RelayOutbox
 from stadtfest.bootstrap.settings import GeocodingProvider, IdpAdminProvider, Settings
 
 
@@ -105,6 +126,17 @@ class Container:
     remove_favorite: RemoveFavorite
     list_favorites: ListFavorites
     is_favorite: IsFavorite
+    list_mod_events: ListModEvents
+    get_mod_event: GetModEvent
+    create_mod_event: CreateModEvent
+    update_mod_event: UpdateModEvent
+    publish_mod_event: PublishModEvent
+    unpublish_mod_event: UnpublishModEvent
+    cancel_mod_event: CancelModEvent
+    delete_mod_event: DeleteModEvent
+    relay_outbox: RelayOutbox
+    handle_domain_event: HandleDomainEvent
+    purge_outbox: PurgeOutbox
     delete_idp_user: DeleteIdpUser
 
     @classmethod
@@ -149,6 +181,11 @@ class Container:
         arq_redis = create_arq_redis(str(settings.redis_url))
         deleted_accounts = RedisDeletedAccounts(redis)
         favorites = SqlFavoriteRepository(sessions)
+        managed = SqlManagedEventRepository(sessions)
+        mod_regions = SqlModRegionDirectory(sessions)
+        ensure_account = EnsureAccount(users)
+        mod = (managed, mod_regions, clock)
+        outbox = SqlOutboxStore(sessions)
 
         return cls(
             settings=settings,
@@ -176,10 +213,21 @@ class Container:
                 token_leeway_seconds=settings.auth_leeway_seconds,
             ),
             delete_idp_user=DeleteIdpUser(idp_admin),
-            add_favorite=AddFavorite(favorites, EnsureAccount(users)),
+            add_favorite=AddFavorite(favorites, ensure_account),
             remove_favorite=RemoveFavorite(favorites),
             list_favorites=ListFavorites(favorites, clock),
             is_favorite=IsFavorite(favorites),
+            list_mod_events=ListModEvents(*mod),
+            get_mod_event=GetModEvent(*mod),
+            create_mod_event=CreateModEvent(*mod, ensure_account),
+            update_mod_event=UpdateModEvent(*mod, ensure_account),
+            publish_mod_event=PublishModEvent(*mod, ensure_account, SqlActiveCategories(sessions)),
+            unpublish_mod_event=UnpublishModEvent(*mod, ensure_account),
+            cancel_mod_event=CancelModEvent(*mod, ensure_account),
+            delete_mod_event=DeleteModEvent(*mod, ensure_account),
+            relay_outbox=RelayOutbox(outbox, ArqEventQueue(arq_redis)),
+            handle_domain_event=HandleDomainEvent(cache, SqlEventFavorites(sessions)),
+            purge_outbox=PurgeOutbox(outbox),
         )
 
     async def aclose(self) -> None:

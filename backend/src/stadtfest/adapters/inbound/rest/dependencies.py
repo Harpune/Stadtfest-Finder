@@ -22,6 +22,16 @@ from stadtfest.application.events.use_cases import (
 from stadtfest.application.geocoding.use_cases import Geocode, ReverseGeocode
 from stadtfest.application.health.check_readiness import CheckReadiness
 from stadtfest.application.identity.use_cases import Authenticate, DeleteAccount, GetMe, UpdateMe
+from stadtfest.application.moderation.use_cases import (
+    CancelModEvent,
+    CreateModEvent,
+    DeleteModEvent,
+    GetModEvent,
+    ListModEvents,
+    PublishModEvent,
+    UnpublishModEvent,
+    UpdateModEvent,
+)
 
 
 class RestDependencies(Protocol):
@@ -43,6 +53,14 @@ class RestDependencies(Protocol):
     remove_favorite: RemoveFavorite
     list_favorites: ListFavorites
     is_favorite: IsFavorite
+    list_mod_events: ListModEvents
+    get_mod_event: GetModEvent
+    create_mod_event: CreateModEvent
+    update_mod_event: UpdateModEvent
+    publish_mod_event: PublishModEvent
+    unpublish_mod_event: UnpublishModEvent
+    cancel_mod_event: CancelModEvent
+    delete_mod_event: DeleteModEvent
 
 
 def container(request: Request) -> RestDependencies:

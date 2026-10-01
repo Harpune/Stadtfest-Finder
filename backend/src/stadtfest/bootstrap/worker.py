@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from collections.abc import Awaitable, Callable
 from typing import Any, ClassVar
 from zoneinfo import ZoneInfo
 
-from arq import run_worker
+from arq import cron, run_worker
 from arq.connections import RedisSettings
 
-from stadtfest.adapters.inbound.worker.jobs import IDP_DELETION_MAX_TRIES, JOBS
+from stadtfest.adapters.inbound.worker.jobs import (
+    IDP_DELETION_MAX_TRIES,
+    JOBS,
+    purge_outbox,
+    run_outbox_relay,
+)
 from stadtfest.bootstrap.container import Container
 from stadtfest.bootstrap.logging import configure_logging
 from stadtfest.bootstrap.settings import Settings, get_settings
@@ -29,15 +36,24 @@ def build_worker_settings(settings: Settings) -> type:
 
     async def on_startup(ctx: dict[str, Any]) -> None:
         configure_logging(settings)
-        ctx["container"] = Container.build(settings)
+        container = Container.build(settings)
+        ctx["container"] = container
+        # Outbox relay (ADR 0005) as background task of the worker process.
+        ctx["relay"] = asyncio.create_task(run_outbox_relay(container.relay_outbox))
 
     async def on_shutdown(ctx: dict[str, Any]) -> None:
+        relay: asyncio.Task[None] = ctx["relay"]
+        relay.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await relay
         container: Container = ctx["container"]
         await container.aclose()
 
     class WorkerSettings:
         functions: ClassVar[list[Callable[..., Awaitable[object]]]] = list(JOBS)
-        cron_jobs: ClassVar[list[Any]] = []  # scheduled jobs start with R11
+        cron_jobs: ClassVar[list[Any]] = [
+            cron(purge_outbox, hour={3}, minute={30}, unique=True),
+        ]
         redis_settings = RedisSettings.from_dsn(str(settings.redis_url))
         timezone = TIMEZONE
         max_jobs = 10

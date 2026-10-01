@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from uuid import UUID, uuid4
@@ -26,8 +27,15 @@ from stadtfest.application.identity.ports import (
     RegionRecord,
     UserRecord,
 )
+from stadtfest.application.moderation.ports import (
+    ModEventSummary,
+    ModRegion,
+    VersionConflictError,
+)
+from stadtfest.application.outbox.ports import OutboxMessage
 from stadtfest.application.shared.ports import JsonValue
 from stadtfest.domain.events.geo import GeoPoint
+from stadtfest.domain.events.maintenance import DomainEvent, ManagedEvent
 from stadtfest.domain.identity.principal import Principal
 
 
@@ -246,3 +254,109 @@ class FakeAccountResolver:
     async def __call__(self, principal: Principal) -> UUID:
         self.ensured.append(principal.subject)
         return uuid4()
+
+
+@dataclass
+class FakeManagedEventRepository:
+    """Events in memory; `save` checks the version like the database does."""
+
+    events: dict[UUID, ManagedEvent] = field(default_factory=dict)
+    outbox: list[DomainEvent] = field(default_factory=list)
+    audit: list[UUID] = field(default_factory=list)
+
+    async def list_for_region(
+        self, region_id: UUID, ids: frozenset[UUID] | None
+    ) -> list[ModEventSummary]:
+        return [
+            ModEventSummary(
+                id=e.id,
+                name=e.content.name,
+                status=e.status,
+                start_date=e.content.start_date,
+                end_date=e.content.end_date,
+                place=e.content.place,
+                city=e.content.city,
+                category_id=e.content.category_id,
+                favorite_count=e.favorite_count,
+                source=e.source,
+                version=e.version,
+            )
+            for e in self.events.values()
+            if e.region_id == region_id and not e.deleted and (ids is None or e.id in ids)
+        ]
+
+    async def get(self, event_id: UUID) -> ManagedEvent | None:
+        event = self.events.get(event_id)
+        return None if event is None or event.deleted else copy.deepcopy(event)
+
+    async def add(self, event: ManagedEvent, user_id: UUID) -> None:
+        self.audit.append(user_id)
+        self.outbox.extend(event.pending_events)
+        event.pending_events.clear()
+        event.version = 1
+        self.events[event.id] = copy.deepcopy(event)
+
+    async def save(self, event: ManagedEvent, expected_version: int, user_id: UUID) -> int:
+        stored = self.events.get(event.id)
+        if stored is None or stored.deleted or stored.version != expected_version:
+            raise VersionConflictError
+        self.audit.append(user_id)
+        self.outbox.extend(event.pending_events)
+        event.pending_events.clear()
+        saved = copy.deepcopy(event)
+        saved.version = expected_version + 1
+        self.events[event.id] = saved
+        return saved.version
+
+
+@dataclass
+class FakeModRegions:
+    regions: dict[str, ModRegion] = field(default_factory=dict)
+
+    async def by_key(self, key: str) -> ModRegion | None:
+        return self.regions.get(key)
+
+
+@dataclass
+class FakeActiveCategories:
+    ids: frozenset[UUID] = frozenset()
+
+    async def active_ids(self) -> frozenset[UUID]:
+        return self.ids
+
+
+@dataclass
+class FakeOutboxStore:
+    pending: list[OutboxMessage] = field(default_factory=list)
+    dispatched: list[OutboxMessage] = field(default_factory=list)
+    purged_before: list[datetime] = field(default_factory=list)
+
+    async def dispatch_pending(
+        self, limit: int, send: Callable[[OutboxMessage], Awaitable[None]]
+    ) -> int:
+        batch, self.pending = self.pending[:limit], self.pending[limit:]
+        for message in batch:
+            await send(message)
+        self.dispatched.extend(batch)
+        return len(batch)
+
+    async def purge_dispatched(self, before: datetime) -> int:
+        self.purged_before.append(before)
+        return 0
+
+
+@dataclass
+class FakeEventQueue:
+    sent: list[OutboxMessage] = field(default_factory=list)
+
+    async def enqueue_domain_event(self, message: OutboxMessage) -> None:
+        self.sent.append(message)
+
+
+@dataclass
+class FakeEventFavorites:
+    removed: list[UUID] = field(default_factory=list)
+
+    async def remove_for_event(self, event_id: UUID) -> int:
+        self.removed.append(event_id)
+        return 1

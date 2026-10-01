@@ -20,14 +20,35 @@ class InvalidInputError(ApplicationError):
 
     code = "validation_failed"
 
-    def __init__(self, fields: dict[str, str]) -> None:
+    def __init__(self, fields: dict[str, str], code: str = "validation_failed") -> None:
         """Create the error.
 
         Args:
             fields: Field name -> machine-readable problem.
+            code: Error code, e.g. `region_mismatch`.
         """
         super().__init__(", ".join(fields))
         self.fields = fields
+        self.code = code
+
+
+class ForbiddenError(ApplicationError):
+    """The caller is authenticated but lacks the role (e.g. `moderator`)."""
+
+    code = "forbidden"
+
+
+class ConflictError(ApplicationError):
+    """The request conflicts with the current state (`version_conflict`, `invalid_transition`)."""
+
+    def __init__(self, code: str) -> None:
+        """Create the error.
+
+        Args:
+            code: Machine-readable error code.
+        """
+        super().__init__(code)
+        self.code = code
 
 
 class ServiceUnavailableError(ApplicationError):
