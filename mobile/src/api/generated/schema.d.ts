@@ -120,7 +120,8 @@ export interface paths {
         /**
          * Event detail
          * @description Full details of a published or cancelled event. Past events remain available by ID
-         *     (timeline, lists). Drafts and deleted events yield `404`.
+         *     (timeline, lists). Drafts and deleted events yield `404`. With a token the response
+         *     additionally contains `isFavorite`; such responses are never cached.
          */
         get: operations["getEvent"];
         put?: never;
@@ -202,6 +203,56 @@ export interface paths {
          * @description Sets first and last name (each 1-50 characters after trimming).
          */
         patch: operations["updateMe"];
+        trace?: never;
+    };
+    "/v1/me/favorites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Own favorites
+         * @description Favorites of the caller, ordered by start date. Deleted and unpublished events are
+         *     left out; cancelled ones keep their status. Past events (end date before today) are
+         *     only included with `include=past`.
+         */
+        get: operations["listFavorites"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/favorites/{eventId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Mark an event as favorite
+         * @description Idempotent. Only publicly visible events (published or cancelled, also past ones);
+         *     otherwise `404`.
+         */
+        put: operations["addFavorite"];
+        post?: never;
+        /**
+         * Remove an event from the favorites
+         * @description Idempotent; succeeds also if the event was no favorite or no longer exists.
+         */
+        delete: operations["removeFavorite"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
@@ -316,6 +367,19 @@ export interface components {
             websiteUrl?: string | null;
             images: components["schemas"]["Image"][];
             distanceKm?: number | null;
+            /** @description Whether the caller marked the event as favorite. Only present with a token. */
+            isFavorite?: boolean;
+        };
+        /** @description A favorite with its event, as shown in the timeline (R06-US2). */
+        FavoriteEntry: components["schemas"]["EventSummary"] & {
+            categoryName: string;
+            emoji: string;
+            /** Format: date-time */
+            favoritedAt: string;
+        };
+        /** @description Favorites of the caller, ordered by start date. */
+        FavoriteList: {
+            items: components["schemas"]["FavoriteEntry"][];
         };
         /** @description A geocoding suggestion. */
         GeocodeResult: {
@@ -762,6 +826,79 @@ export interface operations {
             };
             401: components["responses"]["Error"];
             422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    listFavorites: {
+        parameters: {
+            query?: {
+                /** @description `past` also returns favorites whose event has ended. */
+                include?: "past";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Favorites. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FavoriteList"];
+                };
+            };
+            401: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    addFavorite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event is a favorite. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    removeFavorite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event is no favorite. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

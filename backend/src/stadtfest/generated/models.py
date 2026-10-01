@@ -6,7 +6,7 @@ from datetime import date as date_aliased
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel
+from pydantic import AnyUrl, AwareDatetime, BaseModel, ConfigDict, Field, RootModel
 
 
 class Category(BaseModel):
@@ -152,6 +152,33 @@ class EventDetail(BaseModel):
     website_url: Annotated[AnyUrl | None, Field(alias="websiteUrl")] = None
     images: list[Image]
     distance_km: Annotated[float | None, Field(alias="distanceKm")] = None
+    is_favorite: Annotated[
+        bool | None,
+        Field(
+            alias="isFavorite",
+            description="Whether the caller marked the event as favorite. Only present with a token.",
+        ),
+    ] = None
+
+
+class FavoriteEntry(EventSummary):
+    """A favorite with its event, as shown in the timeline (R06-US2)."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    category_name: Annotated[str, Field(alias="categoryName")]
+    emoji: str
+    favorited_at: Annotated[AwareDatetime, Field(alias="favoritedAt")]
+
+
+class FavoriteList(BaseModel):
+    """Favorites of the caller, ordered by start date."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    items: list[FavoriteEntry]
 
 
 class GeocodeResult(BaseModel):
