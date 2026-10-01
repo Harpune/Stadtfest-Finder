@@ -8,6 +8,7 @@ import time
 from collections.abc import Iterator
 
 import httpx
+import jwt
 import pytest
 from testcontainers.core.container import DockerContainer
 
@@ -53,7 +54,7 @@ def issuer() -> Iterator[str]:
         yield realm
 
 
-def _password_grant(issuer: str, username: str) -> httpx.Response:
+def _password_grant(issuer: str, username: str, scope: str = "openid") -> httpx.Response:
     return httpx.post(
         f"{issuer}/protocol/openid-connect/token",
         data={
@@ -61,7 +62,7 @@ def _password_grant(issuer: str, username: str) -> httpx.Response:
             "client_id": "stadtfest-tests",
             "username": username,
             "password": PASSWORD,
-            "scope": "openid",
+            "scope": scope,
         },
     )
 
@@ -77,6 +78,18 @@ async def test_moderator_token_is_validated_and_mapped(issuer: str) -> None:
     assert principal.roles == {Role.USER, Role.MODERATOR}
     assert principal.region_key == "ostalb"
     assert (principal.given_name, principal.family_name) == ("Mia", "Moderatorin")
+
+
+@pytest.mark.parametrize(
+    "username", ["nutzer@example.test", "moderator@example.test", "katadmin@example.test"]
+)
+def test_users_get_an_offline_refresh_token(issuer: str, username: str) -> None:
+    # The app requests `offline_access` for silent renewal (R05-US4); without the role
+    # Keycloak rejects the code exchange ("Offline tokens not allowed").
+    response = _password_grant(issuer, username, scope="openid offline_access")
+    response.raise_for_status()
+    refresh = jwt.decode(response.json()["refresh_token"], options={"verify_signature": False})
+    assert refresh["typ"] == "Offline"
 
 
 async def test_id_token_is_not_accepted_as_access_token(issuer: str) -> None:

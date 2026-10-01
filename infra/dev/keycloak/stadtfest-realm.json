@@ -113,6 +113,7 @@
         "web-origins",
         "acr"
       ],
+      "optionalClientScopes": ["offline_access"],
       "protocolMappers": [
         {
           "name": "audience-stadtfest-api",
@@ -167,6 +168,7 @@
         }
       ],
       "realmRoles": [
+        "offline_access",
         "user"
       ]
     },
@@ -190,6 +192,7 @@
         }
       ],
       "realmRoles": [
+        "offline_access",
         "user",
         "moderator"
       ]
@@ -214,6 +217,7 @@
         }
       ],
       "realmRoles": [
+        "offline_access",
         "user",
         "moderator",
         "category_admin"
