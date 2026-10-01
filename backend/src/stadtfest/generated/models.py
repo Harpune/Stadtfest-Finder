@@ -181,6 +181,163 @@ class FavoriteList(BaseModel):
     items: list[FavoriteEntry]
 
 
+class ModEventStatus(RootModel[Literal["draft", "published", "past", "cancelled"]]):
+    root: Annotated[
+        Literal["draft", "published", "past", "cancelled"],
+        Field(
+            description="Status in the moderation view. `past` is derived for published events whose end date\nis before today (Europe/Berlin).\n"
+        ),
+    ]
+
+
+class EventSource(RootModel[Literal["manual", "ai"]]):
+    root: Annotated[
+        Literal["manual", "ai"],
+        Field(description="`manual` or found by the AI search (`ai`, R10)."),
+    ]
+
+
+class ModEventSummary(BaseModel):
+    """Row of the moderation overview."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    name: str
+    status: ModEventStatus
+    start_date: Annotated[date_aliased | None, Field(alias="startDate")] = None
+    end_date: Annotated[date_aliased | None, Field(alias="endDate")] = None
+    place: str
+    city: str
+    category_id: Annotated[UUID | None, Field(alias="categoryId")] = None
+    favorite_count: Annotated[int, Field(alias="favoriteCount", ge=0)]
+    source: EventSource
+    version: Annotated[int, Field(ge=1)]
+
+
+class ModEventList(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    items: list[ModEventSummary]
+
+
+class ModProgramItem(BaseModel):
+    """Program entry as entered by the moderator."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    date: date_aliased
+    time_label: Annotated[str, Field(alias="timeLabel", max_length=40)]
+    title: Annotated[str, Field(max_length=120, min_length=1)]
+    subtitle: Annotated[str | None, Field(max_length=200)] = None
+
+
+class ModEventDetail(BaseModel):
+    """Event with all editable fields; fields of drafts may be empty."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    region_id: Annotated[UUID, Field(alias="regionId")]
+    name: str
+    short_name: Annotated[str, Field(alias="shortName")]
+    status: ModEventStatus
+    category_id: Annotated[UUID | None, Field(alias="categoryId")] = None
+    start_date: Annotated[date_aliased | None, Field(alias="startDate")] = None
+    end_date: Annotated[date_aliased | None, Field(alias="endDate")] = None
+    opening_hours: Annotated[list[str], Field(alias="openingHours")]
+    price: str | None = None
+    place: str
+    address: str
+    city: str
+    postal_code: Annotated[str | None, Field(alias="postalCode")] = None
+    lat: float | None = None
+    lon: float | None = None
+    description: str | None = None
+    program: list[ModProgramItem]
+    transit: str | None = None
+    parking: str | None = None
+    website_url: Annotated[str | None, Field(alias="websiteUrl")] = None
+    cancel_reason: Annotated[str | None, Field(alias="cancelReason")] = None
+    published_at: Annotated[AwareDatetime | None, Field(alias="publishedAt")] = None
+    favorite_count: Annotated[int, Field(alias="favoriteCount", ge=0)]
+    source: EventSource
+    version: Annotated[int, Field(ge=1)]
+
+
+class OpeningHour(RootModel[str]):
+    root: Annotated[str, Field(max_length=80)]
+
+
+class ModEventFields(BaseModel):
+    """Editable fields. Lengths: name 120, short name 18, description 5,000, 10 opening hour
+    lines of 80, 50 program entries. Postal code and city come from geocoding.
+
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    short_name: Annotated[
+        str | None,
+        Field(
+            alias="shortName",
+            description="Defaults to the name shortened to 18 characters.",
+            max_length=18,
+        ),
+    ] = None
+    category_id: Annotated[UUID | None, Field(alias="categoryId")] = None
+    start_date: Annotated[date_aliased | None, Field(alias="startDate")] = None
+    end_date: Annotated[date_aliased | None, Field(alias="endDate")] = None
+    opening_hours: Annotated[
+        list[OpeningHour] | None, Field(alias="openingHours", max_length=10)
+    ] = None
+    price: Annotated[str | None, Field(max_length=200)] = None
+    place: Annotated[str | None, Field(max_length=120)] = None
+    address: Annotated[str | None, Field(max_length=200)] = None
+    city: Annotated[str | None, Field(max_length=120)] = None
+    postal_code: Annotated[str | None, Field(alias="postalCode", pattern="^[0-9]{5}$")] = None
+    lat: Annotated[float | None, Field(ge=-90.0, le=90.0)] = None
+    lon: Annotated[float | None, Field(ge=-180.0, le=180.0)] = None
+    description: Annotated[str | None, Field(max_length=5000)] = None
+    program: Annotated[list[ModProgramItem] | None, Field(max_length=50)] = None
+    transit: Annotated[str | None, Field(max_length=500)] = None
+    parking: Annotated[str | None, Field(max_length=500)] = None
+    website_url: Annotated[str | None, Field(alias="websiteUrl", max_length=500)] = None
+    cancel_reason: Annotated[str | None, Field(alias="cancelReason", max_length=500)] = None
+
+
+class ModEventCreate(ModEventFields):
+    """New draft; only the name is required."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    name: Annotated[str, Field(max_length=120, min_length=1)]
+
+
+class ModEventPatch(ModEventFields):
+    """Merge patch of an event; all fields optional."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    name: Annotated[str | None, Field(max_length=120, min_length=1)] = None
+
+
+class CancelRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    reason: Annotated[
+        str | None, Field(description="Shown in the cancellation notice (R11).", max_length=500)
+    ] = None
+
+
 class GeocodeResult(BaseModel):
     """A geocoding suggestion."""
 

@@ -28,6 +28,11 @@ tags:
     description: |
       Favorites of the signed-in user (R06, context `collections`). The same list feeds the
       timeline in the profile drawer and the hearts on map, list and detail.
+  - name: moderation
+    description: |
+      Event maintenance for moderators of a region (R07, context `moderation`). Requires the
+      role `moderator`; events of other regions answer `404`. Changes are written together
+      with a domain event (transactional outbox, ADR 0005).
   - name: account
     description: |
       Profile of the signed-in user (flow B). The user is created on the first call; the
@@ -430,8 +435,292 @@ paths:
           $ref: "#/components/responses/Error"
         default:
           $ref: "#/components/responses/Error"
+  /v1/mod/events:
+    get:
+      operationId: listModEvents
+      tags: [moderation]
+      summary: Events of the moderator's region
+      description: |
+        All events of the caller's region except deleted ones, with favorite count, source and
+        version. Ordered: upcoming by start date, then past ones descending, then events
+        without date. `ids` restricts the list; IDs of other regions are silently dropped.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Only events with this (derived) status.
+          schema:
+            $ref: "#/components/schemas/ModEventStatus"
+        - name: q
+          in: query
+          required: false
+          description: Search in name, place and city.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - name: ids
+          in: query
+          required: false
+          description: Comma-separated event IDs.
+          style: form
+          explode: false
+          schema:
+            type: array
+            maxItems: 100
+            items:
+              type: string
+              format: uuid
+      responses:
+        "200":
+          description: Events of the region.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModEventList"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createModEvent
+      tags: [moderation]
+      summary: Create an event
+      description: Always creates a draft in the caller's region. Only the name is required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModEventCreate"
+      responses:
+        "201":
+          description: The created draft.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModEventDetail"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/mod/events/{eventId}:
+    parameters:
+      - $ref: "#/components/parameters/ModEventId"
+    get:
+      operationId: getModEvent
+      tags: [moderation]
+      summary: Event for editing
+      description: All fields of an event of the caller's region, with `version` and `ETag`.
+      responses:
+        "200":
+          description: All fields and the version.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModEventDetail"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateModEvent
+      tags: [moderation]
+      summary: Edit an event
+      description: |
+        JSON merge patch: fields that are present are set (`null` clears them), the program is
+        replaced as a whole. `If-Match` must carry the current version; otherwise `409
+        version_conflict`. Cancelled events only accept text fields (`409
+        invalid_transition`). Changes to a published event emit `event.updated`.
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/ModEventPatch"
+      responses:
+        "200":
+          description: The updated event.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModEventDetail"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "428":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteModEvent
+      tags: [moderation]
+      summary: Delete an event
+      description: |
+        Soft delete from any status. Favorites of the event are removed in the background;
+        users are not notified (cancel instead to inform them).
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/mod/events/{eventId}/publish:
+    parameters:
+      - $ref: "#/components/parameters/ModEventId"
+    post:
+      operationId: publishModEvent
+      tags: [moderation]
+      summary: Publish a draft
+      description: |
+        Checks the required fields (`422 validation_failed` with `fields`) and that the postal
+        code belongs to the caller's region (`422 region_mismatch`). Only drafts (`409
+        invalid_transition` otherwise).
+      responses:
+        "200":
+          description: The published event.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModEventDetail"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/mod/events/{eventId}/unpublish:
+    parameters:
+      - $ref: "#/components/parameters/ModEventId"
+    post:
+      operationId: unpublishModEvent
+      tags: [moderation]
+      summary: Withdraw a published event (back to draft)
+      description: Hides the event from users again; no notification. Only published events.
+      responses:
+        "200":
+          description: The event as draft.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModEventDetail"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/mod/events/{eventId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/ModEventId"
+    post:
+      operationId: cancelModEvent
+      tags: [moderation]
+      summary: Cancel a published event
+      description: Only published events. Users with this favorite are notified from R11 on.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelRequest"
+      responses:
+        "200":
+          description: The cancelled event.
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModEventDetail"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
 components:
+  headers:
+    ETag:
+      description: Current version of the event, quoted (e.g. `"3"`); send it as `If-Match`.
+      schema:
+        type: string
   parameters:
+    ModEventId:
+      name: eventId
+      in: path
+      required: true
+      description: Event ID.
+      schema:
+        type: string
+        format: uuid
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: Version from `ETag` / `version` (quoted or plain). Missing → `428`.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 20
     Bbox:
       name: bbox
       in: query
@@ -761,6 +1050,242 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FavoriteEntry"
+    ModEventStatus:
+      type: string
+      description: |
+        Status in the moderation view. `past` is derived for published events whose end date
+        is before today (Europe/Berlin).
+      enum: [draft, published, past, cancelled]
+    EventSource:
+      type: string
+      description: "`manual` or found by the AI search (`ai`, R10)."
+      enum: [manual, ai]
+    ModEventSummary:
+      type: object
+      description: Row of the moderation overview.
+      required: [id, name, status, place, city, favoriteCount, source, version]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        status:
+          $ref: "#/components/schemas/ModEventStatus"
+        startDate:
+          type: ["string", "null"]
+          format: date
+        endDate:
+          type: ["string", "null"]
+          format: date
+        place:
+          type: string
+        city:
+          type: string
+        categoryId:
+          type: ["string", "null"]
+          format: uuid
+        favoriteCount:
+          type: integer
+          minimum: 0
+        source:
+          $ref: "#/components/schemas/EventSource"
+        version:
+          type: integer
+          minimum: 1
+    ModEventList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModEventSummary"
+    ModProgramItem:
+      type: object
+      description: Program entry as entered by the moderator.
+      required: [date, timeLabel, title]
+      properties:
+        date:
+          type: string
+          format: date
+        timeLabel:
+          type: string
+          maxLength: 40
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        subtitle:
+          type: ["string", "null"]
+          maxLength: 200
+    ModEventDetail:
+      type: object
+      description: Event with all editable fields; fields of drafts may be empty.
+      required:
+        [id, regionId, name, shortName, status, openingHours, place, address, city, program,
+         favoriteCount, source, version]
+      properties:
+        id:
+          type: string
+          format: uuid
+        regionId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        shortName:
+          type: string
+        status:
+          $ref: "#/components/schemas/ModEventStatus"
+        categoryId:
+          type: ["string", "null"]
+          format: uuid
+        startDate:
+          type: ["string", "null"]
+          format: date
+        endDate:
+          type: ["string", "null"]
+          format: date
+        openingHours:
+          type: array
+          items:
+            type: string
+        price:
+          type: ["string", "null"]
+        place:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        postalCode:
+          type: ["string", "null"]
+        lat:
+          type: ["number", "null"]
+        lon:
+          type: ["number", "null"]
+        description:
+          type: ["string", "null"]
+        program:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModProgramItem"
+        transit:
+          type: ["string", "null"]
+        parking:
+          type: ["string", "null"]
+        websiteUrl:
+          type: ["string", "null"]
+        cancelReason:
+          type: ["string", "null"]
+        publishedAt:
+          type: ["string", "null"]
+          format: date-time
+        favoriteCount:
+          type: integer
+          minimum: 0
+        source:
+          $ref: "#/components/schemas/EventSource"
+        version:
+          type: integer
+          minimum: 1
+    ModEventFields:
+      type: object
+      description: |
+        Editable fields. Lengths: name 120, short name 18, description 5,000, 10 opening hour
+        lines of 80, 50 program entries. Postal code and city come from geocoding.
+      properties:
+        shortName:
+          type: ["string", "null"]
+          maxLength: 18
+          description: Defaults to the name shortened to 18 characters.
+        categoryId:
+          type: ["string", "null"]
+          format: uuid
+        startDate:
+          type: ["string", "null"]
+          format: date
+        endDate:
+          type: ["string", "null"]
+          format: date
+        openingHours:
+          type: ["array", "null"]
+          maxItems: 10
+          items:
+            type: string
+            maxLength: 80
+        price:
+          type: ["string", "null"]
+          maxLength: 200
+        place:
+          type: ["string", "null"]
+          maxLength: 120
+        address:
+          type: ["string", "null"]
+          maxLength: 200
+        city:
+          type: ["string", "null"]
+          maxLength: 120
+        postalCode:
+          type: ["string", "null"]
+          pattern: "^[0-9]{5}$"
+        lat:
+          type: ["number", "null"]
+          minimum: -90
+          maximum: 90
+        lon:
+          type: ["number", "null"]
+          minimum: -180
+          maximum: 180
+        description:
+          type: ["string", "null"]
+          maxLength: 5000
+        program:
+          type: ["array", "null"]
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/ModProgramItem"
+        transit:
+          type: ["string", "null"]
+          maxLength: 500
+        parking:
+          type: ["string", "null"]
+          maxLength: 500
+        websiteUrl:
+          type: ["string", "null"]
+          maxLength: 500
+        cancelReason:
+          type: ["string", "null"]
+          maxLength: 500
+    ModEventCreate:
+      description: New draft; only the name is required.
+      allOf:
+        - $ref: "#/components/schemas/ModEventFields"
+        - type: object
+          required: [name]
+          properties:
+            name:
+              type: string
+              minLength: 1
+              maxLength: 120
+    ModEventPatch:
+      description: Merge patch of an event; all fields optional.
+      allOf:
+        - $ref: "#/components/schemas/ModEventFields"
+        - type: object
+          properties:
+            name:
+              type: string
+              minLength: 1
+              maxLength: 120
+    CancelRequest:
+      type: object
+      properties:
+        reason:
+          type: ["string", "null"]
+          maxLength: 500
+          description: Shown in the cancellation notice (R11).
     GeocodeResult:
       type: object
       description: A geocoding suggestion.

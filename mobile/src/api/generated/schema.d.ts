@@ -255,6 +255,138 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/mod/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Events of the moderator's region
+         * @description All events of the caller's region except deleted ones, with favorite count, source and
+         *     version. Ordered: upcoming by start date, then past ones descending, then events
+         *     without date. `ids` restricts the list; IDs of other regions are silently dropped.
+         */
+        get: operations["listModEvents"];
+        put?: never;
+        /**
+         * Create an event
+         * @description Always creates a draft in the caller's region. Only the name is required.
+         */
+        post: operations["createModEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/mod/events/{eventId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Event for editing
+         * @description All fields of an event of the caller's region, with `version` and `ETag`.
+         */
+        get: operations["getModEvent"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete an event
+         * @description Soft delete from any status. Favorites of the event are removed in the background;
+         *     users are not notified (cancel instead to inform them).
+         */
+        delete: operations["deleteModEvent"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit an event
+         * @description JSON merge patch: fields that are present are set (`null` clears them), the program is
+         *     replaced as a whole. `If-Match` must carry the current version; otherwise `409
+         *     version_conflict`. Cancelled events only accept text fields (`409
+         *     invalid_transition`). Changes to a published event emit `event.updated`.
+         */
+        patch: operations["updateModEvent"];
+        trace?: never;
+    };
+    "/v1/mod/events/{eventId}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish a draft
+         * @description Checks the required fields (`422 validation_failed` with `fields`) and that the postal
+         *     code belongs to the caller's region (`422 region_mismatch`). Only drafts (`409
+         *     invalid_transition` otherwise).
+         */
+        post: operations["publishModEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/mod/events/{eventId}/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Withdraw a published event (back to draft)
+         * @description Hides the event from users again; no notification. Only published events.
+         */
+        post: operations["unpublishModEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/mod/events/{eventId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a published event
+         * @description Only published events. Users with this favorite are notified from R11 on.
+         */
+        post: operations["cancelModEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -381,6 +513,121 @@ export interface components {
         FavoriteList: {
             items: components["schemas"]["FavoriteEntry"][];
         };
+        /**
+         * @description Status in the moderation view. `past` is derived for published events whose end date
+         *     is before today (Europe/Berlin).
+         * @enum {string}
+         */
+        ModEventStatus: "draft" | "published" | "past" | "cancelled";
+        /**
+         * @description `manual` or found by the AI search (`ai`, R10).
+         * @enum {string}
+         */
+        EventSource: "manual" | "ai";
+        /** @description Row of the moderation overview. */
+        ModEventSummary: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            status: components["schemas"]["ModEventStatus"];
+            /** Format: date */
+            startDate?: string | null;
+            /** Format: date */
+            endDate?: string | null;
+            place: string;
+            city: string;
+            /** Format: uuid */
+            categoryId?: string | null;
+            favoriteCount: number;
+            source: components["schemas"]["EventSource"];
+            version: number;
+        };
+        ModEventList: {
+            items: components["schemas"]["ModEventSummary"][];
+        };
+        /** @description Program entry as entered by the moderator. */
+        ModProgramItem: {
+            /** Format: date */
+            date: string;
+            timeLabel: string;
+            title: string;
+            subtitle?: string | null;
+        };
+        /** @description Event with all editable fields; fields of drafts may be empty. */
+        ModEventDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            regionId: string;
+            name: string;
+            shortName: string;
+            status: components["schemas"]["ModEventStatus"];
+            /** Format: uuid */
+            categoryId?: string | null;
+            /** Format: date */
+            startDate?: string | null;
+            /** Format: date */
+            endDate?: string | null;
+            openingHours: string[];
+            price?: string | null;
+            place: string;
+            address: string;
+            city: string;
+            postalCode?: string | null;
+            lat?: number | null;
+            lon?: number | null;
+            description?: string | null;
+            program: components["schemas"]["ModProgramItem"][];
+            transit?: string | null;
+            parking?: string | null;
+            websiteUrl?: string | null;
+            cancelReason?: string | null;
+            /** Format: date-time */
+            publishedAt?: string | null;
+            favoriteCount: number;
+            source: components["schemas"]["EventSource"];
+            version: number;
+        };
+        /**
+         * @description Editable fields. Lengths: name 120, short name 18, description 5,000, 10 opening hour
+         *     lines of 80, 50 program entries. Postal code and city come from geocoding.
+         */
+        ModEventFields: {
+            /** @description Defaults to the name shortened to 18 characters. */
+            shortName?: string | null;
+            /** Format: uuid */
+            categoryId?: string | null;
+            /** Format: date */
+            startDate?: string | null;
+            /** Format: date */
+            endDate?: string | null;
+            openingHours?: string[] | null;
+            price?: string | null;
+            place?: string | null;
+            address?: string | null;
+            city?: string | null;
+            postalCode?: string | null;
+            lat?: number | null;
+            lon?: number | null;
+            description?: string | null;
+            program?: components["schemas"]["ModProgramItem"][] | null;
+            transit?: string | null;
+            parking?: string | null;
+            websiteUrl?: string | null;
+            cancelReason?: string | null;
+        };
+        /** @description New draft; only the name is required. */
+        ModEventCreate: components["schemas"]["ModEventFields"] & {
+            name: string;
+        };
+        /** @description Merge patch of an event; all fields optional. */
+        ModEventPatch: components["schemas"]["ModEventFields"] & {
+            name?: string;
+        };
+        CancelRequest: {
+            /** @description Shown in the cancellation notice (R11). */
+            reason?: string | null;
+        };
         /** @description A geocoding suggestion. */
         GeocodeResult: {
             /** @example 73430 Aalen */
@@ -471,6 +718,10 @@ export interface components {
         };
     };
     parameters: {
+        /** @description Event ID. */
+        ModEventId: string;
+        /** @description Version from `ETag` / `version` (quoted or plain). Missing → `428`. */
+        IfMatch: string;
         /** @description Map viewport `minLon,minLat,maxLon,maxLat`. */
         Bbox: number[];
         /** @description Latitude of the reference point (user position or map center). Requires `lon`. */
@@ -492,7 +743,10 @@ export interface components {
         Query: string;
     };
     requestBodies: never;
-    headers: never;
+    headers: {
+        /** @description Current version of the event, quoted (e.g. `"3"`); send it as `If-Match`. */
+        ETag: string;
+    };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
@@ -899,6 +1153,250 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    listModEvents: {
+        parameters: {
+            query?: {
+                /** @description Only events with this (derived) status. */
+                status?: components["schemas"]["ModEventStatus"];
+                /** @description Search in name, place and city. */
+                q?: string;
+                /** @description Comma-separated event IDs. */
+                ids?: string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Events of the region. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModEventList"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    createModEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModEventCreate"];
+            };
+        };
+        responses: {
+            /** @description The created draft. */
+            201: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModEventDetail"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getModEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All fields and the version. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModEventDetail"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteModEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    updateModEvent: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Version from `ETag` / `version` (quoted or plain). Missing → `428`. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/merge-patch+json": components["schemas"]["ModEventPatch"];
+            };
+        };
+        responses: {
+            /** @description The updated event. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModEventDetail"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            428: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    publishModEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The published event. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModEventDetail"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    unpublishModEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event as draft. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModEventDetail"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    cancelModEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CancelRequest"];
+            };
+        };
+        responses: {
+            /** @description The cancelled event. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModEventDetail"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };
