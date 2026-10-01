@@ -61,6 +61,8 @@ Für native Builds zusätzlich **mindestens 20 GB freien Speicher** einplanen (P
 - **PostGIS-Image:** `imresamu/postgis` ist der Multi-Arch-Build des PostGIS-Docker-Maintainers. Das offizielle Image hat kein ARM64 (Apple Silicon).
 - **Integrationstests** (`make test`) starten eigene Container per Testcontainers, Docker muss laufen. `make test-unit` braucht kein Docker.
 - **Maestro** (`make test-e2e`) erwartet einen laufenden Simulator bzw. Emulator mit installiertem Development-Build und laufendem Metro.
+- **Echtes Android-Gerät per USB:** USB-Debugging einschalten, dann `adb reverse tcp:8081 tcp:8081`, `adb reverse tcp:8000 tcp:8000` und `adb reverse tcp:58080 tcp:58080`. So erreicht das Gerät Metro, API und Keycloak unter `localhost`, und der Issuer im Token passt zum Backend. Build: `cd mobile/android && ./gradlew assembleDebug`, Installation: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
+- Maestro 2.10 kann auf manchen echten Android-Geräten keinen Text eingeben (Pixel 8, Android 17: `inputText` bricht nach 120 s ab, auch mit abgeschalteten Animationen). Flows mit Texteingabe tragen das Tag `typing`; auf solchen Geräten `cd mobile && maestro test --exclude-tags typing .maestro` verwenden.
 - **Codegen:** Nach Änderungen an `api/openapi.yaml` oder `00-docs/15-design/design/design-tokens.json` immer `make gen` ausführen und das Ergebnis committen (CI prüft auf Drift).
 
 ## Prüfung

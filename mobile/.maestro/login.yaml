@@ -1,8 +1,12 @@
 # Login (R05): deep link → detail → heart → guest hint → login via Keycloak (hosted login in the browser
 # sheet) → back in the app, pending favorite executed → drawer shows the name → logout.
 # Requires the local stack (`make dev`, `make seed`) with Keycloak and the dev realm.
+# Tag `typing`: Maestro 2.10 cannot type on some real Android devices (Pixel 8, Android 17);
+# exclude it there with `--exclude-tags typing` (00-docs/40-operations/lokale-entwicklung.md).
 appId: de.stadtfestfinder.app
 name: Anmelden und Abmelden
+tags:
+  - typing
 env:
   EVENT: 24b84e9c-31ad-5e4a-83fa-799fd1273ed7 # "Reichsstädter Tage"
   USERNAME: nutzer@example.test # dev realm test user (infra/dev/keycloak)
