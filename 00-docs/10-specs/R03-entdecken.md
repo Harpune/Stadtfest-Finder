@@ -20,25 +20,29 @@
 - Beim ersten Start fragt die App **einmal** nach der Standortfreigabe (Systemdialog, vorher kein eigener Screen).
 - **Freigabe erteilt:** Die Karte zentriert auf die Position, Zoom 10. Der eigene Standort erscheint als blauer Punkt (`meDot`).
 - **Freigabe abgelehnt:** Start auf dem zuletzt bekannten Kartenausschnitt (lokal gespeichert), sonst Deutschland-Mitte (≈ 51.16 N, 10.45 E, Zoom 6). Die Entfernung wird dann zum Kartenmittelpunkt berechnet.
-- Während des Ladens: Skeleton-Karten im Karussell und Pille „Feste werden geladen …“ (01-02).
+- Während des Ladens: Pille „Feste werden geladen …“ auf der Karte (01-02).
 - Die Standortposition verlässt das Gerät **nicht**: Entfernungen berechnet die App selbst (Haversine). Sie wird nie gespeichert, weder lokal noch im Backend.
 - **Kartenausschnitt statt Umkreis** (Entscheidung 29.09.2026): Einzige räumliche Einschränkung ist der sichtbare Kartenausschnitt. Es gibt keinen Umkreis-Filter; eingegrenzt wird durch Zoomen.
 
 ### R03-US2 · Karte bedienen
 - Zoom 6–13.
 - Beim Verschieben oder Zoomen lädt die App nach 300 ms Pause für den neuen Ausschnitt nach. Bereits geladene Marker bleiben stehen, bis die Antwort da ist.
-- Geladen wird ein um 30 % je Seite erweiterter, auf ein Raster ausgerichteter Bereich (`features/discover/geo.ts`). Kleine Verschiebungen treffen so dieselbe (gecachte) Antwort. Karussell, Liste und Leerzustand zeigen nur Feste im sichtbaren Ausschnitt; Zählungen (`/count`) gelten für den sichtbaren Ausschnitt.
+- Geladen wird ein um 30 % je Seite erweiterter, auf ein Raster ausgerichteter Bereich (`features/discover/geo.ts`). Kleine Verschiebungen treffen so dieselbe (gecachte) Antwort. Liste und Leerzustand zeigen nur Feste im sichtbaren Ausschnitt; Zählungen (`/count`) gelten für den sichtbaren Ausschnitt.
 - **Marker:** 38-pt-Kreis in `surface2`, 2 px Rand in der Kategorie-Farbe, Emoji 17 pt.
 - **Cluster** (MapLibre, Radius 46 px): 44-pt-Kreis in Rosa mit Zahl. Ein Tipp zoomt 2 Stufen auf den Schwerpunkt.
+  - Liegen die Feste so nah beieinander, dass auch der größte Zoom sie nicht trennt (z. B. zwei Feste auf demselben Marktplatz), öffnet der Tipp stattdessen das Sheet „{n} Feste an diesem Ort“ mit Status, Name, Zeitraum und Ort; ein Eintrag öffnet die Detailseite (Entscheidung 01.10.2026).
 - **Auswahl:**
-  - Tippen auf einen Pin macht ihn zur Amber-Pille mit Kurznamen (links oder rechts ausgerichtet je nach Bildschirmhälfte).
+  - Tippen auf einen Pin macht ihn zur Amber-Pille mit Kurznamen und Zeitraum (links oder rechts ausgerichtet je nach Bildschirmhälfte).
   - Der ausgewählte Marker ist **nie Teil eines Clusters**. Er liegt in einer eigenen Ebene und wird aus der Cluster-Quelle herausgefiltert.
-  - Das Karussell scrollt zur passenden Karte.
-- Ein zweiter Tipp auf Pin oder Karussellkarte öffnet die Detailseite (ab R04, bis dahin ein Toast-Platzhalter).
+  - Ein Tipp auf die Karte hebt die Auswahl auf.
+- Ein zweiter Tipp auf den ausgewählten Pin öffnet die Detailseite.
 - Kartensteuerung: +/−, Standort-Button (zentriert auf die Position, Zoom 10, lädt nach).
 - Kartenstil: OSM-basierte Vektorkacheln mit dunklem und hellem Stil passend zum Theme (Quelle per ADR, siehe offene Punkte). Die Attribution „© OpenStreetMap-Mitwirkende“ ist sichtbar.
 
-### R03-US3 · Karussell
+### R03-US3 · ~~Karussell~~
+
+> **Entfallen (Entscheidung 01.10.2026):** Das Karussell nahm zu viel Platz von der Karte. Name und Zeitraum zeigt jetzt der ausgewählte Pin (R03-US2), alles Weitere die Detailseite. Die gemeinsame Status-Funktion (letzter Punkt) bleibt für Liste, Detail und Zeitleiste. Der Rest dieses Abschnitts beschreibt den früheren Stand.
+
 - Horizontal mit Scroll-Snap, Karten 300 × ≈ 106, **zeitlich sortiert** (API-Sortierung).
 - Das Wischen wählt den mittigen Eintrag als Pin aus. Liegt der Pin außerhalb des Ausschnitts, verschiebt sich die Karte so weit, dass er sichtbar wird.
 - Karteninhalt:
@@ -91,9 +95,9 @@
 - Komponenten in `src/components/`, jeweils mit Story:
   - Suche und Filter: `SearchBar`, `FilterButton`, `Chip`, `ChipRow`, `FilterSheet`, `MonthGrid`, `RangeSlider`, `BottomSheet`
   - Karte: `EventMarker`, `ClusterMarker`, `SelectedPin`, `MapControls`, `LoadingPill`
-  - Karten und Liste: `EventCarouselCard`, `EventListCard`, `SegmentedToggle`, `ImagePlaceholder`
+  - Liste: `EventListCard`, `StatusText`, `SegmentedToggle`, `ImagePlaceholder` (`EventCarouselCard` entfiel mit dem Karussell)
   - Zustände und Profil: `EmptyState`, `AvatarButton`
-- `testID`-Beispiele: `discover.search.input`, `discover.filter.open`, `discover.chip.<categoryId>`, `discover.toggle.list`, `discover.carousel.card.<eventId>`, `filter.apply`, `filter.reset`, `filter.radius`.
+- `testID`-Beispiele: `discover.search.input`, `discover.filter.open`, `discover.chip.<categoryId>`, `discover.toggle.list`, `discover.pin.<eventId>`, `discover.pin.selected.<eventId>`, `filter.apply`, `filter.reset`, `filter.radius`.
 
 ## Tests
 

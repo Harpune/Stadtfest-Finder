@@ -34,6 +34,9 @@ export const strings = {
     jumpTo: (place: string) => `Zu ${place} springen`,
     sortedByDate: 'nach Datum',
     runningNow: 'Läuft gerade',
+    stackTitle: (n: number) => `${n} Feste an diesem Ort`,
+    selectedPin: (name: string, dateRange: string) =>
+      `${name}, ${dateRange}. Erneut tippen öffnet die Details.`,
     photo: 'Foto',
     eventPhoto: 'Festfoto',
     distance: (km: number) =>

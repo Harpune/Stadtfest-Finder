@@ -5,7 +5,12 @@ import {SelectedPin} from './SelectedPin';
 const meta = {
   title: 'Karte/SelectedPin',
   component: SelectedPin,
-  args: {label: 'Oktoberfest', emoji: '🎡', align: 'right'},
+  args: {
+    label: 'Stadtfest Gmünd',
+    dateLabel: '3.–4. Okt',
+    emoji: '🎪',
+    align: 'right',
+  },
 } satisfies Meta<typeof SelectedPin>;
 
 export default meta;

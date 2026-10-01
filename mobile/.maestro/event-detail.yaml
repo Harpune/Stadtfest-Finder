@@ -1,4 +1,4 @@
-# Guest detail (R04): map → carousel card (2 taps) → detail → heart → guest hint → dismiss.
+# Guest detail (R04): map → pin (2 taps: select, then open) → detail → heart → guest hint → dismiss.
 # Requires the local stack with `make seed`; IDs are the deterministic seed IDs.
 appId: de.stadtfestfinder.app
 name: Fest-Details – Gast-Hinweis
@@ -14,12 +14,18 @@ env:
       LOCATION: inuse
 - extendedWaitUntil:
     visible:
-      id: discover.carousel.card.${EVENT}
+      id: discover.pin.${EVENT}
     timeout: 30000
+# First tap selects: the pin shows name and date; the second tap opens the detail.
 - tapOn:
-    id: discover.carousel.card.${EVENT}
+    id: discover.pin.${EVENT}
+- extendedWaitUntil:
+    visible:
+      id: discover.pin.selected.${EVENT}
+    timeout: 5000
+- assertVisible: 'Reichsstädter'
 - tapOn:
-    id: discover.carousel.card.${EVENT}
+    id: discover.pin.selected.${EVENT}
 - extendedWaitUntil:
     visible:
       id: detail.title

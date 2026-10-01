@@ -20,11 +20,12 @@ import React, {
 import {Keyboard, NativeSyntheticEvent, StyleSheet} from 'react-native';
 
 import {ClusterMarker, EventMarker, SelectedPin} from '@/components';
+import {formatDateRange} from '@/features/events/dates';
 import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
 
 import type {CategoryLook} from './categoryLookup';
-import {clusterItems} from './cluster';
+import {clusterItems, separatesByZoom} from './cluster';
 import type {Bbox, GeoPoint} from './filter';
 import {offlineStyle} from './mapStyle';
 import {useTileStyle} from './useTileStyle';
@@ -46,8 +47,6 @@ export interface MapViewport {
 export interface DiscoverMapHandle {
   flyTo: (center: GeoPoint, zoom?: number) => void;
   zoomBy: (delta: number) => void;
-  /** Centers the map on a point, keeping the zoom (selection from the carousel). */
-  centerOn: (point: GeoPoint) => void;
 }
 
 export interface DiscoverMapProps {
@@ -59,6 +58,8 @@ export interface DiscoverMapProps {
   showUserLocation: boolean;
   onViewportChange: (viewport: MapViewport) => void;
   onMarkerPress: (event: EventSummary) => void;
+  /** Tap on a cluster that zooming cannot split (same spot): show its events as a list. */
+  onStackPress: (events: EventSummary[]) => void;
   /** Tap on the map itself (not on a marker): clears the selection. */
   onMapPress: () => void;
 }
@@ -74,6 +75,7 @@ export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
       showUserLocation,
       onViewportChange,
       onMarkerPress,
+      onStackPress,
       onMapPress,
     },
     ref,
@@ -139,11 +141,6 @@ export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
             Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, viewport.zoom + delta)),
             {duration: 250},
           ),
-        centerOn: point =>
-          camera.current?.easeTo({
-            center: [point.lon, point.lat],
-            duration: 400,
-          }),
       }),
       [viewport],
     );
@@ -217,13 +214,21 @@ export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
                 accessibilityLabel={strings.discover.cluster(
                   entry.items.length,
                 )}
-                onPress={() =>
-                  camera.current?.easeTo({
-                    center: [entry.lon, entry.lat],
-                    zoom: Math.min(MAX_ZOOM, viewport.zoom + 2),
-                    duration: 400,
-                  })
-                }
+                onPress={() => {
+                  lastMarkerPress.current = Date.now();
+                  if (
+                    viewport.zoom < MAX_ZOOM &&
+                    separatesByZoom(entry.items, MAX_ZOOM)
+                  ) {
+                    camera.current?.easeTo({
+                      center: [entry.lon, entry.lat],
+                      zoom: Math.min(MAX_ZOOM, viewport.zoom + 2),
+                      duration: 400,
+                    });
+                  } else {
+                    onStackPress(entry.items);
+                  }
+                }}
               >
                 <ClusterMarker
                   count={entry.items.length}
@@ -243,11 +248,17 @@ export const DiscoverMap = forwardRef<DiscoverMapHandle, DiscoverMapProps>(
                 id={`selected:${event.id}`}
                 lngLat={[event.lon, event.lat]}
                 anchor={align}
-                offset={[align === 'right' ? 22 : -22, 0]}
+                // Puts the emoji bubble (padding 6 + radius 22) onto the event position.
+                offset={[align === 'right' ? 28 : -28, 0]}
+                accessibilityLabel={strings.discover.selectedPin(
+                  event.name,
+                  formatDateRange(event.startDate, event.endDate),
+                )}
                 onPress={() => handleMarkerPress(event)}
               >
                 <SelectedPin
                   label={event.shortName}
+                  dateLabel={formatDateRange(event.startDate, event.endDate)}
                   emoji={category.emoji}
                   align={align}
                   testID={`discover.pin.selected.${event.id}`}

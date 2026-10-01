@@ -113,7 +113,7 @@ describe('Discover screen', () => {
     await renderScreen();
     await settle();
     await waitFor(() =>
-      expect(screen.getByText('Reichsstädter Tage')).toBeOnTheScreen(),
+      expect(screen.getByTestId('discover.pin.e1')).toBeOnTheScreen(),
     );
     expect(screen.getByTestId('discover.chip.c1')).toHaveTextContent(
       /Stadtfest\s*1/,
@@ -137,7 +137,7 @@ describe('Discover screen', () => {
     await renderScreen();
     await settle();
     await waitFor(() =>
-      expect(screen.getByText('Reichsstädter Tage')).toBeOnTheScreen(),
+      expect(screen.getByTestId('discover.pin.e1')).toBeOnTheScreen(),
     );
     // Only event requests count: the list additionally loads the area name.
     const eventRequests = () =>
@@ -186,7 +186,7 @@ describe('Discover screen', () => {
     expect(camera.zoomTo).toHaveBeenCalledWith(8, expect.anything());
   });
 
-  it('hides events outside the visible area from the carousel', async () => {
+  it('lists only events in the visible area', async () => {
     const outside = {
       ...EVENT,
       id: 'e2',
@@ -198,8 +198,10 @@ describe('Discover screen', () => {
     await renderScreen();
     await settle();
     await waitFor(() =>
-      expect(screen.getByText('Reichsstädter Tage')).toBeOnTheScreen(),
+      expect(screen.getByTestId('discover.pin.e1')).toBeOnTheScreen(),
     );
+    await fireEvent.press(screen.getByTestId('discover.toggle.list'));
+    expect(screen.getByText('Reichsstädter Tage')).toBeOnTheScreen();
     expect(screen.queryByText('Ulmer Donaufest')).toBeNull();
   });
 
@@ -253,28 +255,48 @@ describe('Discover screen', () => {
     );
   });
 
-  it('centers the map on a carousel card on the first tap', async () => {
-    const camera = (
-      globalThis as unknown as {mockCameraApi: {easeTo: jest.Mock}}
-    ).mockCameraApi;
-    camera.easeTo.mockClear();
+  it('shows name and date on the first pin tap and opens the detail on the second', async () => {
+    jest.mocked(router.push).mockClear();
     mockApi(api());
     await renderScreen();
     await settle();
     await waitFor(() =>
-      expect(screen.getByTestId('discover.carousel.card.e1')).toBeOnTheScreen(),
+      expect(screen.getByTestId('discover.pin.e1')).toBeOnTheScreen(),
     );
-    await fireEvent.press(screen.getByTestId('discover.carousel.card.e1'));
-    expect(camera.easeTo).toHaveBeenCalledWith(
-      expect.objectContaining({center: [10.09, 48.84]}),
-    );
-    expect(screen.getByTestId('discover.carousel.card.e1')).toBeSelected();
+    // No carousel: the map keeps the whole screen (decision 01.10.2026).
+    expect(screen.queryByTestId('discover.carousel')).toBeNull();
 
-    // The second tap opens the detail page instead of moving again.
-    camera.easeTo.mockClear();
-    await fireEvent.press(screen.getByTestId('discover.carousel.card.e1'));
-    expect(camera.easeTo).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByTestId('discover.pin.e1'));
+    const selected = screen.getByTestId('discover.pin.selected.e1');
+    expect(selected).toHaveTextContent(/Reichsstädter/);
+    expect(selected).toHaveTextContent(/1\. Jan – 31\. Dez/);
+    expect(router.push).not.toHaveBeenCalled();
+
+    await fireEvent.press(selected);
     expect(router.push).toHaveBeenCalledWith('/f/e1');
+  });
+
+  it('lists festivals at the same spot instead of zooming', async () => {
+    jest.mocked(router.push).mockClear();
+    const sameSquare = {
+      ...EVENT,
+      id: 'e2',
+      name: 'Weinfest am Marktplatz',
+      lat: EVENT.lat + 0.00001,
+    };
+    mockApi(api([EVENT, sameSquare]));
+    await renderScreen();
+    await settle();
+    await waitFor(() =>
+      expect(screen.getByTestId('discover.cluster.c:e1')).toBeOnTheScreen(),
+    );
+
+    await fireEvent.press(screen.getByTestId('discover.cluster.c:e1'));
+
+    expect(screen.getByText('2 Feste an diesem Ort')).toBeOnTheScreen();
+    expect(screen.getByText('Weinfest am Marktplatz')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('discover.stack.item.e2'));
+    expect(router.push).toHaveBeenCalledWith('/f/e2');
   });
 
   it('clears the selection when the map itself is tapped', async () => {
@@ -282,16 +304,19 @@ describe('Discover screen', () => {
     await renderScreen();
     await settle();
     await waitFor(() =>
-      expect(screen.getByTestId('discover.carousel.card.e1')).toBeOnTheScreen(),
+      expect(screen.getByTestId('discover.pin.e1')).toBeOnTheScreen(),
     );
-    await fireEvent.press(screen.getByTestId('discover.carousel.card.e1'));
+    await fireEvent.press(screen.getByTestId('discover.pin.e1'));
     expect(screen.getByTestId('discover.pin.selected.e1')).toBeOnTheScreen();
+    // Map presses right after a marker press belong to that marker press (DiscoverMap).
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    });
 
     await fireEvent.press(screen.getByTestId('discover.map'));
     await waitFor(() =>
       expect(screen.queryByTestId('discover.pin.selected.e1')).toBeNull(),
     );
-    expect(screen.getByTestId('discover.carousel.card.e1')).not.toBeSelected();
   });
 
   it('does not hang when location is granted but no GPS fix arrives', async () => {
@@ -311,7 +336,7 @@ describe('Discover screen', () => {
       await new Promise(resolve => setTimeout(resolve, 3500));
     });
     await waitFor(() =>
-      expect(screen.getByText('Reichsstädter Tage')).toBeOnTheScreen(),
+      expect(screen.getByTestId('discover.pin.e1')).toBeOnTheScreen(),
     );
   }, 15000);
 

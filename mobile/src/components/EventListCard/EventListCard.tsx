@@ -9,7 +9,7 @@ import {FavoriteButton} from '../FavoriteButton/FavoriteButton';
 import {ImagePlaceholder} from '../ImagePlaceholder/ImagePlaceholder';
 import {Skeleton} from '../Skeleton/Skeleton';
 import {Text} from '../Text/Text';
-import {StatusText} from '../EventCarouselCard/StatusText';
+import {StatusText} from '../StatusText/StatusText';
 
 export interface EventListCardProps {
   name: string;

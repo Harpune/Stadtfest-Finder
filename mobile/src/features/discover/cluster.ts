@@ -76,3 +76,14 @@ export function clusterItems<T extends ClusterInput>(
   if (selected) result.push({kind: 'point', item: selected});
   return result;
 }
+
+/**
+ * Whether zooming in up to `maxZoom` splits a cluster. False for festivals at (almost) the
+ * same spot, e.g. two events on one market square: those are offered as a list instead.
+ */
+export function separatesByZoom<T extends ClusterInput>(
+  items: readonly T[],
+  maxZoom: number,
+): boolean {
+  return clusterItems(items, maxZoom, null).length > 1;
+}

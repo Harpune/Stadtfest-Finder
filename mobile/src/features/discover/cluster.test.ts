@@ -1,4 +1,4 @@
-import {clusterItems} from './cluster';
+import {clusterItems, separatesByZoom} from './cluster';
 
 const AALEN = {id: 'aalen', lat: 48.8368, lon: 10.0932};
 const WASSERALFINGEN = {id: 'wa', lat: 48.8631, lon: 10.105}; // ~3 km away
@@ -34,5 +34,23 @@ describe('clusterItems', () => {
     if (cluster?.kind === 'cluster') {
       expect(cluster.lat).toBeCloseTo((AALEN.lat + WASSERALFINGEN.lat) / 2);
     }
+  });
+});
+
+describe('separatesByZoom', () => {
+  it('is false for events on the same square', () => {
+    const square = [
+      {id: 'a', lat: 48.8375, lon: 10.0933},
+      {id: 'b', lat: 48.83752, lon: 10.09332},
+    ];
+    expect(separatesByZoom(square, 13)).toBe(false);
+  });
+
+  it('is true for events a few kilometres apart', () => {
+    const towns = [
+      {id: 'a', lat: 48.8375, lon: 10.0933},
+      {id: 'b', lat: 48.87, lon: 10.12},
+    ];
+    expect(separatesByZoom(towns, 13)).toBe(true);
   });
 });
