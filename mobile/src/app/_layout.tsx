@@ -37,7 +37,18 @@ function ThemedStack() {
           contentStyle: {backgroundColor: theme.colors.background},
           animation: 'slide_from_right',
         }}
-      />
+      >
+        {/* Login entry slides up as full screen (R05-US1, 380 ms). */}
+        <Stack.Screen
+          name="login"
+          options={{
+            presentation: 'fullScreenModal',
+            animation: 'slide_from_bottom',
+            animationDuration: theme.motion.login.duration,
+          }}
+        />
+        <Stack.Screen name="auth" options={{animation: 'none'}} />
+      </Stack>
     </>
   );
 }

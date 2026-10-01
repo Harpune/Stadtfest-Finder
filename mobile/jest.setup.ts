@@ -87,6 +87,7 @@ jest.mock('expo-location', () => ({
 
 jest.mock('expo-web-browser', () => ({
   openBrowserAsync: jest.fn(async () => ({type: 'opened'})),
+  maybeCompleteAuthSession: jest.fn(),
 }));
 
 // Navigation spies; screens are rendered without a navigator in unit tests.
@@ -99,6 +100,8 @@ jest.mock('expo-router', () => {
       back: jest.fn(),
       replace: jest.fn(),
       canGoBack: jest.fn(() => true),
+      canDismiss: jest.fn(() => false),
+      dismissAll: jest.fn(),
     },
   };
 });
@@ -130,5 +133,47 @@ jest.mock('@gorhom/bottom-sheet', () => {
     ...mock,
     BottomSheetModal: MockBottomSheetModal,
     BottomSheetFooter: ({children}: {children?: unknown}) => children,
+  };
+});
+
+// Secure storage: in-memory map shared with tests via `global`.
+const mockSecureStore = new Map<string, string>();
+(globalThis as {mockSecureStore?: Map<string, string>}).mockSecureStore =
+  mockSecureStore;
+jest.mock('expo-secure-store', () => ({
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 0,
+  getItemAsync: jest.fn(
+    async (key: string) => mockSecureStore.get(key) ?? null,
+  ),
+  setItemAsync: jest.fn(async (key: string, value: string) => {
+    mockSecureStore.set(key, value);
+  }),
+  deleteItemAsync: jest.fn(async (key: string) => {
+    mockSecureStore.delete(key);
+  }),
+}));
+
+// The IdP is never contacted in unit tests; features inject a fake AuthGateway.
+jest.mock('expo-auth-session', () => {
+  class TokenError extends Error {
+    code: string;
+    constructor(params: {error: string}) {
+      super(params.error);
+      this.code = params.error;
+    }
+  }
+  return {
+    makeRedirectUri: jest.fn(() => 'stadtfest://auth'),
+    fetchDiscoveryAsync: jest.fn(async () => ({
+      tokenEndpoint: 'http://idp.test/token',
+      revocationEndpoint: 'http://idp.test/revoke',
+      authorizationEndpoint: 'http://idp.test/auth',
+    })),
+    AuthRequest: jest.fn(),
+    exchangeCodeAsync: jest.fn(),
+    refreshAsync: jest.fn(),
+    revokeAsync: jest.fn(async () => true),
+    TokenError,
+    TokenTypeHint: {RefreshToken: 'refresh_token'},
   };
 });

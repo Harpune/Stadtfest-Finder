@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from arq import run_worker
 from arq.connections import RedisSettings
 
-from stadtfest.adapters.inbound.worker.jobs import JOBS
+from stadtfest.adapters.inbound.worker.jobs import IDP_DELETION_MAX_TRIES, JOBS
 from stadtfest.bootstrap.container import Container
 from stadtfest.bootstrap.logging import configure_logging
 from stadtfest.bootstrap.settings import Settings, get_settings
@@ -42,6 +42,7 @@ def build_worker_settings(settings: Settings) -> type:
         timezone = TIMEZONE
         max_jobs = 10
         job_timeout = 600
+        max_tries = IDP_DELETION_MAX_TRIES
 
     WorkerSettings.on_startup = on_startup  # type: ignore[attr-defined]
     WorkerSettings.on_shutdown = on_shutdown  # type: ignore[attr-defined]

@@ -179,6 +179,30 @@ class ReverseGeocodeResult(BaseModel):
     label: str
 
 
+class Role(RootModel[Literal["user", "moderator", "category_admin"]]):
+    root: Literal["user", "moderator", "category_admin"]
+
+
+class RegionRef(BaseModel):
+    """Moderation region of a moderator."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    key: Annotated[str, Field(examples=["ostalb"])]
+    name: Annotated[str, Field(examples=["Ostalbkreis"])]
+
+
+class UpdateMeRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+    )
+    first_name: Annotated[str, Field(alias="firstName", max_length=50, min_length=1)]
+    last_name: Annotated[str, Field(alias="lastName", max_length=50, min_length=1)]
+
+
 class Error(BaseModel):
     """Common error format for all non-2xx responses."""
 
@@ -224,3 +248,23 @@ class ReadinessStatus(BaseModel):
         dict[str, Literal["ok", "unavailable"]],
         Field(description="Status per dependency, e.g. `database`, `redis`."),
     ]
+
+
+class Me(BaseModel):
+    """Profile of the signed-in user. Contains no email address (E-08)."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: Annotated[UUID, Field(description="Internal user ID (not the IdP subject).")]
+    first_name: Annotated[
+        str,
+        Field(
+            alias="firstName",
+            description="Empty if the IdP did not provide a name (e.g. Apple without name sharing).",
+            max_length=50,
+        ),
+    ]
+    last_name: Annotated[str, Field(alias="lastName", max_length=50)]
+    roles: Annotated[list[Role], Field(description="Effective roles from the token.")]
+    region: RegionRef | None = None

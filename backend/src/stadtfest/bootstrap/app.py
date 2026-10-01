@@ -5,9 +5,10 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
-from stadtfest.adapters.inbound.rest import categories, events, geocoding, health
+from stadtfest.adapters.inbound.rest import categories, events, geocoding, health, me
+from stadtfest.adapters.inbound.rest.auth import optional_principal
 from stadtfest.adapters.inbound.rest.errors import register_error_handlers
 from stadtfest.adapters.inbound.rest.middleware import RequestContextMiddleware
 from stadtfest.bootstrap.container import Container
@@ -47,6 +48,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         docs_url=None if settings.is_production else "/docs",
         redoc_url=None,
         openapi_url=None if settings.is_production else "/openapi.json",
+        # A present token is validated on every route; public routes then ignore it.
+        dependencies=[Depends(optional_principal)],
     )
     app.add_middleware(RequestContextMiddleware)
     register_error_handlers(app)
@@ -54,4 +57,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(categories.router)
     app.include_router(events.router)
     app.include_router(geocoding.router)
+    app.include_router(me.router)
     return app

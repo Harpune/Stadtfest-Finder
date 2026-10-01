@@ -113,6 +113,7 @@
         "web-origins",
         "acr"
       ],
+      "optionalClientScopes": ["offline_access"],
       "protocolMappers": [
         {
           "name": "audience-stadtfest-api",
@@ -138,6 +139,17 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "stadtfest-admin",
+      "name": "Backend: account deletion via Admin API (dev only)",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "stadtfest-dev-admin-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
     }
   ],
   "users": [
@@ -156,6 +168,7 @@
         }
       ],
       "realmRoles": [
+        "offline_access",
         "user"
       ]
     },
@@ -179,6 +192,7 @@
         }
       ],
       "realmRoles": [
+        "offline_access",
         "user",
         "moderator"
       ]
@@ -203,10 +217,22 @@
         }
       ],
       "realmRoles": [
+        "offline_access",
         "user",
         "moderator",
         "category_admin"
       ]
+    },
+    {
+      "username": "service-account-stadtfest-admin",
+      "enabled": true,
+      "serviceAccountClientId": "stadtfest-admin",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-users"
+        ]
+      }
     }
   ]
 }

@@ -15,6 +15,7 @@ from stadtfest.application.events.use_cases import (
 )
 from stadtfest.application.geocoding.use_cases import Geocode, ReverseGeocode
 from stadtfest.application.health.check_readiness import CheckReadiness
+from stadtfest.application.identity.use_cases import Authenticate, DeleteAccount, GetMe, UpdateMe
 
 
 class RestDependencies(Protocol):
@@ -28,6 +29,10 @@ class RestDependencies(Protocol):
     list_active_categories: ListActiveCategories
     geocode: Geocode
     reverse_geocode: ReverseGeocode
+    authenticate: Authenticate
+    get_me: GetMe
+    update_me: UpdateMe
+    delete_account: DeleteAccount
 
 
 def container(request: Request) -> RestDependencies:

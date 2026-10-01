@@ -1,3 +1,4 @@
+export * from './Avatar/Avatar';
 export * from './AvatarButton/AvatarButton';
 export * from './BottomSheet/BottomSheet';
 export * from './Button/Button';
@@ -30,8 +31,10 @@ export * from './SearchBar/SearchBar';
 export * from './SectionHeader/SectionHeader';
 export * from './SegmentedToggle/SegmentedToggle';
 export * from './SelectedPin/SelectedPin';
+export * from './SideDrawer/SideDrawer';
 export * from './Skeleton/Skeleton';
 export * from './Spinner/Spinner';
 export * from './StickyFooter/StickyFooter';
 export * from './Text/Text';
+export * from './TextField/TextField';
 export * from './Toast/Toast';

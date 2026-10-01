@@ -1,0 +1,89 @@
+# Login (R05): deep link → detail → heart → guest hint → login via Keycloak (hosted login in the browser
+# sheet) → back in the app, pending favorite executed → drawer shows the name → logout.
+# Requires the local stack (`make dev`, `make seed`) with Keycloak and the dev realm.
+# Tag `typing`: Maestro 2.10 cannot type on some real Android devices (Pixel 8, Android 17);
+# exclude it there with `--exclude-tags typing` (00-docs/40-operations/lokale-entwicklung.md).
+appId: de.stadtfestfinder.app
+name: Anmelden und Abmelden
+tags:
+  - typing
+env:
+  EVENT: 24b84e9c-31ad-5e4a-83fa-799fd1273ed7 # "Reichsstädter Tage"
+  USERNAME: nutzer@example.test # dev realm test user (infra/dev/keycloak)
+  PASSWORD: stadtfest-dev
+---
+# Open the detail by deep link: the login does not depend on the map or the location.
+- runFlow:
+    file: shared/launch.yaml
+    env:
+      LOCATION: never
+- openLink: stadtfest://f/${EVENT}
+- runFlow:
+    when:
+      visible: 'Öffnen|Open'
+    commands:
+      - tapOn: 'Öffnen|Open'
+- extendedWaitUntil:
+    visible:
+      id: detail.title
+    timeout: 15000
+
+# Heart as guest → hint → entry screen
+- tapOn:
+    id: detail.favorite
+- extendedWaitUntil:
+    visible: 'Lieblingsfeste merken'
+    timeout: 10000
+- tapOn:
+    id: guestHint.login
+- extendedWaitUntil:
+    visible:
+      id: login.title
+    timeout: 5000
+- tapOn:
+    id: login.email
+
+# iOS asks before opening the auth session ("… möchte zum Anmelden … verwenden").
+- tapOn:
+    text: 'Fortfahren|Continue'
+    optional: true
+
+# Keycloak hosted login
+- extendedWaitUntil:
+    visible:
+      id: username
+    timeout: 60000
+- tapOn:
+    id: username
+- inputText: ${USERNAME}
+- tapOn:
+    id: password
+- inputText: ${PASSWORD}
+- tapOn:
+    id: kc-login
+
+# Back in the app: pending favorite executed (favorites follow in R06)
+- extendedWaitUntil:
+    visible: 'Angemeldet · Fest gemerkt'
+    timeout: 60000
+- tapOn:
+    id: detail.back
+
+# Drawer shows the name; logout returns to guest mode
+- tapOn:
+    id: discover.profile
+- extendedWaitUntil:
+    visible:
+      id: drawer.name
+    timeout: 10000
+- assertVisible: 'Lena Beispiel'
+- assertVisible: 'nutzer@example.test'
+- tapOn:
+    id: drawer.logout
+- extendedWaitUntil:
+    visible: 'Du bist abgemeldet'
+    timeout: 10000
+- tapOn:
+    id: discover.profile
+- assertVisible:
+    id: drawer.login

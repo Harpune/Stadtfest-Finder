@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.routing import compile_path
 
 from stadtfest.application.shared.errors import (
     InvalidInputError,
@@ -61,10 +62,27 @@ def error_response(
     )
 
 
-async def _handle_http_exception(_: Request, exc: Exception) -> JSONResponse:
+def _allowed_methods(request: Request) -> str | None:
+    """Return all methods of the requested path, or None if the path is unknown.
+
+    Starlette only lists the methods of the first matching route in `Allow`; paths with one
+    route per method (e.g. `/v1/me`) need the union. The generated schema is cached by FastAPI.
+    """
+    paths: dict[str, dict[str, object]] = request.app.openapi().get("paths", {})
+    for template, operations in paths.items():
+        regex, _, _ = compile_path(template)
+        if regex.match(request.url.path):
+            return ", ".join(sorted(method.upper() for method in operations))
+    return None
+
+
+async def _handle_http_exception(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, StarletteHTTPException)  # noqa: S101  # registered for this type
     error, message = _STATUS_ERRORS.get(exc.status_code, _INTERNAL_ERROR)
-    return error_response(exc.status_code, error, message, headers=exc.headers)
+    headers = dict(exc.headers or {})
+    if exc.status_code == 405:
+        headers["Allow"] = _allowed_methods(request) or headers.get("Allow", "")
+    return error_response(exc.status_code, error, message, headers=headers)
 
 
 async def _handle_validation_error(_: Request, exc: Exception) -> JSONResponse:

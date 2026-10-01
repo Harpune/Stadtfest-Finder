@@ -172,6 +172,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Own profile
+         * @description Profile of the caller. Creates the user on the first call (upsert on the token
+         *     subject); first and last name are taken from the claims `given_name` / `family_name`.
+         *     Roles and region come from the token. A moderator without a valid region gets no
+         *     moderation roles.
+         */
+        get: operations["getMe"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete own account
+         * @description Deletes all personal data of the caller (Art. 17 GDPR) and the account at the IdP.
+         *     If the IdP is unavailable, its deletion is retried in the background.
+         */
+        delete: operations["deleteMe"];
+        options?: never;
+        head?: never;
+        /**
+         * Change own name
+         * @description Sets first and last name (each 1-50 characters after trimming).
+         */
+        patch: operations["updateMe"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -301,6 +333,35 @@ export interface components {
             postalCode?: string | null;
             city: string;
             label: string;
+        };
+        /** @description Profile of the signed-in user. Contains no email address (E-08). */
+        Me: {
+            /**
+             * Format: uuid
+             * @description Internal user ID (not the IdP subject).
+             */
+            id: string;
+            /** @description Empty if the IdP did not provide a name (e.g. Apple without name sharing). */
+            firstName: string;
+            lastName: string;
+            /** @description Effective roles from the token. */
+            roles: components["schemas"]["Role"][];
+            region?: components["schemas"]["RegionRef"];
+        };
+        /** @enum {string} */
+        Role: "user" | "moderator" | "category_admin";
+        /** @description Moderation region of a moderator. */
+        RegionRef: {
+            /** Format: uuid */
+            id: string;
+            /** @example ostalb */
+            key: string;
+            /** @example Ostalbkreis */
+            name: string;
+        };
+        UpdateMeRequest: {
+            firstName: string;
+            lastName: string;
         };
         /** @description Common error format for all non-2xx responses. */
         Error: {
@@ -632,6 +693,75 @@ export interface operations {
             422: components["responses"]["Error"];
             429: components["responses"]["Error"];
             503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Profile of the signed-in user. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            401: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Account deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    updateMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMeRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated profile. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            401: components["responses"]["Error"];
+            422: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

@@ -5,9 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import httpx
+from arq.connections import ArqRedis
+from pydantic import SecretStr
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from stadtfest.adapters.outbound.auth.idp_admin import (
+    FakeIdpAdmin,
+    KeycloakIdpAdmin,
+    ZitadelIdpAdmin,
+)
+from stadtfest.adapters.outbound.auth.jwks import JwksTokenVerifier
+from stadtfest.adapters.outbound.cache.deleted_accounts import RedisDeletedAccounts
 from stadtfest.adapters.outbound.cache.redis_cache import RedisCache
 from stadtfest.adapters.outbound.cache.redis_client import RedisProbe, create_redis
 from stadtfest.adapters.outbound.clock.berlin_clock import BerlinClock
@@ -16,8 +25,10 @@ from stadtfest.adapters.outbound.geocoding.nominatim import (
     NominatimGeocoding,
     create_nominatim_client,
 )
+from stadtfest.adapters.outbound.persistence.accounts import SqlRegionDirectory, SqlUserRepository
 from stadtfest.adapters.outbound.persistence.catalog import SqlCatalog
 from stadtfest.adapters.outbound.persistence.database import DatabaseProbe, create_engine
+from stadtfest.adapters.outbound.queue.arq_jobs import ArqAccountJobs, create_arq_redis
 from stadtfest.application.events.use_cases import (
     CountEvents,
     GetPublicEvent,
@@ -27,7 +38,37 @@ from stadtfest.application.events.use_cases import (
 from stadtfest.application.geocoding.ports import GeocodingPort
 from stadtfest.application.geocoding.use_cases import Geocode, ReverseGeocode
 from stadtfest.application.health.check_readiness import CheckReadiness
-from stadtfest.bootstrap.settings import GeocodingProvider, Settings
+from stadtfest.application.identity.claims import ClaimMapping
+from stadtfest.application.identity.ports import IdpAdminPort
+from stadtfest.application.identity.use_cases import (
+    Authenticate,
+    DeleteAccount,
+    DeleteIdpUser,
+    GetMe,
+    UpdateMe,
+)
+from stadtfest.bootstrap.settings import GeocodingProvider, IdpAdminProvider, Settings
+
+
+def _secret(value: SecretStr | None) -> str:
+    """Unwrap a secret whose presence the settings validator has checked."""
+    return value.get_secret_value() if value else ""
+
+
+def _idp_admin(settings: Settings, http: httpx.AsyncClient) -> IdpAdminPort:
+    issuer = str(settings.auth_issuer)
+    match settings.idp_admin_provider:
+        case IdpAdminProvider.KEYCLOAK:
+            return KeycloakIdpAdmin(
+                http,
+                issuer,
+                settings.idp_admin_client_id or "",
+                _secret(settings.idp_admin_client_secret),
+            )
+        case IdpAdminProvider.ZITADEL:
+            return ZitadelIdpAdmin(http, issuer, _secret(settings.idp_admin_token))
+        case IdpAdminProvider.FAKE:
+            return FakeIdpAdmin()
 
 
 @dataclass
@@ -38,7 +79,9 @@ class Container:
     engine: AsyncEngine
     sessions: async_sessionmaker[AsyncSession]
     redis: Redis
+    arq_redis: ArqRedis
     http: httpx.AsyncClient | None
+    auth_http: httpx.AsyncClient
     check_readiness: CheckReadiness
     search_events: SearchEvents
     count_events: CountEvents
@@ -46,6 +89,11 @@ class Container:
     list_active_categories: ListActiveCategories
     geocode: Geocode
     reverse_geocode: ReverseGeocode
+    authenticate: Authenticate
+    get_me: GetMe
+    update_me: UpdateMe
+    delete_account: DeleteAccount
+    delete_idp_user: DeleteIdpUser
 
     @classmethod
     def build(cls, settings: Settings) -> Container:
@@ -74,12 +122,29 @@ class Container:
         else:
             geocoding = FakeGeocoding()
 
+        auth_http = httpx.AsyncClient(timeout=settings.auth_timeout_seconds)
+        verifier = JwksTokenVerifier(
+            auth_http,
+            issuer=str(settings.auth_issuer).rstrip("/"),
+            audience=settings.auth_audience,
+            jwks_url=str(settings.auth_jwks_url) if settings.auth_jwks_url else None,
+            leeway_seconds=settings.auth_leeway_seconds,
+        )
+        claim_mapping = ClaimMapping(settings.auth_roles_claim, settings.auth_region_claim)
+        users = SqlUserRepository(sessions)
+        regions = SqlRegionDirectory(sessions)
+        idp_admin = _idp_admin(settings, auth_http)
+        arq_redis = create_arq_redis(str(settings.redis_url))
+        deleted_accounts = RedisDeletedAccounts(redis)
+
         return cls(
             settings=settings,
             engine=engine,
             sessions=sessions,
             redis=redis,
+            arq_redis=arq_redis,
             http=http,
+            auth_http=auth_http,
             check_readiness=CheckReadiness([DatabaseProbe(engine), RedisProbe(redis)]),
             search_events=SearchEvents(catalog, cache, clock),
             count_events=CountEvents(catalog, cache, clock),
@@ -87,11 +152,24 @@ class Container:
             list_active_categories=ListActiveCategories(catalog, cache),
             geocode=Geocode(geocoding, cache),
             reverse_geocode=ReverseGeocode(geocoding, cache),
+            authenticate=Authenticate(verifier, claim_mapping, deleted_accounts),
+            get_me=GetMe(users, regions),
+            update_me=UpdateMe(users, regions),
+            delete_account=DeleteAccount(
+                users,
+                idp_admin,
+                ArqAccountJobs(arq_redis),
+                deleted_accounts,
+                token_leeway_seconds=settings.auth_leeway_seconds,
+            ),
+            delete_idp_user=DeleteIdpUser(idp_admin),
         )
 
     async def aclose(self) -> None:
         """Release all resources."""
         if self.http is not None:
             await self.http.aclose()
+        await self.auth_http.aclose()
+        await self.arq_redis.aclose()
         await self.redis.aclose()
         await self.engine.dispose()

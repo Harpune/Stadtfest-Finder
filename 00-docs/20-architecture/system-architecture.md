@@ -50,6 +50,7 @@ flowchart LR
   AI -- "Tool-Call" --> WEB
   WRK -. "Push-Auftrag" .-> PUSH
   API -. "B3 · JWKS, JWT-Signatur prüfen" .-> IDP
+  SVC -. "Kontolöschung · Admin-API (ADR 0010)" .-> IDP
 ```
 
 ## Flows
@@ -57,7 +58,7 @@ flowchart LR
 | Flow | Schritte |
 |---|---|
 | **A · Suche als Gast** | A1 App → API ohne Token · A2 PostGIS-Umkreisabfrage → Ergebnisliste und Karte (Redis-Cache 5 min) |
-| **B · Anmeldung** | B1 App ↔ Zitadel (OIDC, PKCE) → Token · B2 App sendet JWT an die API · B3 API prüft JWT per JWKS und liest Rollen aus den Claims |
+| **B · Anmeldung** | B1 App ↔ Zitadel (OIDC, PKCE) → Token · B2 App sendet JWT an die API · B3 API prüft JWT per JWKS und liest Rollen aus den Claims. Kontolöschung: API löscht lokale Daten und den Nutzer über die Admin-API des IdP, bei Fehler per Worker-Retry (ADR 0010) |
 | **C · KI-Suche per PLZ** | C1 Moderator stößt die Suche an, API legt einen Auftrag an (`202`) · C2 Auftrag in die Queue (über die Outbox, ADR 0005) · C3 Worker übernimmt · C4 Geocoding PLZ → Umkreis · C5 KI-Modul mit Festschema · C6 KI-Anbieter mit Web-Suche → validiertes JSON · C7 Speichern als **Entwurf** · C8 Moderator prüft und gibt frei |
 | **D · MCP** | D1 externer KI-Client → FastMCP (OAuth über Zitadel) · D2 Service-Schicht · D3 Datenbank |
 

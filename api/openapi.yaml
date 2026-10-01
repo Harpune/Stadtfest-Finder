@@ -24,6 +24,10 @@ tags:
     description: Public list of active categories (filter chips, marker colors).
   - name: geocoding
     description: Place/ZIP search and reverse geocoding via self-hosted Nominatim (ADR 0006).
+  - name: account
+    description: |
+      Profile of the signed-in user (flow B). The user is created on the first call; the
+      email address is never stored (E-08), the app reads it from the ID token.
 paths:
   /v1/health/live:
     get:
@@ -292,6 +296,65 @@ paths:
         "429":
           $ref: "#/components/responses/Error"
         "503":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/me:
+    get:
+      operationId: getMe
+      tags: [account]
+      summary: Own profile
+      description: |
+        Profile of the caller. Creates the user on the first call (upsert on the token
+        subject); first and last name are taken from the claims `given_name` / `family_name`.
+        Roles and region come from the token. A moderator without a valid region gets no
+        moderation roles.
+      responses:
+        "200":
+          description: Profile of the signed-in user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateMe
+      tags: [account]
+      summary: Change own name
+      description: Sets first and last name (each 1-50 characters after trimming).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMeRequest"
+      responses:
+        "200":
+          description: Updated profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteMe
+      tags: [account]
+      summary: Delete own account
+      description: |
+        Deletes all personal data of the caller (Art. 17 GDPR) and the account at the IdP.
+        If the IdP is unavailable, its deletion is retried in the background.
+      responses:
+        "204":
+          description: Account deleted.
+        "401":
           $ref: "#/components/responses/Error"
         default:
           $ref: "#/components/responses/Error"
@@ -632,6 +695,59 @@ components:
           type: string
         label:
           type: string
+    Me:
+      type: object
+      description: Profile of the signed-in user. Contains no email address (E-08).
+      required: [id, firstName, lastName, roles]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Internal user ID (not the IdP subject).
+        firstName:
+          type: string
+          maxLength: 50
+          description: Empty if the IdP did not provide a name (e.g. Apple without name sharing).
+        lastName:
+          type: string
+          maxLength: 50
+        roles:
+          type: array
+          description: Effective roles from the token.
+          items:
+            $ref: "#/components/schemas/Role"
+        region:
+          $ref: "#/components/schemas/RegionRef"
+    Role:
+      type: string
+      enum: [user, moderator, category_admin]
+    RegionRef:
+      type: object
+      description: Moderation region of a moderator.
+      required: [id, key, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+          examples: [ostalb]
+        name:
+          type: string
+          examples: [Ostalbkreis]
+    UpdateMeRequest:
+      type: object
+      required: [firstName, lastName]
+      additionalProperties: false
+      properties:
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 50
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 50
     Error:
       type: object
       description: Common error format for all non-2xx responses.

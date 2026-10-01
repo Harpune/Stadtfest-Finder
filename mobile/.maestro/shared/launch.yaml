@@ -1,12 +1,22 @@
 # Starts the app and, for development builds, connects the dev client to the local Metro
-# (http://localhost:8081). Release builds ignore the deep link and start directly.
+# (http://localhost:8081; on Android via `adb reverse tcp:8081 tcp:8081`). Release builds ignore the deep link and start directly.
 appId: de.stadtfestfinder.app
 ---
 - launchApp:
     clearState: true
     permissions:
       location: ${LOCATION}
-- openLink: de.stadtfestfinder.app://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081
+# iOS registers the bundle ID as URL scheme, Android only the app scheme `stadtfest`.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - openLink: de.stadtfestfinder.app://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - openLink: stadtfest://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081
 - runFlow:
     when:
       visible: 'Öffnen|Open'
