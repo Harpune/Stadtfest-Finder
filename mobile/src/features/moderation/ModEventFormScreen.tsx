@@ -448,6 +448,8 @@ function EventFormBody({
             loading={busy === 'draft'}
             disabled={busy !== null && busy !== 'draft'}
             testID="mod.form.saveDraft"
+            // Keeps its full width next to the long "Änderungen veröffentlichen".
+            style={styles.secondary}
           />
         )}
         <Button
@@ -914,6 +916,7 @@ const styles = StyleSheet.create({
   },
   footer: {flexDirection: 'row', gap: 10, padding: 12, borderTopWidth: 1},
   primary: {flex: 1},
+  secondary: {flexShrink: 0},
   menu: {gap: 10, paddingBottom: 8},
   menuButton: {minHeight: 56, justifyContent: 'center', paddingHorizontal: 18},
   menuLabel: {fontSize: 17},

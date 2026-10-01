@@ -83,7 +83,7 @@ export function Dialog({
               label={confirmLabel}
               variant={
                 tone === 'danger'
-                  ? 'danger'
+                  ? 'destructive'
                   : tone === 'mod'
                     ? 'mod'
                     : 'primary'

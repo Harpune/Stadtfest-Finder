@@ -8,7 +8,7 @@ import {Spinner} from '../Spinner/Spinner';
 import {Text} from '../Text/Text';
 
 export type ButtonVariant =
-  'primary' | 'secondary' | 'ghost' | 'danger' | 'mod';
+  'primary' | 'secondary' | 'ghost' | 'danger' | 'destructive' | 'mod';
 export type ButtonSize = 'large' | 'medium';
 
 export interface ButtonProps {
@@ -50,6 +50,13 @@ function colorsFor(theme: Theme, variant: ButtonVariant) {
         background: c.errorContainer,
         foreground: c.error,
         border: c.errorContainer,
+      };
+    case 'destructive':
+      // Solid pink confirm button of destructive dialogs (08-09, 08-10).
+      return {
+        background: c.secondary,
+        foreground: c.onSecondary,
+        border: c.secondary,
       };
     case 'mod':
       return {
