@@ -14,6 +14,8 @@ export interface IconButtonProps {
   variant?: 'glass' | 'surface';
   size?: number;
   disabled?: boolean;
+  /** Toggle state for screen readers (e.g. an active favorite). */
+  selected?: boolean;
 }
 
 /** Round icon button (44 pt by default). */
@@ -25,6 +27,7 @@ export function IconButton({
   variant = 'glass',
   size = MIN_TOUCH_TARGET,
   disabled = false,
+  selected,
 }: IconButtonProps) {
   const theme = useTheme();
   return (
@@ -32,7 +35,7 @@ export function IconButton({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={{disabled}}
+      accessibilityState={{disabled, selected}}
       disabled={disabled}
       onPress={onPress}
       hitSlop={Math.max(0, (MIN_TOUCH_TARGET - size) / 2)}

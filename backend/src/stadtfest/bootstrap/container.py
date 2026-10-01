@@ -28,7 +28,14 @@ from stadtfest.adapters.outbound.geocoding.nominatim import (
 from stadtfest.adapters.outbound.persistence.accounts import SqlRegionDirectory, SqlUserRepository
 from stadtfest.adapters.outbound.persistence.catalog import SqlCatalog
 from stadtfest.adapters.outbound.persistence.database import DatabaseProbe, create_engine
+from stadtfest.adapters.outbound.persistence.favorites import SqlFavoriteRepository
 from stadtfest.adapters.outbound.queue.arq_jobs import ArqAccountJobs, create_arq_redis
+from stadtfest.application.collections.use_cases import (
+    AddFavorite,
+    IsFavorite,
+    ListFavorites,
+    RemoveFavorite,
+)
 from stadtfest.application.events.use_cases import (
     CountEvents,
     GetPublicEvent,
@@ -44,6 +51,7 @@ from stadtfest.application.identity.use_cases import (
     Authenticate,
     DeleteAccount,
     DeleteIdpUser,
+    EnsureAccount,
     GetMe,
     UpdateMe,
 )
@@ -93,6 +101,10 @@ class Container:
     get_me: GetMe
     update_me: UpdateMe
     delete_account: DeleteAccount
+    add_favorite: AddFavorite
+    remove_favorite: RemoveFavorite
+    list_favorites: ListFavorites
+    is_favorite: IsFavorite
     delete_idp_user: DeleteIdpUser
 
     @classmethod
@@ -136,6 +148,7 @@ class Container:
         idp_admin = _idp_admin(settings, auth_http)
         arq_redis = create_arq_redis(str(settings.redis_url))
         deleted_accounts = RedisDeletedAccounts(redis)
+        favorites = SqlFavoriteRepository(sessions)
 
         return cls(
             settings=settings,
@@ -163,6 +176,10 @@ class Container:
                 token_leeway_seconds=settings.auth_leeway_seconds,
             ),
             delete_idp_user=DeleteIdpUser(idp_admin),
+            add_favorite=AddFavorite(favorites, EnsureAccount(users)),
+            remove_favorite=RemoveFavorite(favorites),
+            list_favorites=ListFavorites(favorites, clock),
+            is_favorite=IsFavorite(favorites),
         )
 
     async def aclose(self) -> None:

@@ -19,6 +19,7 @@ import {
   Button,
   CategoryPill,
   EmptyState,
+  FavoriteButton,
   Gallery,
   Icon,
   IconButton,
@@ -51,6 +52,11 @@ import {
 } from '../events/dates';
 import {eventStatus} from '../events/status';
 import {useDevicePosition} from '../events/useDevicePosition';
+import {
+  favoriteEntryFrom,
+  useFavoriteIds,
+  useToggleFavorite,
+} from '../favorites/useFavorites';
 import {displayHost, eventShareUrl, mapsRouteUrl, safeWebUrl} from './links';
 import {useEventDetail} from './useEventDetail';
 
@@ -74,6 +80,8 @@ export function EventDetailScreen({eventId}: {eventId: string}) {
   const tileStyle = useTileStyle(theme.scheme);
   const position = useDevicePosition();
   const today = todayInBerlin();
+  const favoriteIds = useFavoriteIds();
+  const toggleFavorite = useToggleFavorite();
 
   if (notFound) {
     return (
@@ -106,6 +114,27 @@ export function EventDetailScreen({eventId}: {eventId: string}) {
   const distanceKm =
     position && base ? roundedDistanceKm(position, base) : undefined;
   const websiteUrl = safeWebUrl(detail?.websiteUrl);
+  const isFavorite = favoriteIds.has(eventId);
+
+  // Guests get the hint; signed-in users toggle optimistically (R06-US1).
+  const onFavoritePress = () => {
+    if (!requestAccountAction({type: 'favorite', eventId})) return;
+    if (!base || !category) return;
+    const event = {
+      id: eventId,
+      name: base.name,
+      shortName: base.shortName,
+      status: base.status,
+      startDate: base.startDate,
+      endDate: base.endDate,
+      place: base.place,
+      city: base.city,
+      lat: base.lat,
+      lon: base.lon,
+      categoryId: detail?.category.id ?? summary?.categoryId ?? '',
+    };
+    void toggleFavorite(favoriteEntryFrom(event, category), !isFavorite);
+  };
 
   const openRoute = async () => {
     if (!base) return;
@@ -361,10 +390,14 @@ export function EventDetailScreen({eventId}: {eventId: string}) {
             onPress={() => void shareEvent()}
             testID="detail.share"
           />
-          <IconButton
-            icon={<Icon name="heart" size={21} />}
-            accessibilityLabel={strings.detail.favorite}
-            onPress={() => requestAccountAction({type: 'favorite', eventId})}
+          <FavoriteButton
+            active={isFavorite}
+            accessibilityLabel={
+              isFavorite
+                ? strings.favorites.remove(base?.name ?? '')
+                : strings.detail.favorite
+            }
+            onPress={onFavoritePress}
             testID="detail.favorite"
           />
         </View>

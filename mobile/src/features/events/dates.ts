@@ -137,3 +137,17 @@ export function formatProgramDate(value: IsoDate): {
   const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
   return {weekday: WEEKDAYS_SHORT[weekday] ?? '', day: `${day}.${month}.`};
 }
+
+/** Month heading of the timeline: "September 2026". */
+export function formatMonthYear(value: IsoDate): string {
+  const {year, month} = parseIsoDate(value);
+  return `${monthLong(month)} ${year}`;
+}
+
+/** Day marker of the timeline: "FR 25.09.". */
+export function formatWeekdayDate(value: IsoDate): string {
+  const {weekday} = formatProgramDate(value);
+  const {month, day} = parseIsoDate(value);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${weekday} ${pad(day)}.${pad(month)}.`;
+}

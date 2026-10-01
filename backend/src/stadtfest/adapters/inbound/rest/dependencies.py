@@ -7,6 +7,12 @@ from typing import Annotated, Protocol
 from fastapi import Depends, Request
 from redis.asyncio import Redis
 
+from stadtfest.application.collections.use_cases import (
+    AddFavorite,
+    IsFavorite,
+    ListFavorites,
+    RemoveFavorite,
+)
 from stadtfest.application.events.use_cases import (
     CountEvents,
     GetPublicEvent,
@@ -33,6 +39,10 @@ class RestDependencies(Protocol):
     get_me: GetMe
     update_me: UpdateMe
     delete_account: DeleteAccount
+    add_favorite: AddFavorite
+    remove_favorite: RemoveFavorite
+    list_favorites: ListFavorites
+    is_favorite: IsFavorite
 
 
 def container(request: Request) -> RestDependencies:

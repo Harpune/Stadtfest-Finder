@@ -34,10 +34,18 @@ export interface IconProps {
   /** Defaults to the primary text color. */
   color?: string;
   strokeWidth?: number;
+  /** Fill of closed shapes (e.g. the active heart); outline only by default. */
+  fill?: string;
 }
 
 /** Outline icons (stroke 2, round caps) as in the design reference. */
-export function Icon({name, size = 22, color, strokeWidth = 2}: IconProps) {
+export function Icon({
+  name,
+  size = 22,
+  color,
+  strokeWidth = 2,
+  fill = 'none',
+}: IconProps) {
   const theme = useTheme();
   const stroke = color ?? theme.colors.onSurface;
   const common = {
@@ -45,7 +53,7 @@ export function Icon({name, size = 22, color, strokeWidth = 2}: IconProps) {
     strokeWidth,
     strokeLinecap: 'round' as const,
     strokeLinejoin: 'round' as const,
-    fill: 'none',
+    fill,
   };
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" accessible={false}>

@@ -123,6 +123,22 @@ describe('AuthProvider login', () => {
       }),
     );
     expect((await secureTokenStore.load())?.refreshToken).toBe('rt-at-1');
+    // The heart tapped as a guest is set after the login (R06-US1).
+    expect(calls).toContainEqual(
+      expect.objectContaining({
+        method: 'PUT',
+        path: '/v1/me/favorites/e1',
+        authorization: 'Bearer at-1',
+      }),
+    );
+  });
+
+  it('reports a failed pending favorite', async () => {
+    mockMeApi({favoriteStatus: 500});
+    await renderProbe();
+    await fireEvent.press(screen.getByTestId('heart'));
+    await fireEvent.press(screen.getByTestId('login'));
+    expect(await screen.findByText('Das hat nicht geklappt')).toBeOnTheScreen();
   });
 
   it('welcomes the user by first name without pending action', async () => {

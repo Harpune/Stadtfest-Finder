@@ -8,7 +8,12 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from stadtfest.adapters.outbound.persistence.models import AppUserRow, EventRow, RegionRow
+from stadtfest.adapters.outbound.persistence.models import (
+    AppUserRow,
+    EventRow,
+    FavoriteRow,
+    RegionRow,
+)
 from stadtfest.application.identity.ports import RegionRecord, UserRecord
 
 
@@ -58,7 +63,8 @@ class SqlUserRepository:
     async def delete_personal_data(self, subject: str) -> bool:
         """Delete the user and its personal data in one transaction (Löschkonzept).
 
-        Extended by later increments: favorites (R06), devices (R11), friends (R12),
+        Favorites (R06) are removed by `ON DELETE CASCADE`; their events' counters are
+        decremented here first. Extended by later increments: devices (R11), friends (R12),
         lists (R13), invitations (R14).
         """
         async with self._sessions.begin() as session:
@@ -72,6 +78,12 @@ class SqlUserRepository:
             )
             await session.execute(
                 update(EventRow).where(EventRow.updated_by == user_id).values(updated_by=None)
+            )
+            favorites = select(FavoriteRow.event_id).where(FavoriteRow.user_id == user_id)
+            await session.execute(
+                update(EventRow)
+                .where(EventRow.id.in_(favorites))
+                .values(favorite_count=func.greatest(EventRow.favorite_count - 1, 0))
             )
             await session.delete(await session.get_one(AppUserRow, user_id))
             return True

@@ -1,6 +1,7 @@
 /**
- * Profile drawer, basic version (R05-US5): guest variant (03-07) with login, signed-in
- * variant with user row and "Abmelden". The timeline follows in R06.
+ * Profile drawer: guest variant (03-07) with login; signed in (R06) with user row, the
+ * timeline "Deine Festsaison" and the footer (dark mode, moderator view, logout).
+ * "Gemeinsame Listen" (R13) and "Benachrichtigungen" (R11) are not shown yet.
  */
 import {router} from 'expo-router';
 import React, {useEffect, useState} from 'react';
@@ -11,13 +12,18 @@ import {
   Button,
   Icon,
   IconButton,
+  MenuRow,
   SideDrawer,
   Skeleton,
   Text,
+  useToast,
 } from '@/components';
 import {initialsOf, useAuth} from '@/features/auth/AuthProvider';
+import {todayInBerlin} from '@/features/events/dates';
+import {FestSaison} from '@/features/favorites/FestSaison';
+import {useFavorites} from '@/features/favorites/useFavorites';
 import {strings} from '@/strings/de';
-import {useTheme} from '@/theme';
+import {useTheme, useThemePreference} from '@/theme';
 
 import {NameSheet} from './NameSheet';
 
@@ -27,8 +33,11 @@ export interface ProfileDrawerProps {
 }
 
 export function ProfileDrawer({visible, onClose}: ProfileDrawerProps) {
-  const {status, user, logout} = useAuth();
+  const {status, user, logout, isModerator} = useAuth();
   const signedIn = status === 'signedIn';
+  const theme = useTheme();
+  const toast = useToast();
+  const {setPreference} = useThemePreference();
   const [askName, setAskName] = useState(false);
 
   // First opening without a name (Apple without name sharing): ask for it once.
@@ -38,19 +47,38 @@ export function ProfileDrawer({visible, onClose}: ProfileDrawerProps) {
   }, [visible, needsName]);
 
   const footer = signedIn ? (
-    <Pressable
-      testID="drawer.logout"
-      accessibilityRole="button"
-      onPress={async () => {
-        onClose();
-        await logout();
-      }}
-      style={styles.footerRow}
-    >
-      <Text variant="bodyStrong" tone="secondary">
-        {strings.drawer.logout}
-      </Text>
-    </Pressable>
+    <View style={styles.footer}>
+      <MenuRow
+        label={strings.drawer.darkMode}
+        switchValue={theme.scheme === 'dark'}
+        onSwitchChange={dark => setPreference(dark ? 'dark' : 'light')}
+        onLongPress={() => {
+          setPreference('system');
+          toast(strings.drawer.darkModeSystem);
+        }}
+        accessibilityHint={strings.drawer.darkModeHint}
+        testID="drawer.darkMode"
+      />
+      {isModerator ? (
+        <MenuRow
+          label={strings.drawer.moderator}
+          tone="primary"
+          chevron
+          // The moderation view follows in R07.
+          onPress={() => toast(strings.drawer.moderatorSoon)}
+          testID="drawer.moderator"
+        />
+      ) : null}
+      <MenuRow
+        label={strings.drawer.logout}
+        tone="secondary"
+        onPress={async () => {
+          onClose();
+          await logout();
+        }}
+        testID="drawer.logout"
+      />
+    </View>
   ) : undefined;
 
   return (
@@ -127,6 +155,7 @@ function GuestContent({onClose}: {onClose: () => void}) {
 
 function SignedInContent({onClose}: {onClose: () => void}) {
   const {user, email} = useAuth();
+  const favorites = useFavorites();
   const name = user ? `${user.firstName} ${user.lastName}`.trim() : '';
   return (
     <>
@@ -155,7 +184,18 @@ function SignedInContent({onClose}: {onClose: () => void}) {
         </Pressable>
         <CloseButton onClose={onClose} />
       </View>
-      <Text variant="displayL">{strings.drawer.title}</Text>
+      <FestSaison
+        favorites={favorites.data?.items}
+        loading={favorites.isPending}
+        error={favorites.isError}
+        today={todayInBerlin()}
+        onOpen={eventId => {
+          onClose();
+          router.push(`/f/${eventId}`);
+        }}
+        onDiscover={onClose}
+        onRetry={() => void favorites.refetch()}
+      />
     </>
   );
 }
@@ -170,5 +210,5 @@ const styles = StyleSheet.create({
   userRow: {flexDirection: 'row', alignItems: 'center', gap: 8},
   user: {flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12},
   userText: {flex: 1},
-  footerRow: {paddingVertical: 14},
+  footer: {gap: 4},
 });

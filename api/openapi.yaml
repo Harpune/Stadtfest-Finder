@@ -24,6 +24,10 @@ tags:
     description: Public list of active categories (filter chips, marker colors).
   - name: geocoding
     description: Place/ZIP search and reverse geocoding via self-hosted Nominatim (ADR 0006).
+  - name: favorites
+    description: |
+      Favorites of the signed-in user (R06, context `collections`). The same list feeds the
+      timeline in the profile drawer and the hearts on map, list and detail.
   - name: account
     description: |
       Profile of the signed-in user (flow B). The user is created on the first call; the
@@ -191,7 +195,8 @@ paths:
       summary: Event detail
       description: |
         Full details of a published or cancelled event. Past events remain available by ID
-        (timeline, lists). Drafts and deleted events yield `404`.
+        (timeline, lists). Drafts and deleted events yield `404`. With a token the response
+        additionally contains `isFavorite`; such responses are never cached.
       security: []
       parameters:
         - name: eventId
@@ -354,6 +359,73 @@ paths:
       responses:
         "204":
           description: Account deleted.
+        "401":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/me/favorites:
+    get:
+      operationId: listFavorites
+      tags: [favorites]
+      summary: Own favorites
+      description: |
+        Favorites of the caller, ordered by start date. Deleted and unpublished events are
+        left out; cancelled ones keep their status. Past events (end date before today) are
+        only included with `include=past`.
+      parameters:
+        - name: include
+          in: query
+          required: false
+          description: "`past` also returns favorites whose event has ended."
+          schema:
+            type: string
+            enum: [past]
+      responses:
+        "200":
+          description: Favorites.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FavoriteList"
+        "401":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/me/favorites/{eventId}:
+    parameters:
+      - name: eventId
+        in: path
+        required: true
+        description: Event ID.
+        schema:
+          type: string
+          format: uuid
+    put:
+      operationId: addFavorite
+      tags: [favorites]
+      summary: Mark an event as favorite
+      description: |
+        Idempotent. Only publicly visible events (published or cancelled, also past ones);
+        otherwise `404`.
+      responses:
+        "204":
+          description: The event is a favorite.
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: removeFavorite
+      tags: [favorites]
+      summary: Remove an event from the favorites
+      description: Idempotent; succeeds also if the event was no favorite or no longer exists.
+      responses:
+        "204":
+          description: The event is no favorite.
         "401":
           $ref: "#/components/responses/Error"
         default:
@@ -663,6 +735,32 @@ components:
             $ref: "#/components/schemas/Image"
         distanceKm:
           type: ["number", "null"]
+        isFavorite:
+          type: boolean
+          description: Whether the caller marked the event as favorite. Only present with a token.
+    FavoriteEntry:
+      description: A favorite with its event, as shown in the timeline (R06-US2).
+      allOf:
+        - $ref: "#/components/schemas/EventSummary"
+        - type: object
+          required: [categoryName, emoji, favoritedAt]
+          properties:
+            categoryName:
+              type: string
+            emoji:
+              type: string
+            favoritedAt:
+              type: string
+              format: date-time
+    FavoriteList:
+      type: object
+      description: Favorites of the caller, ordered by start date.
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FavoriteEntry"
     GeocodeResult:
       type: object
       description: A geocoding suggestion.

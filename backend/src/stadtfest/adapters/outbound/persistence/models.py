@@ -126,3 +126,17 @@ class EventImageRow(Base):
     width: Mapped[int | None]
     height: Mapped[int | None]
     status: Mapped[str] = mapped_column(default="processing")
+
+
+class FavoriteRow(Base):
+    """Table `favorite` (R06)."""
+
+    __tablename__ = "favorite"
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("app_user.id", ondelete="CASCADE"), primary_key=True
+    )
+    event_id: Mapped[UUID] = mapped_column(
+        ForeignKey("event.id", ondelete="CASCADE"), primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default="now()")
