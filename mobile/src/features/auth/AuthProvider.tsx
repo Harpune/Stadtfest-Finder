@@ -83,7 +83,11 @@ const ME_QUERY = $api.queryOptions('get', '/v1/me');
 
 /** Query keys of user-specific data; all such paths start with `/v1/me`. */
 function isUserQuery(queryKey: readonly unknown[]): boolean {
-  return typeof queryKey[1] === 'string' && queryKey[1].startsWith('/v1/me');
+  // Own data (/v1/me…) and the moderation view (/v1/mod…) belong to the signed-in user.
+  return (
+    typeof queryKey[1] === 'string' &&
+    (queryKey[1].startsWith('/v1/me') || queryKey[1].startsWith('/v1/mod'))
+  );
 }
 
 export function AuthProvider({

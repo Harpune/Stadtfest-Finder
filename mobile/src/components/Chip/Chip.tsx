@@ -19,6 +19,8 @@ export interface ChipProps {
   /** `floating` over the map (height 36), `sheet` inside sheets (height 42). */
   variant?: 'floating' | 'sheet';
   disabled?: boolean;
+  /** `mod`: turquoise instead of amber when active (moderation view, 08-02). */
+  accent?: 'primary' | 'mod';
 }
 
 /** Filter chip. Active: amber background with dark text (#15111C) in both schemes. */
@@ -32,12 +34,15 @@ export function Chip({
   dropdown = false,
   variant = 'floating',
   disabled = false,
+  accent = 'primary',
 }: ChipProps) {
   const theme = useTheme();
   const c = theme.colors;
-  const foreground = active ? c.onPrimary : c.onSurface;
+  const activeColor = accent === 'mod' ? c.mod.primary : c.primary;
+  const onActive = accent === 'mod' ? c.mod.onPrimary : c.onPrimary;
+  const foreground = active ? onActive : c.onSurface;
   const background = active
-    ? c.primary
+    ? activeColor
     : variant === 'floating'
       ? c.floating
       : c.surfaceVariant;
@@ -57,7 +62,7 @@ export function Chip({
           borderRadius: variant === 'floating' ? theme.radius.chip : 14,
           backgroundColor: background,
           borderColor: active
-            ? c.primary
+            ? activeColor
             : variant === 'floating'
               ? c.outline
               : background,

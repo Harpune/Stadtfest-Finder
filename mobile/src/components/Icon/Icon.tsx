@@ -26,7 +26,10 @@ export type IconName =
   | 'train'
   | 'parking'
   | 'globe'
-  | 'arrowUpRight';
+  | 'arrowUpRight'
+  | 'shield'
+  | 'more'
+  | 'pin';
 
 export interface IconProps {
   name: IconName;
@@ -149,6 +152,28 @@ function renderIcon(name: IconName, c: Common) {
         <>
           <Circle cx={12} cy={8} r={4} {...c} />
           <Path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" {...c} />
+        </>
+      );
+    case 'shield':
+      return (
+        <>
+          <Path d="M12 3l7 3v5c0 4.4-3 8.3-7 10-4-1.7-7-5.6-7-10V6z" {...c} />
+          <Polyline points="9,12 11,14 15,10" {...c} />
+        </>
+      );
+    case 'more':
+      return (
+        <>
+          <Circle cx={6} cy={12} r={1.2} {...c} fill={c.stroke} />
+          <Circle cx={12} cy={12} r={1.2} {...c} fill={c.stroke} />
+          <Circle cx={18} cy={12} r={1.2} {...c} fill={c.stroke} />
+        </>
+      );
+    case 'pin':
+      return (
+        <>
+          <Path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z" {...c} />
+          <Circle cx={12} cy={10} r={2.6} {...c} />
         </>
       );
     case 'chevronDown':
