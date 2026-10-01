@@ -14,7 +14,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import {StyleSheet, useWindowDimensions, View} from 'react-native';
+import {BackHandler, StyleSheet, useWindowDimensions, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {strings} from '@/strings/de';
@@ -75,7 +75,21 @@ export function BottomSheet({
     if (mounted && visible) ref.current?.present();
   }, [mounted, visible]);
 
-  // Swipe down, backdrop and Android back end here; report them as a close request.
+  // @gorhom/bottom-sheet ignores Android back, so without this the screen behind the sheet
+  // would go back (e.g. the ⋯ menu of 08-08 closing the whole form).
+  useEffect(() => {
+    if (!visible) return undefined;
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        onClose();
+        return true;
+      },
+    );
+    return () => subscription.remove();
+  }, [visible, onClose]);
+
+  // Swipe down and backdrop end here; report them as a close request.
   const onDismiss = useCallback(() => {
     setMounted(false);
     if (visibleRef.current) onClose();

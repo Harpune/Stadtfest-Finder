@@ -1,11 +1,5 @@
 import React, {PropsWithChildren} from 'react';
-import {
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  StyleSheet,
-  View,
-} from 'react-native';
+import {KeyboardAvoidingView, Modal, StyleSheet, View} from 'react-native';
 
 import {useTheme} from '@/theme';
 
@@ -51,8 +45,9 @@ export function Dialog({
       onRequestClose={onCancel}
       statusBarTranslucent
     >
+      {/* Android does not resize a modal for the keyboard, so pad on both platforms. */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         style={[styles.scrim, {backgroundColor: c.scrim}]}
       >
         <View
