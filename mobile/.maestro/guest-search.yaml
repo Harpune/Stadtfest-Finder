@@ -14,7 +14,7 @@ env:
       LOCATION: inuse
 - extendedWaitUntil:
     visible:
-      id: discover.carousel
+      id: discover.chip.${STADTFEST_CATEGORY}
     timeout: 30000
 
 # Category chip (multi-select), counter on the filter button
@@ -72,6 +72,8 @@ env:
 - tapOn:
     id: discover.place.jump
 - extendedWaitUntil:
-    visible:
-      id: discover.carousel
+    notVisible:
+      id: discover.place.jump
     timeout: 15000
+- assertVisible:
+    id: discover.map

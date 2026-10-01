@@ -27,15 +27,16 @@ flowchart TD
   P -- nein --> FB[Fallback: letzter Ort / Deutschland-Mitte]
   LOC & FB --> Q[GET /v1/categories<br/>GET /v1/events …]
   Q -->|lädt| SK[Skeleton + „Feste werden geladen …“]
-  Q -->|Treffer| K[Karte mit Markern, Clustern, Karussell]
+  Q -->|Treffer| K[Karte mit Markern und Clustern]
   Q -->|0 Treffer| LE[Leerzustand + „Herauszoomen“]
   K <-->|Toggle| L[Liste]
   K -->|Karte verschieben / zoomen| Q
   K -->|Chip| Q
   K -->|Suchfeld tippen| Q
   K -->|Filter-Button / Zeitraum-Chip| F[Filter-Sheet] -->|„n Feste anzeigen“| Q
-  K -->|Pin 1× / Karussell scrollen| SEL[Fest auswählen]
-  SEL -->|Pin 2× / Karte tippen| D([02 Detail])
+  K -->|Pin 1×| SEL[Fest auswählen · Pille mit Name und Zeitraum]
+  SEL -->|Pin 2×| D([02 Detail])
+  SEL -->|Karte tippen| K
   L -->|Karte tippen| D
   K -->|Profilbild| DR([04 Drawer])
 ```
@@ -46,10 +47,10 @@ flowchart TD
 |---|---|---|---|---|---|
 | 1 | 01-02 | App öffnen | Fragt einmalig nach der Standortfreigabe. Zeigt Skeleton-Karten und die Pille „Feste werden geladen …“. | `GET /v1/categories` (aktive, sortiert, lange cachebar) und `GET /v1/events?bbox=…&from=heute&radiusKm=150` | sync |
 | 2 | 01-01 | Karte verschieben oder zoomen | Marker verschieben sich. Nach 300 ms Pause wird für den neuen Ausschnitt nachgeladen, die bereits geladenen Marker bleiben stehen. | `GET /v1/events?bbox=…` (bestehende Filter bleiben) | sync, debounced |
-| 3 | 01-01 | Auf einen Cluster tippen | Zoomt 2 Stufen auf den Schwerpunkt des Clusters. | Nachladen wie Schritt 2 | sync |
-| 4 | 01-01 | Pin einmal tippen | Pin wird zur Amber-Pille mit Namen. Das Karussell scrollt zur passenden Karte. | – | lokal |
-| 5 | 01-01 | Karussell wischen | Die mittige Karte bestimmt den ausgewählten Pin. Liegt er außerhalb des Bildausschnitts, verschiebt sich die Karte. | – | lokal |
-| 6 | 01-01 | Pin oder Karte ein zweites Mal tippen | Öffnet die Detailseite ([02](02-fest-details.md)). | `GET /v1/events/{id}` | sync |
+| 3 | 01-01 | Auf einen Cluster tippen | Zoomt 2 Stufen auf den Schwerpunkt des Clusters. Trennt auch der größte Zoom die Feste nicht (gleicher Ort), öffnet sich stattdessen das Sheet „{n} Feste an diesem Ort“; ein Eintrag öffnet die Detailseite. | Nachladen wie Schritt 2 | sync |
+| 4 | 01-01 | Pin einmal tippen | Pin wird zur Amber-Pille mit Kurznamen und Zeitraum. Ein Tipp auf die Karte hebt die Auswahl auf. | – | lokal |
+| 5 | – | ~~Karussell wischen~~ | Entfällt: Das Karussell nahm zu viel Platz von der Karte (Entscheidung 01.10.2026). | – | – |
+| 6 | 01-01 | Ausgewählten Pin ein zweites Mal tippen | Öffnet die Detailseite ([02](02-fest-details.md)). | `GET /v1/events/{id}` | sync |
 | 7 | 01-01 | Kategorie-Chip tippen | Chip wird aktiv (Mehrfachauswahl) und es wird neu geladen. Die Zahl im Chip zählt Feste, die alle anderen Filter erfüllen. | `GET /v1/events?categories=…` | sync |
 | 8 | 01-01 | Text in die Suche eingeben | Filtert nach Name oder Ort, ✕ leert die Suche. | `GET /v1/events?q=…` (debounced 300 ms, ab 2 Zeichen) | sync |
 | 9 | 01-05 | Filter öffnen | Das Sheet zeigt eine Kopie der aktuellen Filter als Entwurf. Die Zahl im Button („8 Feste anzeigen“) aktualisiert sich live. | `GET /v1/events/count?…` (Vorschau, debounced) | sync |
@@ -68,7 +69,7 @@ flowchart TD
 
 | Zustand | Darstellung |
 |---|---|
-| Laden | Skeleton-Karten im Karussell bzw. in der Liste, Pille „Feste werden geladen …“ auf der Karte (01-02, 01-04). |
+| Laden | Pille „Feste werden geladen …“ auf der Karte, Skeleton-Karten in der Liste (01-02, 01-04; die Screenshots zeigen noch das Karussell). |
 | Keine Feste im Ausschnitt | Karte „Keine Feste in diesem Kartenausschnitt“ mit „Herauszoomen“ und „Filter zurücksetzen“ (01-07). |
 | Suche ohne Treffer | „Kein Fest für ‚{q}‘“ mit Hinweis auf die Schreibweise (01-08). |
 | Keine Standortfreigabe | Karte startet auf dem letzten bekannten Ort bzw. Deutschland-Mitte. Die Entfernung wird zum Kartenmittelpunkt berechnet (Annahme). |
@@ -77,7 +78,7 @@ flowchart TD
 ## Regeln
 
 - Angezeigt werden nur Feste mit Status **veröffentlicht** oder **abgesagt** und Ende ≥ heute. Abgesagte Feste tragen den roten Status „Abgesagt“.
-- **Sortierung** im Karussell und in der Liste: nach Beginn aufsteigend, laufende zuerst.
+- **Sortierung** in der Liste: nach Beginn aufsteigend, laufende zuerst.
 - **Status-Text:**
   - laufend: „Läuft · noch X Tage“ (Amber)
   - Beginn in ≤ 14 Tagen: „In X Tagen“ (Rosa)

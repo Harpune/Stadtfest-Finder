@@ -38,8 +38,8 @@ import {
   MapViewport,
 } from './DiscoverMap';
 import {useDiscover} from './DiscoverProvider';
-import {EventCarousel} from './EventCarousel';
 import {EventList} from './EventList';
+import {EventStackSheet} from './EventStackSheet';
 import {
   activeFilterCount,
   DiscoverFilter,
@@ -160,7 +160,7 @@ export function DiscoverScreen() {
   );
 
   // The visible map area is the only spatial filter (no radius). The search loads a padded,
-  // grid-snapped area so small pans hit the cache; list and carousel show the visible part.
+  // grid-snapped area so small pans hit the cache; the list shows the visible part.
   const bbox = debouncedViewport?.bbox;
   const searchParams = useMemo(
     () =>
@@ -243,27 +243,11 @@ export function DiscoverScreen() {
     },
     [state.selectedEventId, dispatch],
   );
+  // Festivals at the same spot (cluster that zooming cannot split) as a list.
+  const [stack, setStack] = useState<EventSummary[] | null>(null);
   const clearSelection = useCallback(() => {
     if (state.selectedEventId) dispatch({type: 'select', eventId: null});
   }, [state.selectedEventId, dispatch]);
-
-  // Selecting from the carousel (swipe or first tap) centers the map on the event.
-  const onCarouselSettle = useCallback(
-    (event: EventSummary) => {
-      dispatch({type: 'select', eventId: event.id});
-      mapRef.current?.centerOn({lat: event.lat, lon: event.lon});
-    },
-    [dispatch],
-  );
-  const onCarouselPress = useCallback(
-    (event: EventSummary) => {
-      if (state.selectedEventId !== event.id) {
-        mapRef.current?.centerOn({lat: event.lat, lon: event.lon});
-      }
-      selectOrOpen(event);
-    },
-    [state.selectedEventId, selectOrOpen],
-  );
 
   // ---- filter sheet ---------------------------------------------------------------------
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -341,7 +325,7 @@ export function DiscoverScreen() {
   const isList = state.view === 'list';
   const headerTop = insets.top + 8;
   const toggleBottom = insets.bottom + 6;
-  const carouselBottom = toggleBottom + 48 + 10;
+  const controlsBottom = toggleBottom + 48 + 10;
   const headerHeight = 50 + 12 + 50 + (place ? 52 : 0);
 
   return (
@@ -363,6 +347,7 @@ export function DiscoverScreen() {
           showUserLocation={position !== null}
           onViewportChange={onViewportChange}
           onMarkerPress={selectOrOpen}
+          onStackPress={setStack}
           onMapPress={clearSelection}
         />
       ) : null}
@@ -395,11 +380,12 @@ export function DiscoverScreen() {
       ) : (
         <>
           <View
-            style={[styles.bottom, {bottom: carouselBottom}]}
+            style={[styles.bottom, {bottom: controlsBottom}]}
             pointerEvents="box-none"
           >
-            {/* Attribution (left) and map controls (right) sit directly above the carousel or
-                the empty-state card, so they never overlap it. */}
+            {/* Attribution (left) and map controls (right) sit above the view toggle or the
+                empty-state card, so they never overlap it. A tapped pin shows name and date
+                itself; there is no carousel (decision 01.10.2026). */}
             <View style={styles.aboveCards} pointerEvents="box-none">
               {HAS_TILE_KEY ? (
                 <Text
@@ -430,17 +416,7 @@ export function DiscoverScreen() {
               <View style={styles.emptyWrap}>
                 <EmptyState {...empty} />
               </View>
-            ) : (
-              <EventCarousel
-                items={items}
-                loading={firstLoad}
-                selectedId={state.selectedEventId}
-                today={today}
-                categoryOf={categoryOf}
-                onSettle={onCarouselSettle}
-                onPressCard={onCarouselPress}
-              />
-            )}
+            ) : null}
           </View>
           {statusPill ? (
             <View
@@ -534,6 +510,17 @@ export function DiscoverScreen() {
           testID="discover.toggle"
         />
       </View>
+
+      <EventStackSheet
+        events={stack}
+        today={today}
+        categoryOf={categoryOf}
+        onOpen={event => {
+          setStack(null);
+          router.push(`/f/${event.id}`);
+        }}
+        onClose={() => setStack(null)}
+      />
 
       <FilterSheet
         visible={sheetOpen}

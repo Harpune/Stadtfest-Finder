@@ -134,19 +134,13 @@ Die Klammer nennt jeweils den `start`-Wert im Prototyp.
   - Aktiv: Amber-Hintergrund, Text `#15111C`.
 - **Marker:**
   - Einzelmarker: 38 pt Kreis, `surface2`, Rahmen 2 px in der Kategorie-Farbe, Emoji 17 pt.
-  - Ausgewählter Marker: Amber-Pille (Höhe 44), links oder rechts ausgerichtet, je nachdem auf welcher Bildschirmhälfte er liegt, mit Kurznamen. Er ist **nie Teil eines Clusters** und liegt über allen anderen Markern.
-  - Cluster: 44 pt Kreis in Rosa mit Zahl. Marker unter 46 px Abstand werden gruppiert. Ein Tipp auf den Cluster zoomt 2 Stufen hinein.
+  - Ausgewählter Marker: Amber-Pille (Höhe 56), links oder rechts ausgerichtet, je nachdem auf welcher Bildschirmhälfte er liegt, mit Kurznamen und darunter dem Zeitraum (z. B. „3.–4. Okt“). Er ist **nie Teil eines Clusters** und liegt über allen anderen Markern.
+  - Cluster: 44 pt Kreis in Rosa mit Zahl. Marker unter 46 px Abstand werden gruppiert. Ein Tipp auf den Cluster zoomt 2 Stufen hinein. Lässt er sich auch beim größten Zoom nicht auflösen (Feste am selben Ort), zeigt ein Bottom Sheet „{n} Feste an diesem Ort“ die Feste als Liste.
   - Eigener Standort: 14 pt blauer Punkt mit Ring.
 - **Kartensteuerung** rechts, 236 pt über dem unteren Rand: +/− (48 × 44 je Taste) und Standort-Button (48 × 48, Radius 16).
-- **Karussell** 104 pt über dem unteren Rand:
-  - Horizontal mit Scroll-Snap, Karten 300 × ca. 106, Abstand 12.
-  - **Zeitlich sortiert** (links frühere, rechts spätere Feste).
-  - Scrollen wählt automatisch den passenden Marker aus. Liegt er außerhalb des Bildausschnitts, verschiebt sich die Karte so weit, dass er sichtbar wird.
-  - Ein Tipp auf einen Marker scrollt das Karussell zur passenden Karte.
-  - Karteninhalt: Bild 84 × 84, Status (z. B. „● Läuft · noch 9 Tage“ in Amber, „In 8 Tagen“ in Rosa), Name, Zeitraum, „{Emoji} {Ort} · {km} km“.
-  - Die ausgewählte Karte hat einen Amber-Rahmen `rgba(255,181,71,.7)`.
+- ~~**Karussell**~~ entfällt (Entscheidung 01.10.2026): Es nahm zu viel Platz von der Karte. Die Informationen zum ausgewählten Fest zeigt der ausgewählte Marker selbst (Name und Zeitraum), alles Weitere die Detailseite. Kartensteuerung und Attribution sitzen direkt über dem Karte/Liste-Umschalter.
 - **Karte/Liste-Umschalter** unten mittig, 36 pt über dem Rand. Segmented Control mit Radius 24, zwei Segmenten à 40 pt Höhe mit Icon und Text („Karte“ / „Liste“).
-- **Tipp-Logik:** Der erste Tipp auf einen Marker oder eine Karte wählt aus, der zweite öffnet die Detailseite.
+- **Tipp-Logik:** Der erste Tipp auf einen Marker wählt ihn aus (Pille mit Name und Zeitraum), der zweite öffnet die Detailseite. Ein Tipp auf die Karte hebt die Auswahl auf.
 
 ### 2. Listenansicht (`liste`)
 - Gleicher Header, hier mit deckendem `bg` und unterer Linie.

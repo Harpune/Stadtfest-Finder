@@ -6,7 +6,10 @@ import {useTheme} from '@/theme';
 import {Text} from '../Text/Text';
 
 export interface SelectedPinProps {
+  /** Short name of the event. */
   label: string;
+  /** Date range below the name, e.g. "3.–4. Okt". */
+  dateLabel: string;
   emoji: string;
   /** Which side the emoji bubble sits on; the pill extends to the other side. */
   align: 'left' | 'right';
@@ -14,10 +17,17 @@ export interface SelectedPinProps {
 }
 
 /**
- * Selected marker: amber pill (height 44) with the short name and the emoji bubble at the
- * marker position. It lies in its own layer and is never clustered (R03-US2).
+ * Selected marker: amber pill with short name and date, and the emoji bubble at the marker
+ * position. It lies in its own layer and is never clustered (R03-US2). A second tap on it
+ * opens the detail page.
  */
-export function SelectedPin({label, emoji, align, testID}: SelectedPinProps) {
+export function SelectedPin({
+  label,
+  dateLabel,
+  emoji,
+  align,
+  testID,
+}: SelectedPinProps) {
   const theme = useTheme();
   const c = theme.colors;
   const bubble = (
@@ -37,13 +47,22 @@ export function SelectedPin({label, emoji, align, testID}: SelectedPinProps) {
         },
       ]}
     >
-      <Text
-        variant="bodyStrong"
-        numberOfLines={1}
-        style={[styles.label, {color: c.onPrimary}]}
-      >
-        {label}
-      </Text>
+      <View style={styles.text}>
+        <Text
+          variant="bodyStrong"
+          numberOfLines={1}
+          style={[styles.label, {color: c.onPrimary}]}
+        >
+          {label}
+        </Text>
+        <Text
+          variant="meta"
+          numberOfLines={1}
+          style={{color: c.onPrimary, fontFamily: theme.fonts.medium}}
+        >
+          {dateLabel}
+        </Text>
+      </View>
       {bubble}
     </View>
   );
@@ -51,24 +70,25 @@ export function SelectedPin({label, emoji, align, testID}: SelectedPinProps) {
 
 const styles = StyleSheet.create({
   pill: {
-    height: 44,
-    borderRadius: 22,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     gap: 8,
-    maxWidth: 240,
+    maxWidth: 280,
     shadowOpacity: 0.55,
     shadowRadius: 14,
     shadowOffset: {width: 0, height: 0},
     elevation: 10,
   },
-  label: {fontSize: 16, paddingHorizontal: 10, flexShrink: 1},
+  text: {paddingHorizontal: 10, flexShrink: 1},
+  label: {fontSize: 16, lineHeight: 20},
   bubble: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emoji: {fontSize: 17, lineHeight: 21},
+  emoji: {fontSize: 20, lineHeight: 24},
 });
