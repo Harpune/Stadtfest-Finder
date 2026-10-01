@@ -54,6 +54,13 @@ flowchart TD
 | 6 | 04-01 | „Moderator-Ansicht“ | Wechselt in die Moderationsansicht ([08](08-moderation-feste.md)). | `GET /v1/mod/events` | sync |
 | 7 | 04-03 | „Feste entdecken“ | Schließt den Drawer. | – | lokal |
 
+## Stand der Umsetzung (R06)
+
+- Die Karte „Gemeinsame Listen“ (R13) und „Benachrichtigungen“ mit Zähler (R11) sind noch ausgeblendet.
+- „Moderator-Ansicht“ ist für Moderatoren sichtbar und zeigt bis R07 den Hinweis „Die Moderator-Ansicht folgt in Kürze“.
+- Dunkelmodus: Der Schalter überschreibt das System dauerhaft auf dem Gerät; ein langer Druck auf die Zeile setzt die Darstellung wieder auf „wie System“ zurück (Annahme aus R06-US4).
+- Das Herz gibt es auf der Detailseite und auf den Listenkarten (das Karussell entfiel am 01.10.2026).
+
 ## Regeln
 
 - **Hervorhebung „läuft“:** Beginn ≤ heute ≤ Ende. Die Karte zeigt „● Läuft · noch X Tage“ mit leuchtendem Punkt.

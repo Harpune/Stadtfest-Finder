@@ -53,8 +53,10 @@ export interface ApiCall {
   body: string;
 }
 
-/** Answers /v1/me like the backend; everything else with an empty list. */
-export function mockMeApi(options: {me?: Me; status?: number} = {}) {
+/** Answers /v1/me and /v1/me/favorites like the backend; everything else with an empty list. */
+export function mockMeApi(
+  options: {me?: Me; status?: number; favoriteStatus?: number} = {},
+) {
   const calls: ApiCall[] = [];
   let me = options.me ?? LENA;
   jest.spyOn(global, 'fetch').mockImplementation(async input => {
@@ -72,6 +74,10 @@ export function mockMeApi(options: {me?: Me; status?: number} = {}) {
         status,
         headers: {'Content-Type': 'application/json'},
       });
+    if (url.pathname.startsWith('/v1/me/favorites')) {
+      if (request.method === 'GET') return json({items: []});
+      return new Response(null, {status: options.favoriteStatus ?? 204});
+    }
     if (url.pathname !== '/v1/me') return json([]);
     if (options.status && options.status !== 200) {
       return json({error: 'x', message: 'x'}, options.status);

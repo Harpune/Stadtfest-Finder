@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
+from stadtfest.adapters.inbound.rest.auth import optional_principal
 from stadtfest.adapters.inbound.rest.dependencies import Deps
 from stadtfest.application.events.criteria import (
     DEFAULT_RADIUS_KM,
@@ -24,6 +25,7 @@ from stadtfest.application.shared.errors import InvalidInputError
 from stadtfest.domain.events.event import EventStatus
 from stadtfest.domain.events.geo import BoundingBox, GeoPoint
 from stadtfest.domain.events.time_filter import TimeFilter, TimeFilterKind, YearMonth
+from stadtfest.domain.identity.principal import Principal
 from stadtfest.generated import models as api
 
 router = APIRouter(prefix="/v1/events", tags=["events"])
@@ -125,22 +127,28 @@ def _image(image: ImageView | None) -> api.Image | None:
     )
 
 
+# Any: keyword arguments for a generated pydantic model with mixed field types.
+def summary_fields(item: EventSummaryView) -> dict[str, Any]:
+    """Fields of `EventSummary`, shared with schemas that extend it (`FavoriteEntry`)."""
+    return {
+        "id": item.id,
+        "name": item.name,
+        "short_name": item.short_name,
+        "status": _status(item.status),
+        "start_date": item.start_date,
+        "end_date": item.end_date,
+        "place": item.place,
+        "city": item.city,
+        "lat": item.location.lat,
+        "lon": item.location.lon,
+        "category_id": item.category_id,
+        "distance_km": item.distance_km,
+        "cover_image": _image(item.cover_image),
+    }
+
+
 def _summary(item: EventSummaryView) -> api.EventSummary:
-    return api.EventSummary(
-        id=item.id,
-        name=item.name,
-        short_name=item.short_name,
-        status=_status(item.status),
-        start_date=item.start_date,
-        end_date=item.end_date,
-        place=item.place,
-        city=item.city,
-        lat=item.location.lat,
-        lon=item.location.lon,
-        category_id=item.category_id,
-        distance_km=item.distance_km,
-        cover_image=_image(item.cover_image),
-    )
+    return api.EventSummary(**summary_fields(item))
 
 
 def _category_ref(category: CategoryView) -> api.CategoryRef:
@@ -149,8 +157,11 @@ def _category_ref(category: CategoryView) -> api.CategoryRef:
     )
 
 
-def _detail(event: EventDetailView) -> api.EventDetail:
+def _detail(event: EventDetailView, is_favorite: bool | None) -> api.EventDetail:
+    # Not passed at all without a token, so that `isFavorite` is left out of the response.
+    extra = {"is_favorite": is_favorite} if is_favorite is not None else {}
     return api.EventDetail(
+        **extra,
         id=event.id,
         name=event.name,
         short_name=event.short_name,
@@ -208,13 +219,22 @@ async def count_events(deps: Deps, search: Filter) -> api.EventCount:
     )
 
 
-@router.get("/{event_id}", operation_id="getEvent", response_model=api.EventDetail)
+@router.get(
+    "/{event_id}",
+    operation_id="getEvent",
+    response_model=api.EventDetail,
+    response_model_exclude_unset=True,
+)
 async def get_event(
     deps: Deps,
     event_id: UUID,
+    principal: Annotated[Principal | None, Depends(optional_principal)],
     lat: Annotated[float | None, Query(ge=-90, le=90)] = None,
     lon: Annotated[float | None, Query(ge=-180, le=180)] = None,
 ) -> api.EventDetail:
     """Return the detail of a published or cancelled event."""
     reference = GeoPoint(lat, lon) if lat is not None and lon is not None else None
-    return _detail(await deps.get_public_event(event_id, reference))
+    event = await deps.get_public_event(event_id, reference)
+    # `isFavorite` only with a token (R06-US1); public responses stay user-neutral.
+    is_favorite = await deps.is_favorite(principal, event_id) if principal else None
+    return _detail(event, is_favorite)

@@ -5,8 +5,7 @@ import type {EventStatusTone} from '@/features/events/status';
 import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
 
-import {Icon} from '../Icon/Icon';
-import {IconButton} from '../IconButton/IconButton';
+import {FavoriteButton} from '../FavoriteButton/FavoriteButton';
 import {ImagePlaceholder} from '../ImagePlaceholder/ImagePlaceholder';
 import {Skeleton} from '../Skeleton/Skeleton';
 import {Text} from '../Text/Text';
@@ -23,6 +22,8 @@ export interface EventListCardProps {
   distanceLabel?: string;
   onPress: () => void;
   onFavoritePress: () => void;
+  /** Filled heart for favorites of the signed-in user (R06-US1). */
+  isFavorite?: boolean;
   testID: string;
 }
 
@@ -38,6 +39,7 @@ export function EventListCard({
   distanceLabel,
   onPress,
   onFavoritePress,
+  isFavorite = false,
   testID,
 }: EventListCardProps) {
   const theme = useTheme();
@@ -75,12 +77,17 @@ export function EventListCard({
           </View>
         ) : null}
         <View style={styles.heart}>
-          <IconButton
-            icon={<Icon name="heart" size={20} />}
-            accessibilityLabel={`${name} merken`}
+          <FavoriteButton
+            active={isFavorite}
+            accessibilityLabel={
+              isFavorite
+                ? strings.favorites.remove(name)
+                : strings.favorites.add(name)
+            }
             onPress={onFavoritePress}
             testID={`${testID}.favorite`}
             size={40}
+            iconSize={20}
           />
         </View>
       </View>

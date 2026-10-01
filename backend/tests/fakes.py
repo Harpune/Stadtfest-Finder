@@ -5,9 +5,10 @@ from __future__ import annotations
 import copy
 import json
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 from uuid import UUID, uuid4
 
+from stadtfest.application.collections.ports import FavoriteView
 from stadtfest.application.events.criteria import PageCursor, SearchCriteria
 from stadtfest.application.events.views import (
     CategoryView,
@@ -27,6 +28,7 @@ from stadtfest.application.identity.ports import (
 )
 from stadtfest.application.shared.ports import JsonValue
 from stadtfest.domain.events.geo import GeoPoint
+from stadtfest.domain.identity.principal import Principal
 
 
 @dataclass
@@ -197,3 +199,50 @@ class FakeDeletedAccounts:
         if self.unavailable:
             raise DeletedAccountsUnavailableError
         return subject in self.marked
+
+
+@dataclass
+class FakeFavoriteRepository:
+    """Favorites per subject; only events in `public` can be added."""
+
+    public: dict[UUID, EventSummaryView] = field(default_factory=dict)
+    favorites: dict[str, list[UUID]] = field(default_factory=dict)
+    counts: dict[UUID, int] = field(default_factory=dict)
+
+    async def add(self, subject: str, event_id: UUID) -> bool:
+        if event_id not in self.public:
+            return False
+        mine = self.favorites.setdefault(subject, [])
+        if event_id not in mine:
+            mine.append(event_id)
+            self.counts[event_id] = self.counts.get(event_id, 0) + 1
+        return True
+
+    async def remove(self, subject: str, event_id: UUID) -> None:
+        mine = self.favorites.get(subject, [])
+        if event_id in mine:
+            mine.remove(event_id)
+            self.counts[event_id] -= 1
+
+    async def list_for(self, subject: str, *, from_day: date | None) -> list[FavoriteView]:
+        events = [self.public[event_id] for event_id in self.favorites.get(subject, [])]
+        if from_day is not None:
+            events = [event for event in events if event.end_date >= from_day]
+        return [
+            FavoriteView(event, "Stadtfest", "🎪", datetime(2026, 9, 1, tzinfo=UTC))
+            for event in sorted(events, key=lambda event: event.start_date)
+        ]
+
+    async def is_favorite(self, subject: str, event_id: UUID) -> bool:
+        return event_id in self.favorites.get(subject, [])
+
+
+@dataclass
+class FakeAccountResolver:
+    """Records for whom an account was ensured."""
+
+    ensured: list[str] = field(default_factory=list)
+
+    async def __call__(self, principal: Principal) -> UUID:
+        self.ensured.append(principal.subject)
+        return uuid4()

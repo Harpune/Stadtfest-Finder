@@ -6,6 +6,7 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from uuid import UUID
 
 from stadtfest.application.identity.claims import ClaimMapping, principal_from_claims
 from stadtfest.application.identity.ports import (
@@ -116,6 +117,23 @@ class GetMe:
             name_from_claim(principal.family_name),
         )
         return await self._profiles.view(principal, user)
+
+
+class EnsureAccount:
+    """Create the caller's account if needed and return its ID (used by other contexts)."""
+
+    def __init__(self, users: UserRepository) -> None:
+        """Create the use case."""
+        self._users = users
+
+    async def __call__(self, principal: Principal) -> UUID:
+        """Upsert the user with the names from the token and return the user ID."""
+        user = await self._users.get_or_create(
+            principal.subject,
+            name_from_claim(principal.given_name),
+            name_from_claim(principal.family_name),
+        )
+        return user.id
 
 
 class UpdateMe:
