@@ -17,6 +17,7 @@
 |---|---|---|
 | IP-Adressen | API (Transport) | nicht geloggt (Uvicorn-Access-Log aus, eigener Request-Log ohne IP), nur gehasht und 2 s lang für Rate-Limits (Nr. 3) |
 | Query-Parameter (z. B. `lat`, `lon`, `q`) | API | aus Logs entfernt (`bootstrap/logging.py`, Test `test_logging.py`) |
+| IdP-Subject gelöschter Konten | API (Redis) | nur als SHA-256-Hash, bis das letzte Access-Token abgelaufen ist (Sperre gegen das Wiederanlegen, siehe [Löschkonzept](loeschkonzept.md#kontolöschung-r05)) |
 | Tokens | API | nie geloggt (weder `Authorization`-Header noch Token-Inhalt; Test `test_me_api.py::test_tokens_and_names_are_never_logged`) |
 | Tokens (App) | Gerät (`expo-secure-store`, Keychain/Keystore) | Access-, Refresh- und ID-Token; nie in AsyncStorage; beim Abmelden und bei der Kontolöschung gelöscht, der Refresh-Token wird beim IdP widerrufen |
 | E-Mail-Adresse (App) | Gerät (aus dem ID-Token) | nur angezeigt (Drawer, Konto-Seite), nie an das Backend gesendet |

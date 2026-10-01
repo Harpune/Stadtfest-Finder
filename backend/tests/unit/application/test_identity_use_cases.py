@@ -16,6 +16,7 @@ from stadtfest.application.shared.errors import InvalidInputError, ServiceUnavai
 from stadtfest.domain.identity.principal import Principal, Role
 from tests.fakes import (
     FakeAccountJobs,
+    FakeDeletedAccounts,
     FakeIdpAdmin,
     FakeRegionDirectory,
     FakeTokenVerifier,
@@ -27,8 +28,29 @@ ZITADEL = ClaimMapping("urn:zitadel:iam:org:project:roles", "region")
 OSTALB = RegionRecord(uuid4(), "ostalb", "Ostalbkreis")
 
 
-def _principal(*roles: Role, region: str | None = None, given: str | None = "Lena") -> Principal:
-    return Principal("sub-1", frozenset({Role.USER, *roles}), region, given, "Beispiel")
+NOW = 1_800_000_000
+
+
+def _principal(
+    *roles: Role, region: str | None = None, given: str | None = "Lena", expires_at: int = NOW + 300
+) -> Principal:
+    return Principal("sub-1", frozenset({Role.USER, *roles}), region, given, "Beispiel", expires_at)
+
+
+def _delete_account(
+    users: FakeUserRepository,
+    idp: FakeIdpAdmin,
+    jobs: FakeAccountJobs,
+    deleted: FakeDeletedAccounts | None = None,
+) -> DeleteAccount:
+    return DeleteAccount(
+        users,
+        idp,
+        jobs,
+        deleted or FakeDeletedAccounts(),
+        token_leeway_seconds=30,
+        now=lambda: NOW,
+    )
 
 
 # --- claim mapping -----------------------------------------------------------------
@@ -108,18 +130,20 @@ def test_principal_repr_contains_no_names() -> None:
 
 async def test_authenticate_maps_verified_claims() -> None:
     verifier = FakeTokenVerifier({"t": {"sub": "s", "realm_access": {"roles": ["user"]}}})
-    principal = await Authenticate(verifier, KEYCLOAK)("t")
+    principal = await Authenticate(verifier, KEYCLOAK, FakeDeletedAccounts())("t")
     assert principal.subject == "s"
 
 
 async def test_authenticate_rejects_invalid_tokens() -> None:
     with pytest.raises(InvalidTokenError):
-        await Authenticate(FakeTokenVerifier(), KEYCLOAK)("forged")
+        await Authenticate(FakeTokenVerifier(), KEYCLOAK, FakeDeletedAccounts())("forged")
 
 
 async def test_authenticate_reports_unavailable_idp() -> None:
     with pytest.raises(ServiceUnavailableError):
-        await Authenticate(FakeTokenVerifier(unavailable=True), KEYCLOAK)("t")
+        await Authenticate(FakeTokenVerifier(unavailable=True), KEYCLOAK, FakeDeletedAccounts())(
+            "t"
+        )
 
 
 # --- get / update me -------------------------------------------------------------------
@@ -191,7 +215,7 @@ async def test_delete_account_removes_local_data_and_idp_user() -> None:
     users, idp, jobs = FakeUserRepository(), FakeIdpAdmin(), FakeAccountJobs()
     await GetMe(users, FakeRegionDirectory())(_principal())
 
-    await DeleteAccount(users, idp, jobs)(_principal())
+    await _delete_account(users, idp, jobs)(_principal())
 
     assert users.users == {}
     assert idp.deleted == ["sub-1"]
@@ -202,7 +226,7 @@ async def test_delete_account_retries_idp_deletion_in_background() -> None:
     users, idp, jobs = FakeUserRepository(), FakeIdpAdmin(unavailable=True), FakeAccountJobs()
     await GetMe(users, FakeRegionDirectory())(_principal())
 
-    await DeleteAccount(users, idp, jobs)(_principal())
+    await _delete_account(users, idp, jobs)(_principal())
 
     assert users.users == {}
     assert jobs.enqueued == ["sub-1"]
@@ -214,14 +238,70 @@ async def test_delete_account_fails_if_retry_cannot_be_scheduled() -> None:
     await GetMe(users, FakeRegionDirectory())(_principal())
 
     with pytest.raises(ServiceUnavailableError):
-        await DeleteAccount(users, idp, jobs)(_principal())
+        await _delete_account(users, idp, jobs)(_principal())
     assert users.users == {}  # local data is deleted first; repeating is safe
 
 
 async def test_delete_account_without_local_user_still_deletes_at_idp() -> None:
     idp = FakeIdpAdmin()
-    await DeleteAccount(FakeUserRepository(), idp, FakeAccountJobs())(_principal())
+    await _delete_account(FakeUserRepository(), idp, FakeAccountJobs())(_principal())
     assert idp.deleted == ["sub-1"]
+
+
+async def test_delete_account_blocks_the_token_until_it_expires() -> None:
+    deleted = FakeDeletedAccounts()
+    await _delete_account(FakeUserRepository(), FakeIdpAdmin(), FakeAccountJobs(), deleted)(
+        _principal()
+    )
+    assert deleted.marked == {"sub-1": 300 + 30}  # remaining lifetime plus leeway
+
+
+async def test_still_valid_token_cannot_recreate_a_deleted_account() -> None:
+    verifier = FakeTokenVerifier({"t": {"sub": "sub-1", "exp": NOW + 300}})
+    deleted = FakeDeletedAccounts()
+    users = FakeUserRepository()
+    authenticate = Authenticate(verifier, KEYCLOAK, deleted)
+    await _delete_account(users, FakeIdpAdmin(), FakeAccountJobs(), deleted)(
+        await authenticate("t")
+    )
+
+    with pytest.raises(InvalidTokenError):
+        await authenticate("t")
+    assert users.users == {}
+
+
+async def test_expired_token_needs_no_block() -> None:
+    deleted = FakeDeletedAccounts()
+    await _delete_account(FakeUserRepository(), FakeIdpAdmin(), FakeAccountJobs(), deleted)(
+        _principal(expires_at=NOW - 60)
+    )
+    assert deleted.marked == {}
+
+
+async def test_delete_account_succeeds_without_the_register(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    users, idp = FakeUserRepository(), FakeIdpAdmin()
+    await GetMe(users, FakeRegionDirectory())(_principal())
+
+    await _delete_account(users, idp, FakeAccountJobs(), FakeDeletedAccounts(unavailable=True))(
+        _principal()
+    )
+
+    assert users.users == {}
+    assert idp.deleted == ["sub-1"]
+    assert "deleted_accounts_unavailable" in caplog.text
+
+
+async def test_authenticate_fails_open_without_the_register() -> None:
+    verifier = FakeTokenVerifier({"t": {"sub": "s"}})
+    principal = await Authenticate(verifier, KEYCLOAK, FakeDeletedAccounts(unavailable=True))("t")
+    assert principal.subject == "s"
+
+
+def test_token_expiry_is_mapped() -> None:
+    principal = principal_from_claims({"sub": "s", "exp": NOW}, KEYCLOAK)
+    assert principal.expires_at == NOW
 
 
 async def test_delete_idp_user_delegates_to_the_port() -> None:

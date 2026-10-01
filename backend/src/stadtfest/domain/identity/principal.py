@@ -28,6 +28,7 @@ class Principal:
         region_key: Moderation region (e.g. `ostalb`), None for non-moderators.
         given_name: First name from the token, used when the account is created.
         family_name: Last name from the token, used when the account is created.
+        expires_at: Expiry of the access token (Unix time, `exp` claim), if known.
     """
 
     subject: str
@@ -35,6 +36,7 @@ class Principal:
     region_key: str | None = None
     given_name: str | None = field(default=None, repr=False)
     family_name: str | None = field(default=None, repr=False)
+    expires_at: int | None = None
 
     def has_role(self, role: Role) -> bool:
         """Return True if the principal has the given role."""

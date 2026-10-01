@@ -18,6 +18,7 @@ from stadtfest.application.events.views import (
 from stadtfest.application.geocoding.ports import GeocodingUnavailableError, Place
 from stadtfest.application.identity.ports import (
     Claims,
+    DeletedAccountsUnavailableError,
     IdpUnavailableError,
     InvalidTokenError,
     JobQueueUnavailableError,
@@ -180,3 +181,19 @@ class FakeTokenVerifier:
         if token not in self.tokens:
             raise InvalidTokenError
         return self.tokens[token]
+
+
+@dataclass
+class FakeDeletedAccounts:
+    unavailable: bool = False
+    marked: dict[str, int] = field(default_factory=dict)
+
+    async def mark_deleted(self, subject: str, ttl_seconds: int) -> None:
+        if self.unavailable:
+            raise DeletedAccountsUnavailableError
+        self.marked[subject] = ttl_seconds
+
+    async def is_deleted(self, subject: str) -> bool:
+        if self.unavailable:
+            raise DeletedAccountsUnavailableError
+        return subject in self.marked

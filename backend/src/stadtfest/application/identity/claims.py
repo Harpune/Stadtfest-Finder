@@ -57,6 +57,11 @@ def _optional_str(value: object) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def _optional_int(value: object) -> int | None:
+    # bool is a subclass of int but never a valid timestamp.
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 def principal_from_claims(claims: Claims, mapping: ClaimMapping) -> Principal:
     """Build the principal from validated claims.
 
@@ -91,4 +96,5 @@ def principal_from_claims(claims: Claims, mapping: ClaimMapping) -> Principal:
         region_key=region_key if Role.MODERATOR in roles else None,
         given_name=_optional_str(claims.get("given_name")),
         family_name=_optional_str(claims.get("family_name")),
+        expires_at=_optional_int(claims.get("exp")),
     )

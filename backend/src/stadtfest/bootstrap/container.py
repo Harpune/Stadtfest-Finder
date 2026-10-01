@@ -16,6 +16,7 @@ from stadtfest.adapters.outbound.auth.idp_admin import (
     ZitadelIdpAdmin,
 )
 from stadtfest.adapters.outbound.auth.jwks import JwksTokenVerifier
+from stadtfest.adapters.outbound.cache.deleted_accounts import RedisDeletedAccounts
 from stadtfest.adapters.outbound.cache.redis_cache import RedisCache
 from stadtfest.adapters.outbound.cache.redis_client import RedisProbe, create_redis
 from stadtfest.adapters.outbound.clock.berlin_clock import BerlinClock
@@ -134,6 +135,7 @@ class Container:
         regions = SqlRegionDirectory(sessions)
         idp_admin = _idp_admin(settings, auth_http)
         arq_redis = create_arq_redis(str(settings.redis_url))
+        deleted_accounts = RedisDeletedAccounts(redis)
 
         return cls(
             settings=settings,
@@ -150,10 +152,16 @@ class Container:
             list_active_categories=ListActiveCategories(catalog, cache),
             geocode=Geocode(geocoding, cache),
             reverse_geocode=ReverseGeocode(geocoding, cache),
-            authenticate=Authenticate(verifier, claim_mapping),
+            authenticate=Authenticate(verifier, claim_mapping, deleted_accounts),
             get_me=GetMe(users, regions),
             update_me=UpdateMe(users, regions),
-            delete_account=DeleteAccount(users, idp_admin, ArqAccountJobs(arq_redis)),
+            delete_account=DeleteAccount(
+                users,
+                idp_admin,
+                ArqAccountJobs(arq_redis),
+                deleted_accounts,
+                token_leeway_seconds=settings.auth_leeway_seconds,
+            ),
             delete_idp_user=DeleteIdpUser(idp_admin),
         )
 

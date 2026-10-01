@@ -22,6 +22,10 @@ class JobQueueUnavailableError(Exception):
     """A background job could not be enqueued."""
 
 
+class DeletedAccountsUnavailableError(Exception):
+    """The register of deleted accounts cannot be reached."""
+
+
 class TokenVerifier(Protocol):
     """Validates access tokens issued by the IdP."""
 
@@ -104,5 +108,29 @@ class AccountJobQueue(Protocol):
 
         Raises:
             JobQueueUnavailableError: If the queue cannot be reached.
+        """
+        ...
+
+
+class DeletedAccounts(Protocol):
+    """Short-lived register of deleted accounts.
+
+    Access tokens stay valid until they expire. Without this register a request with such
+    a token right after the deletion would create the account again (`GET /v1/me`).
+    """
+
+    async def mark_deleted(self, subject: str, ttl_seconds: int) -> None:
+        """Remember the subject as deleted for `ttl_seconds`.
+
+        Raises:
+            DeletedAccountsUnavailableError: If the register cannot be reached.
+        """
+        ...
+
+    async def is_deleted(self, subject: str) -> bool:
+        """Return True if the subject was deleted and its tokens may still be valid.
+
+        Raises:
+            DeletedAccountsUnavailableError: If the register cannot be reached.
         """
         ...

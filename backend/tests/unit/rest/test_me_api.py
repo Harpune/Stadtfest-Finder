@@ -1,6 +1,7 @@
 """REST adapter tests for `/v1/me` and bearer token handling (fake verifier, no IdP)."""
 
 import json
+import time
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -22,6 +23,7 @@ from tests.fakes import (
     FakeAccountJobs,
     FakeCache,
     FakeCategoryCatalog,
+    FakeDeletedAccounts,
     FakeIdpAdmin,
     FakeRegionDirectory,
     FakeTokenVerifier,
@@ -45,10 +47,12 @@ def idp() -> FakeIdpAdmin:
 
 @pytest.fixture
 def client(users: FakeUserRepository, idp: FakeIdpAdmin) -> TestClient:
+    deleted = FakeDeletedAccounts()
     verifier = FakeTokenVerifier(
         {
             USER_TOKEN: {
                 "sub": "sub-user",
+                "exp": int(time.time()) + 300,
                 "realm_access": {"roles": ["user"]},
                 "given_name": "Lena",
                 "family_name": "Beispiel",
@@ -71,10 +75,12 @@ def client(users: FakeUserRepository, idp: FakeIdpAdmin) -> TestClient:
     app.include_router(me.router)
     app.state.container = SimpleNamespace(
         list_active_categories=ListActiveCategories(FakeCategoryCatalog(), FakeCache()),
-        authenticate=Authenticate(verifier, ClaimMapping("realm_access.roles", "region")),
+        authenticate=Authenticate(verifier, ClaimMapping("realm_access.roles", "region"), deleted),
         get_me=GetMe(users, regions),
         update_me=UpdateMe(users, regions),
-        delete_account=DeleteAccount(users, idp, FakeAccountJobs()),
+        delete_account=DeleteAccount(
+            users, idp, FakeAccountJobs(), deleted, token_leeway_seconds=30
+        ),
     )
     return TestClient(app)
 
@@ -165,6 +171,18 @@ def test_delete_me_deletes_account(
     assert response.status_code == 204
     assert users.users == {}
     assert idp.deleted == ["sub-user"]
+
+
+def test_deleted_account_is_not_recreated_with_a_still_valid_token(
+    client: TestClient, users: FakeUserRepository
+) -> None:
+    client.get("/v1/me", headers=_auth(USER_TOKEN))
+    client.delete("/v1/me", headers=_auth(USER_TOKEN))
+
+    response = client.get("/v1/me", headers=_auth(USER_TOKEN))
+
+    assert response.status_code == 401
+    assert users.users == {}
 
 
 def test_tokens_and_names_are_never_logged(

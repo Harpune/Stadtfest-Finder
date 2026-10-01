@@ -15,6 +15,7 @@ Nutzer können ihr Konto in der App löschen (Art. 17 DSGVO, App-Store-Pflicht).
   - `keycloak` (lokal): Admin API, `DELETE /admin/realms/{realm}/users/{id}` mit einem vertraulichen Client im Client-Credentials-Grant (`IDP_ADMIN_CLIENT_ID`, `IDP_ADMIN_CLIENT_SECRET`).
   - `fake`: tut nichts; nur in `dev`/`test` erlaubt, der Start in `prod` schlägt fehl.
 - Die IdP-Nutzer-ID ist der `sub`-Claim. `404` gilt als Erfolg (Löschung ist idempotent).
+- **Sperre gegen das Wiederanlegen:** Vor allem anderen merkt sich die API den gehashten `sub` in Redis (Port `DeletedAccounts`), bis das Access-Token des Aufrufers abgelaufen ist. `Authenticate` lehnt Tokens gesperrter Konten mit `401` ab. Fällt Redis aus, gilt die Sperre nicht (fail open), damit ein Redis-Ausfall nicht alle Angemeldeten aussperrt.
 - **Reihenfolge:** Erst werden die lokalen Daten in einer Transaktion gelöscht, dann der IdP-Nutzer. Schlägt der IdP-Aufruf fehl, reiht der Use Case den arq-Job `delete_idp_user` ein, der mit wachsenden Abständen bis zu 15-mal wiederholt.
 - Der Job ist ein direktes Enqueue, keine Outbox (ADR 0005 folgt in R07). Kann er nicht eingereiht werden, antwortet die API mit `503` und die App lässt den Nutzer erneut löschen.
 
