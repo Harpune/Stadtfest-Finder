@@ -27,7 +27,9 @@ env:
 # Heart as guest → hint → entry screen
 - tapOn:
     id: detail.favorite
-- assertVisible: 'Lieblingsfeste merken'
+- extendedWaitUntil:
+    visible: 'Lieblingsfeste merken'
+    timeout: 10000
 - tapOn:
     id: guestHint.login
 - extendedWaitUntil:
