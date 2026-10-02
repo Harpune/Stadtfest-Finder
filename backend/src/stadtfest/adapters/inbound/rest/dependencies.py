@@ -20,7 +20,11 @@ from stadtfest.application.events.use_cases import (
     ListActiveCategories,
     SearchEvents,
 )
-from stadtfest.application.geocoding.use_cases import Geocode, ReverseGeocode
+from stadtfest.application.geocoding.use_cases import (
+    Geocode,
+    ReverseGeocode,
+    ReverseGeocodeEventLocation,
+)
 from stadtfest.application.health.check_readiness import CheckReadiness
 from stadtfest.application.identity.use_cases import Authenticate, DeleteAccount, GetMe, UpdateMe
 from stadtfest.application.moderation.images import (
@@ -53,6 +57,7 @@ class RestDependencies(Protocol):
     list_active_categories: ListActiveCategories
     geocode: Geocode
     reverse_geocode: ReverseGeocode
+    reverse_geocode_event_location: ReverseGeocodeEventLocation
     authenticate: Authenticate
     get_me: GetMe
     update_me: UpdateMe

@@ -697,6 +697,51 @@ paths:
           $ref: "#/components/responses/Error"
         default:
           $ref: "#/components/responses/Error"
+  /v1/mod/geocode/reverse:
+    get:
+      operationId: reverseGeocodeEventLocation
+      tags: [moderation]
+      summary: Address of an event pin
+      description: |
+        Resolves the pin of an event to street, ZIP code and place (moderators only). Unlike
+        `/v1/geocode/reverse` the coordinate is used in full precision: an event location is
+        public data, not a user position. `street` is missing if no address is near the pin.
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          description: Latitude (WGS84).
+          schema:
+            type: number
+            minimum: -90
+            maximum: 90
+        - name: lon
+          in: query
+          required: true
+          description: Longitude (WGS84).
+          schema:
+            type: number
+            minimum: -180
+            maximum: 180
+      responses:
+        "200":
+          description: The place at the pin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReverseGeocodeResult"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
   /v1/mod/uploads:
     post:
       operationId: createModUpload
@@ -1563,6 +1608,9 @@ components:
       description: Place for coordinates.
       required: [city, label]
       properties:
+        street:
+          type: ["string", "null"]
+          description: Street and house number; only `/v1/mod/geocode/reverse` fills it.
         postalCode:
           type: ["string", "null"]
           pattern: "^[0-9]{5}$"

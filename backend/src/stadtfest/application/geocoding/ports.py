@@ -26,6 +26,8 @@ class Place:
     location: GeoPoint
     kind: PlaceKind
     postal_code: str | None = None
+    # Street and house number; only reverse lookups of event pins fill it (R07-US3).
+    street: str | None = None
 
 
 class GeocodingUnavailableError(Exception):

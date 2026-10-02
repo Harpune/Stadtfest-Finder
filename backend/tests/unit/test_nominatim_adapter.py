@@ -63,6 +63,7 @@ async def test_reverse_returns_postcode_place() -> None:
         "73430",
         PlaceKind.POSTCODE,
     )
+    assert place.street == "Marktplatz"
 
 
 async def test_reverse_outside_germany_or_error_is_none() -> None:

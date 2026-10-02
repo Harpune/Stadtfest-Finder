@@ -396,6 +396,10 @@ class ReverseGeocodeResult(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    street: Annotated[
+        str | None,
+        Field(description="Street and house number; only `/v1/mod/geocode/reverse` fills it."),
+    ] = None
     postal_code: Annotated[str | None, Field(alias="postalCode", pattern="^[0-9]{5}$")] = None
     city: str
     label: str

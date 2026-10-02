@@ -197,15 +197,7 @@ export function EventDetailScreen({eventId}: {eventId: string}) {
       ]
     : [];
 
-  const addressLine = detail
-    ? [
-        detail.place !== detail.address ? detail.place : null,
-        detail.address,
-        `${detail.postalCode} ${detail.city}`,
-      ]
-        .filter(part => part)
-        .join(', ')
-    : '';
+  const addressLine = detail ? formatAddress(detail) : '';
 
   return (
     <View
@@ -468,3 +460,40 @@ const styles = StyleSheet.create({
   directionRow: {flexDirection: 'row', gap: 12, alignItems: 'flex-start'},
   directionText: {flex: 1},
 });
+
+/**
+ * "Place, street, ZIP city" without empty or repeated parts: an address that is only the
+ * city, or a part that another part already lists (e.g. "Marktplatz 1" next to
+ * "Marktplatz 1, 73430 Aalen"), is left out. A pin may have coordinates as address.
+ */
+export function formatAddress(detail: {
+  place: string;
+  address: string;
+  postalCode: string;
+  city: string;
+}): string {
+  const locality = `${detail.postalCode} ${detail.city}`.trim();
+  const sameAsLocality = [detail.city, detail.postalCode, locality].map(v =>
+    v.trim().toLowerCase(),
+  );
+  const address = sameAsLocality.includes(detail.address.trim().toLowerCase())
+    ? ''
+    : detail.address;
+  const parts = [detail.place, address, locality]
+    .map(part => part.trim())
+    .filter(part => part);
+  const segments = parts.map(part =>
+    part
+      .toLowerCase()
+      .split(',')
+      .map(segment => segment.trim()),
+  );
+  const redundant = (i: number) =>
+    segments.some(
+      (other, j) =>
+        j !== i &&
+        other.includes(parts[i]?.toLowerCase() ?? '') &&
+        (other.length > 1 || j < i),
+    );
+  return parts.filter((_, i) => !redundant(i)).join(', ');
+}

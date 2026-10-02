@@ -387,6 +387,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/mod/geocode/reverse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Address of an event pin
+         * @description Resolves the pin of an event to street, ZIP code and place (moderators only). Unlike
+         *     `/v1/geocode/reverse` the coordinate is used in full precision: an event location is
+         *     public data, not a user position. `street` is missing if no address is near the pin.
+         */
+        get: operations["reverseGeocodeEventLocation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/mod/uploads": {
         parameters: {
             query?: never;
@@ -817,6 +839,8 @@ export interface components {
         };
         /** @description Place for coordinates. */
         ReverseGeocodeResult: {
+            /** @description Street and house number; only `/v1/mod/geocode/reverse` fills it. */
+            street?: string | null;
             postalCode?: string | null;
             city: string;
             label: string;
@@ -1575,6 +1599,37 @@ export interface operations {
             404: components["responses"]["Error"];
             409: components["responses"]["Error"];
             422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    reverseGeocodeEventLocation: {
+        parameters: {
+            query: {
+                /** @description Latitude (WGS84). */
+                lat: number;
+                /** @description Longitude (WGS84). */
+                lon: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The place at the pin. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReverseGeocodeResult"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

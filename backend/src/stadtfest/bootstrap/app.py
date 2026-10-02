@@ -66,6 +66,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(categories.router)
     app.include_router(events.router)
     app.include_router(geocoding.router)
+    app.include_router(geocoding.mod_router)
     app.include_router(me.router)
     app.include_router(favorites.router)
     app.include_router(mod_events.router)

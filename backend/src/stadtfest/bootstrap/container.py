@@ -57,7 +57,11 @@ from stadtfest.application.events.use_cases import (
     SearchEvents,
 )
 from stadtfest.application.geocoding.ports import GeocodingPort
-from stadtfest.application.geocoding.use_cases import Geocode, ReverseGeocode
+from stadtfest.application.geocoding.use_cases import (
+    Geocode,
+    ReverseGeocode,
+    ReverseGeocodeEventLocation,
+)
 from stadtfest.application.health.check_readiness import CheckReadiness
 from stadtfest.application.identity.claims import ClaimMapping
 from stadtfest.application.identity.ports import IdpAdminPort
@@ -132,6 +136,7 @@ class Container:
     list_active_categories: ListActiveCategories
     geocode: Geocode
     reverse_geocode: ReverseGeocode
+    reverse_geocode_event_location: ReverseGeocodeEventLocation
     authenticate: Authenticate
     get_me: GetMe
     update_me: UpdateMe
@@ -244,6 +249,7 @@ class Container:
             list_active_categories=ListActiveCategories(catalog, cache),
             geocode=Geocode(geocoding, cache),
             reverse_geocode=ReverseGeocode(geocoding, cache),
+            reverse_geocode_event_location=ReverseGeocodeEventLocation(geocoding, cache),
             authenticate=Authenticate(verifier, claim_mapping, deleted_accounts),
             get_me=GetMe(users, regions),
             update_me=UpdateMe(users, regions),

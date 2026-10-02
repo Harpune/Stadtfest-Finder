@@ -11,12 +11,18 @@ from stadtfest.application.geocoding.ports import (
     Place,
     PlaceKind,
 )
-from stadtfest.application.shared.errors import NotFoundError, ServiceUnavailableError
+from stadtfest.application.shared.errors import (
+    ForbiddenError,
+    NotFoundError,
+    ServiceUnavailableError,
+)
 from stadtfest.application.shared.ports import CachePort, JsonValue
 from stadtfest.domain.events.geo import GeoPoint
+from stadtfest.domain.identity.principal import Principal
 
 GEOCODING_TTL_SECONDS = 30 * 24 * 60 * 60
 REVERSE_GRID_DECIMALS = 3  # ~100 m; exact coordinates never reach the cache key
+PIN_DECIMALS = 5  # ~1 m: event pins are public data, not user positions
 UNAVAILABLE = "geocoding_unavailable"
 
 
@@ -28,6 +34,7 @@ def _place_to_json(place: Place) -> dict[str, JsonValue]:
         "lon": place.location.lon,
         "kind": place.kind.value,
         "postalCode": place.postal_code,
+        "street": place.street,
     }
 
 
@@ -39,6 +46,7 @@ def _place_from_json(value: dict[str, JsonValue]) -> Place:
         location=GeoPoint(float(cast("float", value["lat"])), float(cast("float", value["lon"]))),
         kind=PlaceKind(str(value["kind"])),
         postal_code=str(postal_code) if postal_code is not None else None,
+        street=str(value["street"]) if value.get("street") else None,
     )
 
 
@@ -101,6 +109,43 @@ class ReverseGeocode:
             return _place_from_json(cached)
         try:
             place = await self._geocoding.reverse(grid)
+        except GeocodingUnavailableError:
+            raise ServiceUnavailableError(UNAVAILABLE) from None
+        if place is None:
+            raise NotFoundError("no place at location")
+        await self._cache.set_json(key, _place_to_json(place), GEOCODING_TTL_SECONDS)
+        return place
+
+
+class ReverseGeocodeEventLocation:
+    """Address of an event pin for moderators (street, ZIP code, place).
+
+    Unlike `ReverseGeocode` the pin is used in full precision (rounded to ~1 m): an event
+    location is public data, not a user position.
+    """
+
+    def __init__(self, geocoding: GeocodingPort, cache: CachePort) -> None:
+        """Create the use case."""
+        self._geocoding = geocoding
+        self._cache = cache
+
+    async def __call__(self, principal: Principal, location: GeoPoint) -> Place:
+        """Return the place at the pin.
+
+        Raises:
+            ForbiddenError: If the caller is no moderator.
+            NotFoundError: If no place is found (e.g. outside Germany).
+            ServiceUnavailableError: If the geocoding service is down.
+        """
+        if not principal.can_moderate:
+            raise ForbiddenError
+        pin = location.rounded(PIN_DECIMALS)
+        key = f"geocode:pin:{pin.lat:.5f}:{pin.lon:.5f}"
+        cached = await self._cache.get_json(key)
+        if isinstance(cached, dict):
+            return _place_from_json(cached)
+        try:
+            place = await self._geocoding.reverse(pin)
         except GeocodingUnavailableError:
             raise ServiceUnavailableError(UNAVAILABLE) from None
         if place is None:

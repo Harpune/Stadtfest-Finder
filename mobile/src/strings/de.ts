@@ -228,7 +228,7 @@ export const strings = {
       addressNoMatch: 'Kein Ort gefunden. Setze sonst einen Pin auf der Karte.',
       addressUnavailable:
         'Ortssuche gerade nicht erreichbar. Setze sonst einen Pin.',
-      pinLabel: (lat: string, lon: string) => `Pin ${lat}, ${lon}`,
+      pinLabel: (lat: string, lon: string) => `${lat}, ${lon}`,
       description: 'Beschreibung',
       descriptionPlaceholder: 'Was erwartet die Besucher?',
       privacyHint: 'Keine personenbezogenen Daten eintragen.',
