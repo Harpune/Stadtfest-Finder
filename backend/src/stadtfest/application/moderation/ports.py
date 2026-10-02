@@ -86,6 +86,10 @@ class RegionDirectory(Protocol):
         """The region with this key, or None."""
         ...
 
+    async def by_id(self, region_id: UUID) -> ModRegion | None:
+        """The region with this ID, or None."""
+        ...
+
 
 class ActiveCategories(Protocol):
     """Categories that may be chosen for an event."""

@@ -17,6 +17,7 @@ from stadtfest.application.shared.errors import (
     InvalidInputError,
     NotFoundError,
     ServiceUnavailableError,
+    TooManyRequestsError,
 )
 from stadtfest.generated.models import Error
 
@@ -41,6 +42,9 @@ _CODE_MESSAGES: dict[str, str] = {
     "region_mismatch": "Der Ort liegt außerhalb deiner Region.",
     "invalid_upload": "Das Bild wurde nicht vollständig hochgeladen. Bitte versuche es erneut.",
     "too_many_images": "Ein Fest kann höchstens 12 Bilder haben.",
+    "search_running": "Für dich läuft schon eine Suche. Warte, bis sie fertig ist.",
+    "postal_code_outside_region": "Diese Postleitzahl liegt nicht in deiner Region.",
+    "daily_limit": "Du hast heute schon die maximale Anzahl an Suchen gestartet.",
     "replacement_required": "Wähle eine Ersatzkategorie für die zugeordneten Feste.",
     "invalid_replacement": "Diese Ersatzkategorie ist nicht möglich.",
     "not_retryable": "Dieses Bild lässt sich nicht erneut verarbeiten. Bitte lade es neu hoch.",
@@ -126,7 +130,14 @@ async def _handle_forbidden(_: Request, exc: Exception) -> JSONResponse:
 
 async def _handle_conflict(_: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, ConflictError)  # noqa: S101  # registered for this type
-    return error_response(409, exc.code, _CODE_MESSAGES.get(exc.code, _STATUS_ERRORS[409][1]))
+    return error_response(
+        409, exc.code, _CODE_MESSAGES.get(exc.code, _STATUS_ERRORS[409][1]), exc.fields
+    )
+
+
+async def _handle_too_many(_: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, TooManyRequestsError)  # noqa: S101  # registered for this type
+    return error_response(429, exc.code, _CODE_MESSAGES.get(exc.code, _STATUS_ERRORS[429][1]))
 
 
 async def _handle_unavailable(_: Request, exc: Exception) -> JSONResponse:
@@ -152,5 +163,6 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(InvalidInputError, _handle_invalid_input)
     app.add_exception_handler(ForbiddenError, _handle_forbidden)
     app.add_exception_handler(ConflictError, _handle_conflict)
+    app.add_exception_handler(TooManyRequestsError, _handle_too_many)
     app.add_exception_handler(ServiceUnavailableError, _handle_unavailable)
     app.add_exception_handler(Exception, _handle_unexpected)

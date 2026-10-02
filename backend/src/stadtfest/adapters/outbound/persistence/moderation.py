@@ -294,6 +294,14 @@ class SqlModRegionDirectory:
             return None
         return ModRegion(row.id, Region(row.key, row.name, frozenset(row.postal_codes or ())))
 
+    async def by_id(self, region_id: UUID) -> ModRegion | None:
+        """The region with this ID, or None."""
+        async with self._sessions() as session:
+            row = await session.get(RegionRow, region_id)
+        if row is None:
+            return None
+        return ModRegion(row.id, Region(row.key, row.name, frozenset(row.postal_codes or ())))
+
 
 class SqlActiveCategories:
     """Active categories from table `category`."""
