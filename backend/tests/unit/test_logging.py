@@ -6,6 +6,7 @@ import structlog
 
 from stadtfest.bootstrap.logging import REDACTED, configure_logging, scrub_personal_data
 from stadtfest.bootstrap.settings import GeocodingProvider, LogFormat, Settings
+from tests.settings_values import TEST_STORAGE
 
 
 def _settings() -> Settings:
@@ -14,6 +15,7 @@ def _settings() -> Settings:
         redis_url="redis://localhost:6379/0",
         log_format=LogFormat.JSON,
         geocoding_provider=GeocodingProvider.FAKE,
+        **TEST_STORAGE,  # type: ignore[arg-type]
     )
 
 

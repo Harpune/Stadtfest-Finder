@@ -105,6 +105,14 @@ def s() -> Setup:
     return Setup()
 
 
+async def _ignore(*_args: object) -> None:
+    return None
+
+
+def _handler(cache: FakeCache, favorites: FakeEventFavorites) -> HandleDomainEvent:
+    return HandleDomainEvent(cache, favorites, _ignore, _ignore)
+
+
 def _types(s: Setup) -> list[DomainEventType]:
     return [e.type for e in s.events.outbox]
 
@@ -302,7 +310,7 @@ async def test_relay_hands_pending_messages_to_the_queue() -> None:
 async def test_every_event_invalidates_the_catalog_cache(event_type: str) -> None:
     cache, favorites = FakeCache(), FakeEventFavorites()
     message = OutboxMessage(uuid4(), event_type, {"eventId": str(uuid4())})
-    await HandleDomainEvent(cache, favorites)(message)
+    await _handler(cache, favorites)(message)
     assert await cache.generation("catalog") == 1
 
 
@@ -310,7 +318,7 @@ async def test_deleted_events_lose_their_favorites() -> None:
     favorites = FakeEventFavorites()
     event_id = uuid4()
     message = OutboxMessage(uuid4(), "event.deleted", {"eventId": str(event_id)})
-    handle = HandleDomainEvent(FakeCache(), favorites)
+    handle = _handler(FakeCache(), favorites)
     await handle(message)
     await handle(message)  # delivered twice: still the same state
     assert favorites.removed == [event_id, event_id]
@@ -318,7 +326,7 @@ async def test_deleted_events_lose_their_favorites() -> None:
 
 async def test_unknown_events_are_ignored() -> None:
     cache = FakeCache()
-    await HandleDomainEvent(cache, FakeEventFavorites())(OutboxMessage(uuid4(), "x.y", {}))
+    await _handler(cache, FakeEventFavorites())(OutboxMessage(uuid4(), "x.y", {}))
     assert await cache.generation("catalog") == 0
 
 

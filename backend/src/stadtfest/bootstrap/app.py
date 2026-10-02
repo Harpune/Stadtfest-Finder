@@ -15,6 +15,7 @@ from stadtfest.adapters.inbound.rest import (
     health,
     me,
     mod_events,
+    mod_images,
 )
 from stadtfest.adapters.inbound.rest.auth import optional_principal
 from stadtfest.adapters.inbound.rest.errors import register_error_handlers
@@ -68,4 +69,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(me.router)
     app.include_router(favorites.router)
     app.include_router(mod_events.router)
+    app.include_router(mod_images.router)
     return app

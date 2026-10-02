@@ -8,6 +8,7 @@ from typing import Protocol
 from uuid import UUID
 
 from stadtfest.domain.events.event import EventStatus
+from stadtfest.domain.events.images import EventImage
 from stadtfest.domain.events.maintenance import ManagedEvent
 from stadtfest.domain.events.region import Region
 from stadtfest.domain.identity.principal import Principal
@@ -56,6 +57,10 @@ class ManagedEventRepository(Protocol):
 
     async def get(self, event_id: UUID) -> ManagedEvent | None:
         """The event with its program, or None if unknown or deleted."""
+        ...
+
+    async def list_images(self, event_id: UUID) -> list[EventImage]:
+        """The event's images ordered by position (R08)."""
         ...
 
     async def add(self, event: ManagedEvent, user_id: UUID) -> None:

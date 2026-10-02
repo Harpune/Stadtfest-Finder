@@ -23,7 +23,14 @@ type JsonObject = dict[str, JsonValue]
 def _image_to_json(image: ImageView | None) -> JsonValue:
     if image is None:
         return None
-    return {"url": image.url, "thumb": image.thumb_url, "w": image.width, "h": image.height}
+    return {
+        "url": image.url,
+        "thumb": image.thumb_url,
+        "card": image.card_url,
+        "jpeg": image.jpeg_url,
+        "w": image.width,
+        "h": image.height,
+    }
 
 
 def _image_from_json(value: JsonValue) -> ImageView | None:
@@ -34,6 +41,8 @@ def _image_from_json(value: JsonValue) -> ImageView | None:
         thumb_url=str(value["thumb"]),
         width=cast("int | None", value.get("w")),
         height=cast("int | None", value.get("h")),
+        card_url=cast("str | None", value.get("card")),
+        jpeg_url=cast("str | None", value.get("jpeg")),
     )
 
 

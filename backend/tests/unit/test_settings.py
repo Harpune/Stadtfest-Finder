@@ -3,6 +3,14 @@ import pytest
 from stadtfest.bootstrap.settings import Environment, SettingsError, load_settings
 
 
+@pytest.fixture(autouse=True)
+def _storage(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("S3_ENDPOINT_URL", "http://seaweedfs:8333")
+    monkeypatch.setenv("S3_PUBLIC_BASE_URL", "https://images.example.eu/stadtfest-images")
+    monkeypatch.setenv("S3_ACCESS_KEY_ID", "key")
+    monkeypatch.setenv("S3_SECRET_ACCESS_KEY", "secret")
+
+
 def test_missing_required_variables_fail_fast_with_names(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("REDIS_URL", raising=False)
@@ -123,3 +131,27 @@ def test_keycloak_admin_needs_client_credentials(monkeypatch: pytest.MonkeyPatch
         load_settings()
 
     assert "IDP_ADMIN_CLIENT_SECRET" in str(exc_info.value)
+
+
+def test_public_image_url_must_use_https_in_prod(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir("/")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/db")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.setenv("ENV", "prod")
+    monkeypatch.setenv("NOMINATIM_URL", "http://nominatim:8080")
+    monkeypatch.delenv("GEOCODING_PROVIDER", raising=False)
+    _set_prod_auth(monkeypatch)
+    monkeypatch.setenv("S3_PUBLIC_BASE_URL", "http://images.example.eu/stadtfest-images")
+
+    with pytest.raises(SettingsError, match="S3_PUBLIC_BASE_URL"):
+        load_settings()
+
+
+def test_storage_credentials_are_required(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir("/")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/db")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.delenv("S3_SECRET_ACCESS_KEY")
+
+    with pytest.raises(SettingsError, match="S3_SECRET_ACCESS_KEY"):
+        load_settings()

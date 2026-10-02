@@ -25,10 +25,12 @@ from stadtfest.adapters.outbound.geocoding.nominatim import (
     NominatimGeocoding,
     create_nominatim_client,
 )
+from stadtfest.adapters.outbound.imaging.pillow import PillowImageProcessor
 from stadtfest.adapters.outbound.persistence.accounts import SqlRegionDirectory, SqlUserRepository
 from stadtfest.adapters.outbound.persistence.catalog import SqlCatalog
 from stadtfest.adapters.outbound.persistence.database import DatabaseProbe, create_engine
 from stadtfest.adapters.outbound.persistence.favorites import SqlFavoriteRepository
+from stadtfest.adapters.outbound.persistence.images import SqlImageRepository
 from stadtfest.adapters.outbound.persistence.moderation import (
     SqlActiveCategories,
     SqlManagedEventRepository,
@@ -40,6 +42,8 @@ from stadtfest.adapters.outbound.queue.arq_jobs import (
     ArqEventQueue,
     create_arq_redis,
 )
+from stadtfest.adapters.outbound.storage.s3 import S3Config, S3ObjectStorage
+from stadtfest.adapters.outbound.storage.urls import ImageUrls
 from stadtfest.application.collections.use_cases import (
     AddFavorite,
     IsFavorite,
@@ -64,6 +68,16 @@ from stadtfest.application.identity.use_cases import (
     EnsureAccount,
     GetMe,
     UpdateMe,
+)
+from stadtfest.application.moderation.images import (
+    AttachImage,
+    CreateUpload,
+    DeleteImageFiles,
+    OrderImages,
+    ProcessImage,
+    PurgeImages,
+    RemoveImage,
+    RetryImage,
 )
 from stadtfest.application.moderation.use_cases import (
     CancelModEvent,
@@ -138,6 +152,15 @@ class Container:
     handle_domain_event: HandleDomainEvent
     purge_outbox: PurgeOutbox
     delete_idp_user: DeleteIdpUser
+    storage: S3ObjectStorage
+    image_urls: ImageUrls
+    create_upload: CreateUpload
+    attach_image: AttachImage
+    order_images: OrderImages
+    remove_image: RemoveImage
+    retry_image: RetryImage
+    process_image: ProcessImage
+    purge_images: PurgeImages
 
     @classmethod
     def build(cls, settings: Settings) -> Container:
@@ -154,7 +177,23 @@ class Container:
         redis = create_redis(str(settings.redis_url))
         cache = RedisCache(redis)
         clock = BerlinClock()
-        catalog = SqlCatalog(sessions)
+        image_urls = ImageUrls(str(settings.s3_public_base_url))
+        storage = S3ObjectStorage(
+            S3Config(
+                endpoint_url=str(settings.s3_endpoint_url),
+                presign_endpoint_url=(
+                    str(settings.s3_presign_endpoint_url)
+                    if settings.s3_presign_endpoint_url
+                    else None
+                ),
+                bucket=settings.s3_bucket,
+                region=settings.s3_region,
+                access_key_id=settings.s3_access_key_id,
+                secret_access_key=settings.s3_secret_access_key.get_secret_value(),
+                timeout_seconds=settings.s3_timeout_seconds,
+            )
+        )
+        catalog = SqlCatalog(sessions, image_urls)
 
         http: httpx.AsyncClient | None = None
         geocoding: GeocodingPort
@@ -180,12 +219,15 @@ class Container:
         idp_admin = _idp_admin(settings, auth_http)
         arq_redis = create_arq_redis(str(settings.redis_url))
         deleted_accounts = RedisDeletedAccounts(redis)
-        favorites = SqlFavoriteRepository(sessions)
+        favorites = SqlFavoriteRepository(sessions, image_urls)
+        images = SqlImageRepository(sessions)
         managed = SqlManagedEventRepository(sessions)
         mod_regions = SqlModRegionDirectory(sessions)
         ensure_account = EnsureAccount(users)
         mod = (managed, mod_regions, clock)
         outbox = SqlOutboxStore(sessions)
+        process_image = ProcessImage(images, storage, PillowImageProcessor(), cache)
+        delete_image_files = DeleteImageFiles(storage)
 
         return cls(
             settings=settings,
@@ -226,8 +268,19 @@ class Container:
             cancel_mod_event=CancelModEvent(*mod, ensure_account),
             delete_mod_event=DeleteModEvent(*mod, ensure_account),
             relay_outbox=RelayOutbox(outbox, ArqEventQueue(arq_redis)),
-            handle_domain_event=HandleDomainEvent(cache, SqlEventFavorites(sessions)),
+            handle_domain_event=HandleDomainEvent(
+                cache, SqlEventFavorites(sessions), process_image, delete_image_files
+            ),
             purge_outbox=PurgeOutbox(outbox),
+            storage=storage,
+            image_urls=image_urls,
+            create_upload=CreateUpload(*mod, ensure_account, images, storage),
+            attach_image=AttachImage(*mod, images, cache, ensure_account, storage),
+            order_images=OrderImages(*mod, images, cache),
+            remove_image=RemoveImage(*mod, images, cache),
+            retry_image=RetryImage(*mod, images, cache, storage),
+            process_image=process_image,
+            purge_images=PurgeImages(images, storage),
         )
 
     async def aclose(self) -> None:
@@ -235,6 +288,7 @@ class Container:
         if self.http is not None:
             await self.http.aclose()
         await self.auth_http.aclose()
+        await self.storage.aclose()
         await self.arq_redis.aclose()
         await self.redis.aclose()
         await self.engine.dispose()

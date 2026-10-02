@@ -10,6 +10,7 @@ from testcontainers.postgres import PostgresContainer
 from testcontainers.redis import RedisContainer
 
 from stadtfest.bootstrap.settings import Environment, GeocodingProvider, LogFormat, Settings
+from tests.settings_values import TEST_STORAGE
 
 # Same images as infra/compose.dev.yaml (multi-arch PostGIS, see comment there).
 POSTGIS_IMAGE = "imresamu/postgis:17-3.5"
@@ -51,4 +52,6 @@ def integration_settings(migrated_postgres_url: str, redis_url: str) -> Settings
         redis_url=redis_url,
         log_format=LogFormat.CONSOLE,
         geocoding_provider=GeocodingProvider.FAKE,
+        # Contract tests never reach the storage (clients connect lazily).
+        **TEST_STORAGE,  # type: ignore[arg-type]
     )

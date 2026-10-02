@@ -4,12 +4,14 @@ version = "0.1.0"
 description = "Stadtfest-Finder backend: REST API, worker and MCP server"
 requires-python = ">=3.12"
 dependencies = [
+    "aiobotocore>=3.9.2",
     "alembic>=1.20.0",
     "arq>=0.28.0",
     "asyncpg>=0.31.0",
     "fastapi>=0.141.1",
     "geoalchemy2>=0.20.0",
     "httpx>=0.28.1",
+    "pillow>=12.3.0",
     "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",
     "pyjwt[crypto]>=2.10",
@@ -34,6 +36,7 @@ dev = [
     "ruff>=0.16.9",
     "schemathesis>=4.28.0",
     "testcontainers[postgres,redis]>=4.13.3",
+    "types-aiobotocore[s3]>=3.9.2",
 ]
 
 [tool.uv]

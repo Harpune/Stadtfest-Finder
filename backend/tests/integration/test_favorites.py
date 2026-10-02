@@ -17,7 +17,10 @@ from sqlalchemy.ext.asyncio import (
 from stadtfest.adapters.outbound.persistence.accounts import SqlUserRepository
 from stadtfest.adapters.outbound.persistence.favorites import SqlFavoriteRepository
 from stadtfest.adapters.outbound.persistence.models import EventRow, FavoriteRow
+from stadtfest.adapters.outbound.storage.urls import ImageUrls
 from tests.integration.seed_support import load
+
+TEST_URLS = ImageUrls("https://img.test/stadtfest-images")
 
 pytestmark = pytest.mark.integration
 
@@ -39,7 +42,7 @@ def sessions(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
 
 @pytest.fixture(scope="module")
 def favorites(sessions: async_sessionmaker[AsyncSession]) -> SqlFavoriteRepository:
-    return SqlFavoriteRepository(sessions)
+    return SqlFavoriteRepository(sessions, TEST_URLS)
 
 
 @pytest.fixture(scope="module")

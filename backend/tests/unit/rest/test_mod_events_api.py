@@ -12,6 +12,7 @@ from httpx import Response
 from stadtfest.adapters.inbound.rest import mod_events
 from stadtfest.adapters.inbound.rest.auth import optional_principal
 from stadtfest.adapters.inbound.rest.errors import register_error_handlers
+from stadtfest.adapters.outbound.storage.urls import ImageUrls
 from stadtfest.application.identity.claims import ClaimMapping
 from stadtfest.application.identity.use_cases import Authenticate
 from stadtfest.application.moderation.ports import ModRegion
@@ -63,6 +64,7 @@ def client() -> TestClient:
         authenticate=Authenticate(
             verifier, ClaimMapping("realm_access.roles", "region"), FakeDeletedAccounts()
         ),
+        image_urls=ImageUrls("https://img.test/bucket"),
         list_mod_events=ListModEvents(*base),
         get_mod_event=GetModEvent(*base),
         create_mod_event=CreateModEvent(*base, accounts),

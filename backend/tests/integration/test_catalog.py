@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from stadtfest.adapters.outbound.persistence.catalog import SqlCatalog
+from stadtfest.adapters.outbound.storage.urls import ImageUrls
 from stadtfest.application.events.criteria import PageCursor, SearchCriteria, SearchFilter
 from stadtfest.domain.events.geo import BoundingBox, GeoPoint
 from stadtfest.domain.events.time_filter import TimeFilter, TimeFilterKind, YearMonth
@@ -25,6 +26,8 @@ from tests.integration.seed_support import (
     seed_id,
     start_date,
 )
+
+TEST_URLS = ImageUrls("https://img.test/stadtfest-images")
 
 pytestmark = pytest.mark.integration
 
@@ -42,7 +45,9 @@ async def engine(migrated_postgres_url: str) -> AsyncIterator[AsyncEngine]:
 
 @pytest.fixture(scope="module")
 def catalog(engine: AsyncEngine) -> SqlCatalog:
-    return SqlCatalog(async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False))
+    return SqlCatalog(
+        async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False), TEST_URLS
+    )
 
 
 def _criteria(**kwargs: object) -> SearchCriteria:
