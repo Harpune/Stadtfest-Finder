@@ -22,6 +22,84 @@ class Category(BaseModel):
     sort_order: Annotated[int, Field(alias="sortOrder", ge=0)]
 
 
+class CategoryEmoji(
+    RootModel[Literal["🎪", "🎡", "🎄", "🐎", "🍺", "🍷", "🎭", "🎶", "🏰", "🎃", "🌸", "🔥"]]
+):
+    root: Annotated[
+        Literal["🎪", "🎡", "🎄", "🐎", "🍺", "🍷", "🎭", "🎶", "🏰", "🎃", "🌸", "🔥"],
+        Field(description="One of the 12 preset emojis (design reference §14)."),
+    ]
+
+
+class CategoryColor(
+    RootModel[Literal["#FFB547", "#FF6B8B", "#5EEAD4", "#8B9CFF", "#7ED957", "#C792EA"]]
+):
+    root: Annotated[
+        Literal["#FFB547", "#FF6B8B", "#5EEAD4", "#8B9CFF", "#7ED957", "#C792EA"],
+        Field(description="One of the 6 preset colors (theme-farben.md)."),
+    ]
+
+
+class ModCategory(BaseModel):
+    """Category in the moderation view, including inactive ones."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    name: str
+    emoji: str
+    color: Annotated[str, Field(pattern="^#[0-9A-F]{6}$")]
+    active: bool
+    sort_order: Annotated[int, Field(alias="sortOrder", ge=0)]
+    event_count: Annotated[
+        int,
+        Field(
+            alias="eventCount",
+            description="Events of all regions and statuses except deleted.",
+            ge=0,
+        ),
+    ]
+
+
+class ModCategoryCreate(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    name: Annotated[str, Field(max_length=40, min_length=1)]
+    emoji: CategoryEmoji
+    color: CategoryColor
+    active: bool | None = True
+
+
+class ModCategoryPatch(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    name: Annotated[str | None, Field(max_length=40, min_length=1)] = None
+    emoji: CategoryEmoji | None = None
+    color: CategoryColor | None = None
+    active: bool | None = None
+
+
+class CategoryOrderRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    ids: Annotated[list[UUID], Field(max_length=100, min_length=1)]
+
+
+class CategoryDeleted(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    moved_events: Annotated[
+        int,
+        Field(alias="movedEvents", description="Events moved to the replacement category.", ge=0),
+    ]
+    replacement_id: Annotated[UUID | None, Field(alias="replacementId")] = None
+
+
 class CategoryRef(BaseModel):
     """Category as embedded in an event detail."""
 

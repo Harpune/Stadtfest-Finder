@@ -1,0 +1,90 @@
+# Category admin (R09): login as katadmin → Moderator-Ansicht → Kategorien → deactivate
+# "Weihnachtsmarkt" → Beenden → the chip is gone; then activate it again (clean state).
+# Requires the local stack (`make dev`, `make seed`) with Keycloak and the dev realm.
+# Tag `typing`: see login.yaml.
+appId: de.stadtfestfinder.app
+name: Kategorie-Admin deaktiviert eine Kategorie
+tags:
+  - typing
+env:
+  USERNAME: katadmin@example.test # dev realm: moderator (ostalb) + category_admin
+  PASSWORD: stadtfest-dev
+---
+- runFlow:
+    file: shared/launch.yaml
+    env:
+      LOCATION: never
+
+# Login via the drawer
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.login
+- tapOn:
+    id: login.email
+- tapOn:
+    text: 'Fortfahren|Continue'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: username
+    timeout: 60000
+- tapOn:
+    id: username
+- inputText: ${USERNAME}
+- tapOn:
+    id: password
+- inputText: ${PASSWORD}
+- tapOn:
+    id: kc-login
+- extendedWaitUntil:
+    visible:
+      id: discover.screen
+    timeout: 60000
+- assertVisible: 'Weihnachtsmarkt.*'
+
+# Deactivate "Weihnachtsmarkt"
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.moderator
+- tapOn:
+    id: mod.tabs.categories
+- tapOn: 'Weihnachtsmarkt, .*'
+- scrollUntilVisible:
+    element:
+      id: mod.category.active
+- tapOn:
+    id: mod.category.active
+- tapOn:
+    id: mod.category.save
+- extendedWaitUntil:
+    visible: 'Deaktiviert · .*'
+    timeout: 20000
+
+# Back to the user view: the chip is gone
+- tapOn:
+    id: mod.banner.exit
+- extendedWaitUntil:
+    visible:
+      id: discover.screen
+    timeout: 20000
+- assertNotVisible: 'Weihnachtsmarkt.*'
+
+# Clean up: activate it again
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.moderator
+- tapOn:
+    id: mod.tabs.categories
+- tapOn: 'Weihnachtsmarkt, .*'
+- scrollUntilVisible:
+    element:
+      id: mod.category.active
+- tapOn:
+    id: mod.category.active
+- tapOn:
+    id: mod.category.save
+- tapOn:
+    id: mod.banner.exit

@@ -19,13 +19,19 @@ type CountParams = NonNullable<
 
 /** Map shows up to this many markers per viewport (R03 open point: limit 500). */
 export const SEARCH_PAGE_SIZE = 500;
-const CATEGORIES_STALE_MS = 60 * 60 * 1000;
+// Category changes reach the chips after at most 15 min (R09-US5).
+const CATEGORIES_STALE_MS = 15 * 60 * 1000;
 
-/** Active categories in moderation order (cached 1 h; the API adds an ETag). */
+/** Active categories in moderation order (stale after 15 min; the API adds an ETag). */
 export function useCategories() {
-  return $api.useQuery('get', '/v1/categories', undefined, {
-    staleTime: CATEGORIES_STALE_MS,
-  });
+  return $api.useQuery(
+    'get',
+    '/v1/categories',
+    // Revalidate (ETag, usually 304) instead of using Android's HTTP cache for 15 min:
+    // otherwise leaving the moderation view showed changed chips only much later.
+    {headers: {'Cache-Control': 'no-cache'}},
+    {staleTime: CATEGORIES_STALE_MS},
+  );
 }
 
 /**

@@ -47,7 +47,7 @@ Für native Builds zusätzlich **mindestens 20 GB freien Speicher** einplanen (P
 | Nominatim (optional) | http://localhost:58088 | `docker compose -f infra/compose.dev.yaml --profile geo up -d` (Import dauert) |
 
 - Ports lassen sich in `.env` ändern (`*_HOST_PORT`).
-- **Testnutzer:** `nutzer@example.test` (Rolle `user`), `moderator@example.test` (`moderator`, Region `ostalb`), `katadmin@example.test` (`moderator`, `category_admin`). Die Passwörter stehen in `infra/dev/keycloak/stadtfest-realm.json` und gelten nur lokal.
+- **Testnutzer:** `nutzer@example.test` (Rolle `user`), `moderator@example.test` (`moderator`, Region `ostalb`), `katadmin@example.test` (`moderator`, `category_admin`). Alle Zugänge mit Passwörtern auf einen Blick: [Dev-Nutzer](dev-nutzer.md). Sie gelten nur lokal.
 
 ## Anmeldung lokal (R05)
 

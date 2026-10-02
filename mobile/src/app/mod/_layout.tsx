@@ -2,12 +2,12 @@
  * Moderation view (R07-US1): fixed banner on top, events and categories as tabs at the
  * bottom, screens in between. Only for moderators; everyone else is sent to the map.
  */
-import {Redirect, Stack} from 'expo-router';
+import {Redirect, router, Stack, usePathname} from 'expo-router';
 import React from 'react';
 import {StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {ModBanner, ModTabBar, useToast} from '@/components';
+import {ModBanner, ModTabBar} from '@/components';
 import {useAuth} from '@/features/auth/AuthProvider';
 import {useExitModeration} from '@/features/moderation/useModeration';
 import {strings} from '@/strings/de';
@@ -23,7 +23,8 @@ export default function ModerationLayout() {
   const insets = useSafeAreaInsets();
   const {user, isModerator, status} = useAuth();
   const exit = useExitModeration();
-  const toast = useToast();
+  const pathname = usePathname();
+  const tab = pathname.startsWith('/mod/kategorien') ? 'categories' : 'events';
 
   if (status !== 'restoring' && !isModerator) return <Redirect href="/" />;
 
@@ -49,10 +50,11 @@ export default function ModerationLayout() {
       </View>
       <ModTabBar
         tabs={TABS}
-        active="events"
+        active={tab}
         onSelect={key => {
-          // The categories tab follows in R09.
-          if (key === 'categories') toast(strings.mod.categoriesSoon);
+          if (key === tab) return;
+          // Tabs replace each other: Android back then leaves the moderation view.
+          router.replace(key === 'categories' ? '/mod/kategorien' : '/mod');
         }}
         bottomInset={insets.bottom}
         testID="mod.tabs"

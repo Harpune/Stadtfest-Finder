@@ -28,6 +28,11 @@ from stadtfest.application.identity.ports import (
     RegionRecord,
     UserRecord,
 )
+from stadtfest.application.moderation.categories import (
+    CategoryInUseError,
+    DuplicateCategoryNameError,
+    ModCategoryView,
+)
 from stadtfest.application.moderation.image_ports import (
     PresignedUpload,
     ProcessedImage,
@@ -42,6 +47,7 @@ from stadtfest.application.moderation.ports import (
 )
 from stadtfest.application.outbox.ports import OutboxMessage
 from stadtfest.application.shared.ports import JsonValue
+from stadtfest.domain.events.category import CATEGORY_CHANGED, CategoryDraft
 from stadtfest.domain.events.geo import GeoPoint
 from stadtfest.domain.events.images import (
     EventImage,
@@ -547,3 +553,68 @@ class FakeImageProcessor:
             for image_format in ImageFormat
         }
         return ProcessedImage(width=1600, height=1200, files=files)
+
+
+# --- categories (R09) ---------------------------------------------------------------------
+
+
+@dataclass
+class FakeCategoryRepository:
+    """Categories in memory; `events` maps category ID to its number of events."""
+
+    categories: list[ModCategoryView] = field(default_factory=list)
+    events: dict[UUID, int] = field(default_factory=dict)
+    outbox: list[str] = field(default_factory=list)
+
+    def _view(self, category: ModCategoryView) -> ModCategoryView:
+        return dataclasses.replace(category, event_count=self.events.get(category.id, 0))
+
+    def _check_name(self, name: str, exclude: UUID | None) -> None:
+        if any(c.name.lower() == name.lower() and c.id != exclude for c in self.categories):
+            raise DuplicateCategoryNameError
+
+    async def list_all(self) -> list[ModCategoryView]:
+        return [self._view(c) for c in sorted(self.categories, key=lambda c: c.sort_order)]
+
+    async def get(self, category_id: UUID) -> ModCategoryView | None:
+        found = next((c for c in self.categories if c.id == category_id), None)
+        return self._view(found) if found else None
+
+    async def add(self, category_id: UUID, draft: CategoryDraft) -> ModCategoryView:
+        self._check_name(draft.name, None)
+        order = max((c.sort_order for c in self.categories), default=-1) + 1
+        category = ModCategoryView(
+            category_id, draft.name, draft.emoji, draft.color, draft.active, order, 0
+        )
+        self.categories.append(category)
+        self.outbox.append(CATEGORY_CHANGED)
+        return category
+
+    async def update(self, category_id: UUID, draft: CategoryDraft) -> ModCategoryView | None:
+        self._check_name(draft.name, category_id)
+        for i, c in enumerate(self.categories):
+            if c.id == category_id:
+                self.categories[i] = dataclasses.replace(
+                    c, name=draft.name, emoji=draft.emoji, color=draft.color, active=draft.active
+                )
+                self.outbox.append(CATEGORY_CHANGED)
+                return self._view(self.categories[i])
+        return None
+
+    async def reorder(self, category_ids: Sequence[UUID]) -> None:
+        order = {category_id: i for i, category_id in enumerate(category_ids)}
+        self.categories = [dataclasses.replace(c, sort_order=order[c.id]) for c in self.categories]
+        self.outbox.append(CATEGORY_CHANGED)
+
+    async def delete(self, category_id: UUID, replacement_id: UUID | None) -> int | None:
+        if not any(c.id == category_id for c in self.categories):
+            return None
+        moved = self.events.get(category_id, 0)
+        if moved and replacement_id is None:
+            raise CategoryInUseError
+        if replacement_id is not None:
+            self.events[replacement_id] = self.events.get(replacement_id, 0) + moved
+        self.events.pop(category_id, None)
+        self.categories = [c for c in self.categories if c.id != category_id]
+        self.outbox.append(CATEGORY_CHANGED)
+        return moved

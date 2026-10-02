@@ -27,6 +27,13 @@ from stadtfest.application.geocoding.use_cases import (
 )
 from stadtfest.application.health.check_readiness import CheckReadiness
 from stadtfest.application.identity.use_cases import Authenticate, DeleteAccount, GetMe, UpdateMe
+from stadtfest.application.moderation.categories import (
+    CreateCategory,
+    DeleteCategory,
+    ListModCategories,
+    OrderCategories,
+    UpdateCategory,
+)
 from stadtfest.application.moderation.images import (
     AttachImage,
     CreateUpload,
@@ -80,6 +87,11 @@ class RestDependencies(Protocol):
     order_images: OrderImages
     remove_image: RemoveImage
     retry_image: RetryImage
+    list_mod_categories: ListModCategories
+    create_category: CreateCategory
+    update_category: UpdateCategory
+    order_categories: OrderCategories
+    delete_category: DeleteCategory
 
 
 def container(request: Request) -> RestDependencies:
