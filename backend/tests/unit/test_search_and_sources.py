@@ -1,4 +1,4 @@
-"""Brave web search (recorded answer) and the source check, without network access."""
+"""Web search adapters (recorded answers) and the source check, without network access."""
 
 from __future__ import annotations
 
@@ -10,13 +10,66 @@ import httpx
 import pytest
 
 from stadtfest.adapters.outbound.search.brave import BraveWebSearch
+from stadtfest.adapters.outbound.search.searxng import SearxngWebSearch
 from stadtfest.adapters.outbound.sources import http as sources
 from stadtfest.adapters.outbound.sources.http import HttpSourceChecker
 from stadtfest.application.ai_ingestion.ports import WebSearchUnavailableError
 
-BRAVE = json.loads(
-    (Path(__file__).parents[1] / "fixtures" / "brave" / "web_search_aalen.json").read_text()
+FIXTURES = Path(__file__).parents[1] / "fixtures"
+BRAVE = json.loads((FIXTURES / "brave" / "web_search_aalen.json").read_text())
+SEARXNG = json.loads((FIXTURES / "searxng" / "search_aalen.json").read_text())
+
+
+async def test_searxng_maps_results_and_sends_only_the_query() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json=SEARXNG)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    search = SearxngWebSearch(client, "http://searxng:8080/")
+    hits = await search.search("Stadtfest Aalen 2026", 10)
+
+    # Entries without a URL are skipped; failed engines do not matter while there are results.
+    assert [hit.url for hit in hits] == [
+        "https://www.aalen.de/reichsstaedter-tage",
+        "https://www.aalen.de/veranstaltungen",
+    ]
+    assert hits[0].snippet.startswith("Das große Stadtfest")
+    request = seen[0]
+    assert str(request.url).startswith("http://searxng:8080/search?")
+    assert dict(request.url.params) == {
+        "q": "Stadtfest Aalen 2026",
+        "format": "json",
+        "categories": "general",
+        "language": "de-DE",
+        "safesearch": "2",
+    }
+    assert await search.search("Stadtfest Aalen 2026", 1) == hits[:1]
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.Response(403),  # JSON format not enabled in settings.yml
+        httpx.Response(429),  # limiter of a public instance
+        httpx.Response(200, text="<html>"),
+        httpx.Response(200, json={"results": [], "unresponsive_engines": [["google", "CAPTCHA"]]}),
+    ],
 )
+async def test_searxng_failures_mean_unavailable(response: httpx.Response) -> None:
+    client = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: response))
+    with pytest.raises(WebSearchUnavailableError):
+        await SearxngWebSearch(client, "http://searxng:8080").search("x", 5)
+
+
+async def test_searxng_without_results_is_an_empty_search() -> None:
+    body = {"results": [], "unresponsive_engines": []}
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=body))
+    )
+    assert await SearxngWebSearch(client, "http://searxng:8080").search("x", 5) == []
 
 
 async def test_brave_maps_results_and_sends_only_the_query() -> None:

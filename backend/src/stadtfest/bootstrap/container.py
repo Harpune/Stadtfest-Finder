@@ -53,6 +53,7 @@ from stadtfest.adapters.outbound.queue.arq_jobs import (
 )
 from stadtfest.adapters.outbound.search.brave import BraveWebSearch
 from stadtfest.adapters.outbound.search.fake import FakeWebSearch
+from stadtfest.adapters.outbound.search.searxng import SearxngWebSearch
 from stadtfest.adapters.outbound.sources.http import (
     AllowAllSourceChecker,
     HttpSourceChecker,
@@ -415,7 +416,14 @@ def _ai_adapters(
         )
     search: WebSearchPort
     sources: SourceChecker
-    if settings.web_search_provider is WebSearchProvider.BRAVE and settings.web_search_api_key:
+    if settings.web_search_provider is WebSearchProvider.SEARXNG and settings.web_search_base_url:
+        # SearXNG asks several engines per query; it answers slower than an API.
+        search_client = httpx.AsyncClient(timeout=20.0)
+        source_client = create_source_client()
+        clients.extend([search_client, source_client])
+        search = SearxngWebSearch(search_client, str(settings.web_search_base_url))
+        sources = HttpSourceChecker(source_client)
+    elif settings.web_search_provider is WebSearchProvider.BRAVE and settings.web_search_api_key:
         search_client = httpx.AsyncClient(timeout=10.0)
         source_client = create_source_client()
         clients.extend([search_client, source_client])

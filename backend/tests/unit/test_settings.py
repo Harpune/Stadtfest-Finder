@@ -11,8 +11,8 @@ def _storage(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("S3_SECRET_ACCESS_KEY", "secret")
     # Prod rejects the fake AI providers; Ollama needs no key.
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
-    monkeypatch.setenv("WEB_SEARCH_PROVIDER", "brave")
-    monkeypatch.setenv("WEB_SEARCH_API_KEY", "key")
+    monkeypatch.setenv("WEB_SEARCH_PROVIDER", "searxng")
+    monkeypatch.setenv("WEB_SEARCH_BASE_URL", "http://searxng:8080")
 
 
 def test_missing_required_variables_fail_fast_with_names(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -170,6 +170,7 @@ def _base(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.setenv("WEB_SEARCH_PROVIDER", "fake")
     monkeypatch.delenv("WEB_SEARCH_API_KEY", raising=False)
+    monkeypatch.delenv("WEB_SEARCH_BASE_URL", raising=False)
 
 
 @pytest.mark.parametrize("provider", ["mistral", "openai", "anthropic"])
@@ -189,6 +190,15 @@ def test_ollama_needs_no_key_and_unknown_providers_fail(monkeypatch: pytest.Monk
     monkeypatch.setenv("LLM_PROVIDER", "gpt-local")
     with pytest.raises(SettingsError, match="LLM_PROVIDER"):
         load_settings()
+
+
+def test_searxng_needs_its_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    _base(monkeypatch)
+    monkeypatch.setenv("WEB_SEARCH_PROVIDER", "searxng")
+    with pytest.raises(SettingsError, match="WEB_SEARCH_BASE_URL"):
+        load_settings()
+    monkeypatch.setenv("WEB_SEARCH_BASE_URL", "http://searxng:8080")
+    assert load_settings().web_search_provider.value == "searxng"
 
 
 def test_brave_needs_a_key(monkeypatch: pytest.MonkeyPatch) -> None:

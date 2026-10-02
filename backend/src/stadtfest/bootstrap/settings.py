@@ -53,6 +53,7 @@ class LlmProvider(StrEnum):
 class WebSearchProvider(StrEnum):
     """Web search used as tool of the LLM (ADR 0013)."""
 
+    SEARXNG = "searxng"
     BRAVE = "brave"
     FAKE = "fake"
 
@@ -126,8 +127,12 @@ class Settings(BaseSettings):
     )
     web_search_provider: WebSearchProvider = WebSearchProvider.FAKE
     web_search_api_key: SecretStr | None = None
+    web_search_base_url: AnyHttpUrl | None = Field(
+        default=None, description="SearXNG instance, e.g. http://searxng:8080"
+    )
     ai_search_radius_km: int = Field(default=25, ge=1, le=100)
-    ai_search_daily_limit: int = Field(default=10, ge=1, le=1000)
+    # 0 stops the AI search: every start is answered with `429 daily_limit`.
+    ai_search_daily_limit: int = Field(default=10, ge=0, le=1000)
     ai_search_max_tool_calls: int = Field(default=8, ge=1, le=50)
     ai_search_timeout_s: int = Field(default=300, ge=10, le=1800)
 
@@ -151,6 +156,8 @@ class Settings(BaseSettings):
         keyed = {LlmProvider.MISTRAL, LlmProvider.OPENAI, LlmProvider.ANTHROPIC}
         if self.llm_provider in keyed and not self.llm_api_key:
             raise ValueError(f"LLM_API_KEY is required for LLM_PROVIDER={self.llm_provider}")
+        if self.web_search_provider is WebSearchProvider.SEARXNG and not self.web_search_base_url:
+            raise ValueError("WEB_SEARCH_BASE_URL is required for WEB_SEARCH_PROVIDER=searxng")
         if self.web_search_provider is WebSearchProvider.BRAVE and not self.web_search_api_key:
             raise ValueError("WEB_SEARCH_API_KEY is required for WEB_SEARCH_PROVIDER=brave")
 

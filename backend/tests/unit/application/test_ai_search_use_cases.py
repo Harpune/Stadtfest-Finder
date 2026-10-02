@@ -72,7 +72,7 @@ def _find(**changes: object) -> FoundEvent:
 
 
 class Setup:
-    def __init__(self) -> None:
+    def __init__(self, daily_limit: int = 3) -> None:
         self.jobs = FakeAiSearchRepository()
         regions = FakeModRegions({"ostalb": OSTALB})
         accounts = FakeAccountResolver()
@@ -81,7 +81,7 @@ class Setup:
         self.finder = FakeEventFinder(finds=[_find()])
         self.sources = FakeSourceChecker()
         self.drafts = FakeDraftStore()
-        self.settings = AiSearchSettings(daily_limit=3, timeout_seconds=1)
+        self.settings = AiSearchSettings(daily_limit=daily_limit, timeout_seconds=1)
         clock = FixedClock(TODAY)
         self.start = StartAiSearch(
             self.jobs, regions, accounts, self.geocoding, clock, self.settings, now=lambda: NOW
@@ -146,6 +146,11 @@ async def test_daily_limit(s: Setup) -> None:
         await s.run(job.id)
     with pytest.raises(TooManyRequestsError):
         await s.start(MODERATOR, "73430")
+
+
+async def test_daily_limit_zero_stops_the_ai_search() -> None:
+    with pytest.raises(TooManyRequestsError):
+        await Setup(daily_limit=0).start(MODERATOR, "73430")
 
 
 async def test_jobs_are_private_to_their_moderator(s: Setup) -> None:
