@@ -19,7 +19,7 @@ Decisions: @00-docs/25-adr/
 | Cache | Redis |
 | Object storage | S3-compatible, EU-hosted (SeaweedFS locally, see ADR 0007) – event images |
 | Auth | OIDC/OAuth2 + PKCE; Zitadel Cloud (EU region) in production, Keycloak locally |
-| AI | Own LLM port with one generic adapter (LiteLLM or Pydantic AI); provider selected via env: Mistral (EU), OpenAI, Anthropic, Ollama (local) |
+| AI | Own LLM port with one generic adapter (Pydantic AI, ADR 0012); provider selected via env: Mistral (EU), OpenAI, Anthropic, Google Gemini, Ollama (local) |
 | Web search | Web search API used as an LLM tool (provider: see ADR) |
 | Geocoding | Self-hosted Nominatim (Germany extract, EU) via geocoding port; app never calls it directly, only via `/v1/geocode*` |
 | Push | Push port, provider selected via env: Expo Push Service or direct APNs / FCM |
@@ -170,10 +170,10 @@ Flow letters match the architecture diagram.
 ## AI ingestion
 
 - The LLM is accessed only through the LLM port, implemented by **one generic adapter**
-  (no provider-specific adapters for OpenAI, Anthropic, Mistral, Ollama).
+  (no provider-specific adapters for OpenAI, Anthropic, Google Gemini, Mistral, Ollama).
 - Provider and model are selected via environment only – no code change to switch:
   ```bash
-  LLM_PROVIDER=mistral          # mistral | openai | anthropic | ollama
+  LLM_PROVIDER=mistral          # mistral | openai | anthropic | google | ollama
   LLM_MODEL=mistral-large-latest
   LLM_API_KEY=...               # not needed for ollama
   LLM_BASE_URL=                 # optional, e.g. http://ollama:11434
@@ -234,7 +234,7 @@ Tools are thin adapters: parse input, call the use case, map the result. No busi
 - All infrastructure and processors must be EU-hosted, except where an ADR documents
   the legal basis. Accepted non-EU processors (each documented in an ADR):
   Expo Push Service (optional, `PUSH_PROVIDER=expo`), APNs / FCM (unavoidable for push),
-  OpenAI, Anthropic, the web search provider (if non-EU).
+  OpenAI, Anthropic, Google Gemini, the web search provider (if non-EU).
 - Non-EU processors must be switchable via env to an EU or self-hosted option
   (push: `direct`/`disabled`, LLM: `mistral`/`ollama`). Personal data never reaches them.
   Default LLM provider in production: Mistral (EU) or Ollama (self-hosted).

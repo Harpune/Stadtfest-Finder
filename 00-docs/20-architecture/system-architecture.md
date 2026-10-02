@@ -28,7 +28,7 @@ flowchart LR
 
   subgraph Extern["Externe Dienste"]
     IDP["Auth · Zitadel Cloud (EU)<br/>OIDC + PKCE, Rollen-Claims"]
-    LLM["KI-Anbieter (per ENV)<br/>Mistral (EU) · OpenAI · Anthropic · Ollama"]
+    LLM["KI-Anbieter (per ENV)<br/>Mistral (EU) · OpenAI · Anthropic · Gemini · Ollama"]
     ENG["Suchmaschinen<br/>Google, Bing, DuckDuckGo …<br/>(optional Brave Search API)"]
     PUSH["Push<br/>Expo Push oder APNs/FCM direkt"]
     TILES["Kartenkacheln<br/>MapTiler Cloud (CH), ADR 0009"]

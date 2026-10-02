@@ -75,6 +75,7 @@ async def test_model_failures_mean_unavailable() -> None:
         (LlmKind.MISTRAL, "MistralModel"),
         (LlmKind.OPENAI, "OpenAIChatModel"),
         (LlmKind.ANTHROPIC, "AnthropicModel"),
+        (LlmKind.GOOGLE, "GoogleModel"),
         (LlmKind.OLLAMA, "OllamaModel"),
     ],
 )

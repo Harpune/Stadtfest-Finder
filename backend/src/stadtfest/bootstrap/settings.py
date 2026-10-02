@@ -46,6 +46,7 @@ class LlmProvider(StrEnum):
     MISTRAL = "mistral"
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
+    GOOGLE = "google"
     OLLAMA = "ollama"
     FAKE = "fake"
 
@@ -153,7 +154,7 @@ class Settings(BaseSettings):
             raise ValueError("LLM_PROVIDER=fake is not allowed in prod")
         if self.env is Environment.PROD and self.web_search_provider is WebSearchProvider.FAKE:
             raise ValueError("WEB_SEARCH_PROVIDER=fake is not allowed in prod")
-        keyed = {LlmProvider.MISTRAL, LlmProvider.OPENAI, LlmProvider.ANTHROPIC}
+        keyed = {LlmProvider.MISTRAL, LlmProvider.OPENAI, LlmProvider.ANTHROPIC, LlmProvider.GOOGLE}
         if self.llm_provider in keyed and not self.llm_api_key:
             raise ValueError(f"LLM_API_KEY is required for LLM_PROVIDER={self.llm_provider}")
         if self.web_search_provider is WebSearchProvider.SEARXNG and not self.web_search_base_url:

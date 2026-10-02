@@ -40,6 +40,7 @@ class LlmKind(StrEnum):
     MISTRAL = "mistral"
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
+    GOOGLE = "google"
     OLLAMA = "ollama"
 
 
@@ -78,6 +79,15 @@ def build_model(config: LlmConfig) -> Model:
         return AnthropicModel(
             config.model,
             provider=AnthropicProvider(api_key=config.api_key, base_url=config.base_url),
+        )
+    if config.kind is LlmKind.GOOGLE:
+        # Gemini API (Google AI Studio); ADR 0014.
+        from pydantic_ai.models.google import GoogleModel
+        from pydantic_ai.providers.google import GoogleProvider
+
+        return GoogleModel(
+            config.model,
+            provider=GoogleProvider(api_key=config.api_key, base_url=config.base_url),
         )
     from pydantic_ai.models.ollama import OllamaModel
     from pydantic_ai.providers.ollama import OllamaProvider

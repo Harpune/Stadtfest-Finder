@@ -173,7 +173,7 @@ def _base(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("WEB_SEARCH_BASE_URL", raising=False)
 
 
-@pytest.mark.parametrize("provider", ["mistral", "openai", "anthropic"])
+@pytest.mark.parametrize("provider", ["mistral", "openai", "anthropic", "google"])
 def test_llm_providers_with_keys_need_a_key(monkeypatch: pytest.MonkeyPatch, provider: str) -> None:
     _base(monkeypatch)
     monkeypatch.setenv("LLM_PROVIDER", provider)

@@ -5,11 +5,11 @@
 
 ## Kontext
 
-Die KI-Suche per PLZ (R10, Flow C) braucht ein Sprachmodell mit Tool-Calling (Web-Suche) und strukturierter Ausgabe (festes Fest-Schema). CLAUDE.md verlangt **einen** generischen Adapter hinter dem LLM-Port. Der Anbieter (Mistral, OpenAI, Anthropic, Ollama) wird nur per ENV gewählt, ohne Codeänderung. Zur Wahl standen LiteLLM und Pydantic AI.
+Die KI-Suche per PLZ (R10, Flow C) braucht ein Sprachmodell mit Tool-Calling (Web-Suche) und strukturierter Ausgabe (festes Fest-Schema). CLAUDE.md verlangt **einen** generischen Adapter hinter dem LLM-Port. Der Anbieter (Mistral, OpenAI, Anthropic, Google Gemini, Ollama) wird nur per ENV gewählt, ohne Codeänderung. Zur Wahl standen LiteLLM und Pydantic AI.
 
 ## Entscheidung
 
-- **Pydantic AI** (`pydantic-ai-slim` mit den Extras `mistral`, `openai`, `anthropic`) implementiert den Port `EventFinder` in `adapters/outbound/llm/pydantic_ai.py`.
+- **Pydantic AI** (`pydantic-ai-slim` mit den Extras `mistral`, `openai`, `anthropic`, `google`) implementiert den Port `EventFinder` in `adapters/outbound/llm/pydantic_ai.py`.
 - `build_model(LlmConfig)` baut das Modell nur aus der Konfiguration:
 
   | `LLM_PROVIDER` | Modellklasse | Schlüssel | `LLM_BASE_URL` |
@@ -17,6 +17,7 @@ Die KI-Suche per PLZ (R10, Flow C) braucht ein Sprachmodell mit Tool-Calling (We
   | `mistral` | `MistralModel` | Pflicht | optional |
   | `openai` | `OpenAIChatModel` | Pflicht | optional (OpenAI-kompatible Endpunkte) |
   | `anthropic` | `AnthropicModel` | Pflicht | optional |
+  | `google` | `GoogleModel` (Gemini API) | Pflicht | optional |
   | `ollama` | `OllamaModel` | – | Standard `http://localhost:11434/v1` |
   | `fake` | kein Modell, `FakeEventFinder` mit drei festen Funden | – | nur `ENV=dev` oder `test` |
 
@@ -26,7 +27,7 @@ Die KI-Suche per PLZ (R10, Flow C) braucht ein Sprachmodell mit Tool-Calling (We
 
 ## Konsequenzen
 
-- Der Anbieterwechsel ist reine Konfiguration. Ein Unit-Test baut die Modelle aller vier Anbieter.
+- Der Anbieterwechsel ist reine Konfiguration. Ein Unit-Test baut die Modelle aller Anbieter.
 - Tests rufen nie echte Anbieter auf: `FunctionModel` von Pydantic AI spielt die aufgezeichnete Antwort `tests/fixtures/llm/finds_73430.json` ab, im Dev-Betrieb läuft der Fake.
 - Pydantic AI bringt Pydantic als Laufzeitbasis mit, die das Backend ohnehin nutzt. Die Anbieter-SDKs kommen nur über die gewählten Extras.
 - Anbieterspezifische Eigenheiten (z. B. eingebaute Web-Suche einzelner Anbieter) werden bewusst nicht genutzt, damit alle Anbieter gleich arbeiten.
