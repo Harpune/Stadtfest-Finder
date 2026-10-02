@@ -60,7 +60,7 @@ flowchart LR
 |---|---|
 | **A · Suche als Gast** | A1 App → API ohne Token · A2 PostGIS-Umkreisabfrage → Ergebnisliste und Karte (Redis-Cache 5 min) |
 | **B · Anmeldung** | B1 App ↔ Zitadel (OIDC, PKCE) → Token · B2 App sendet JWT an die API · B3 API prüft JWT per JWKS und liest Rollen aus den Claims. Kontolöschung: API löscht lokale Daten und den Nutzer über die Admin-API des IdP, bei Fehler per Worker-Retry (ADR 0010) |
-| **C · KI-Suche per PLZ** | C1 Moderator stößt die Suche an, API legt einen Auftrag an (`202`) · C2 Auftrag in die Queue (über die Outbox, ADR 0005) · C3 Worker übernimmt · C4 Geocoding PLZ → Umkreis · C5 KI-Modul mit Festschema · C6 KI-Anbieter mit Web-Suche → validiertes JSON · C7 Speichern als **Entwurf** · C8 Moderator prüft und gibt frei |
+| **C · KI-Suche per PLZ** | C1 Moderator stößt die Suche an, API legt einen Auftrag an (`202`) · C2 Auftrag in die Queue (über die Outbox, ADR 0005) · C3 Worker übernimmt · C4 Geocoding PLZ → Umkreis · C5 KI-Modul mit Festschema · C6 KI-Anbieter mit Web-Suche → validiertes JSON · C7 Speichern als **Entwurf** (Quelle geprüft, Duplikate und verworfene Quellen übersprungen) · C8 Moderator prüft und gibt frei; die App fragt den Status alle 10 s ab. LLM-Adapter: Pydantic AI (ADR 0012), Web-Suche: Brave (ADR 0013), Nicht-EU-LLM optional (ADR 0014) |
 | **D · MCP** | D1 externer KI-Client → FastMCP (OAuth über Zitadel) · D2 Service-Schicht · D3 Datenbank |
 
 ## Ausgabeschema der KI-Suche (C5)

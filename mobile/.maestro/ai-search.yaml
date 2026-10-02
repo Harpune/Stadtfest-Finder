@@ -1,0 +1,109 @@
+# AI search by postal code (R10): login as moderator → "Suchen" → 73430 → the fake
+# providers deliver 3 finds → Prüfen → publish 1, discard 1, edit 1 → summary.
+# Requires the local stack (`make dev`) with LLM_PROVIDER=fake, WEB_SEARCH_PROVIDER=fake,
+# a running worker and a fresh `make seed`: a second run finds only duplicates.
+# Tag `typing`: see login.yaml.
+appId: de.stadtfestfinder.app
+name: Moderator prüft Funde der KI-Suche
+tags:
+  - typing
+env:
+  USERNAME: moderator@example.test # dev realm moderator, region "ostalb"
+  PASSWORD: stadtfest-dev
+---
+- runFlow:
+    file: shared/launch.yaml
+    env:
+      LOCATION: never
+
+# Login via the drawer
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.login
+- tapOn:
+    id: login.email
+- tapOn:
+    text: 'Fortfahren|Continue'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: username
+    timeout: 60000
+- tapOn:
+    id: username
+- inputText: ${USERNAME}
+- tapOn:
+    id: password
+- inputText: ${PASSWORD}
+- tapOn:
+    id: kc-login
+- extendedWaitUntil:
+    visible:
+      id: discover.screen
+    timeout: 60000
+
+# Moderation view → start the search (09-01, 09-02)
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.moderator
+- extendedWaitUntil:
+    visible:
+      id: mod.banner
+    timeout: 20000
+- tapOn:
+    id: mod.events.aiSearch
+- tapOn:
+    id: mod.ai.postalCode
+- inputText: '73430'
+- extendedWaitUntil:
+    visible:
+      id: mod.ai.place
+    timeout: 20000
+- hideKeyboard
+- tapOn:
+    id: mod.ai.start
+- assertVisible: 'Suche läuft für 73430.*'
+
+# Finished after the next poll (09-03)
+- extendedWaitUntil:
+    visible: '3 neue Entwürfe aus der Suche für 73430'
+    timeout: 60000
+- tapOn:
+    id: mod.ai.banner.review
+
+# Review (09-04): publish, discard, edit and save as draft
+- extendedWaitUntil:
+    visible: 'Fund 1 von 3'
+    timeout: 20000
+- tapOn:
+    id: mod.review.publish
+- extendedWaitUntil:
+    visible: 'Fund 2 von 3'
+    timeout: 20000
+- tapOn:
+    id: mod.review.discard
+- extendedWaitUntil:
+    visible: 'Fund 3 von 3'
+    timeout: 20000
+- tapOn:
+    id: mod.review.edit
+- extendedWaitUntil:
+    visible:
+      id: mod.form.saveDraft
+    timeout: 20000
+- tapOn:
+    id: mod.form.saveDraft
+
+# Summary (09-05)
+- extendedWaitUntil:
+    visible: 'Alle Funde geprüft'
+    timeout: 20000
+- assertVisible: '1 veröffentlicht'
+- assertVisible: '1 bearbeitet und als Entwurf gespeichert'
+- assertVisible: '1 verworfen'
+- tapOn:
+    id: mod.review.done
+- assertNotVisible:
+    id: mod.ai.banner
