@@ -285,7 +285,8 @@ function Find({
       ? `${formatDateRange(event.startDate, event.endDate)} ${event.endDate.slice(0, 4)}`
       : null;
   const location = [
-    event.place !== event.address ? event.place : '',
+    // The LLM often names the street as the place ("Karlstraße", "Karlstraße 26, …").
+    event.address?.startsWith(event.place ?? '') ? '' : event.place,
     event.address,
   ]
     .filter(Boolean)
@@ -413,33 +414,36 @@ function Find({
           ))}
         </View>
       </ScrollView>
-      <View style={[styles.footer, {borderTopColor: c.outline}]}>
-        <Button
-          label={strings.mod.ai.discard}
-          variant="danger"
-          onPress={() => onDiscard(event)}
-          loading={busy === 'discard'}
-          disabled={busy !== null && busy !== 'discard'}
-          style={styles.footerSmall}
-          testID="mod.review.discard"
-        />
-        <Button
-          label={strings.mod.ai.edit}
-          variant="secondary"
-          onPress={() => onEdit(event)}
-          disabled={busy !== null}
-          style={styles.footerSmall}
-          testID="mod.review.edit"
-        />
+      {/* Three labels in one row break mid-word on a 393 dp screen ("Verwerfe|n"),
+          so the main action gets its own row. */}
+      <View style={[styles.footerStack, {borderTopColor: c.outline}]}>
         <Button
           label={strings.mod.ai.publish}
           variant="mod"
           onPress={() => onPublish(event)}
           loading={busy === 'publish'}
           disabled={busy !== null && busy !== 'publish'}
-          style={styles.footerLarge}
           testID="mod.review.publish"
         />
+        <View style={styles.footerRow}>
+          <Button
+            label={strings.mod.ai.discard}
+            variant="danger"
+            onPress={() => onDiscard(event)}
+            loading={busy === 'discard'}
+            disabled={busy !== null && busy !== 'discard'}
+            style={styles.footerSmall}
+            testID="mod.review.discard"
+          />
+          <Button
+            label={strings.mod.ai.edit}
+            variant="secondary"
+            onPress={() => onEdit(event)}
+            disabled={busy !== null}
+            style={styles.footerSmall}
+            testID="mod.review.edit"
+          />
+        </View>
       </View>
     </>
   );
@@ -522,6 +526,8 @@ const styles = StyleSheet.create({
   rowLabel: {width: 120},
   rowValue: {flex: 1},
   footer: {flexDirection: 'row', gap: 8, padding: 12, borderTopWidth: 1},
+  footerStack: {gap: 8, padding: 12, borderTopWidth: 1},
+  footerRow: {flexDirection: 'row', gap: 8},
   footerSmall: {flex: 1},
   footerLarge: {flex: 1.6},
   summary: {
