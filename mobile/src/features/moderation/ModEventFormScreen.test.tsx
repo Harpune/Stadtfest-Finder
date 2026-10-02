@@ -31,6 +31,7 @@ const PUBLISHED: ModEventDetail = {
   favoriteCount: 214,
   source: 'manual',
   version: 4,
+  images: [],
 };
 
 interface Call {

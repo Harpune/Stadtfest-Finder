@@ -114,6 +114,7 @@ describe('conversion', () => {
       favoriteCount: 86,
       source: 'manual',
       version: 3,
+      images: [],
     };
     const form = formFromEvent(event);
     expect(form.openingHours).toBe('Sa 11–24 Uhr');
