@@ -698,6 +698,100 @@ paths:
           $ref: "#/components/responses/Error"
         default:
           $ref: "#/components/responses/Error"
+  /v1/mod/ai-searches:
+    get:
+      operationId: listAiSearches
+      tags: [moderation]
+      summary: The caller's AI searches, newest first
+      description: |
+        At most the 20 newest searches of the calling moderator. `status=running` returns
+        queued and running jobs; the app uses it to restore the status bar after a restart.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Filter; `running` includes `queued`.
+          schema:
+            $ref: "#/components/schemas/AiSearchStatus"
+      responses:
+        "200":
+          description: The searches.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AiSearch"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: startAiSearch
+      tags: [moderation]
+      summary: Start an AI search for events around a postal code (flow C)
+      description: |
+        Returns at once; a worker searches the web with an LLM and stores verified finds as
+        drafts (`source = ai`). The postal code must belong to the caller's region
+        (`422 postal_code_outside_region`). One running search per moderator (`409
+        search_running`, `fields.jobId` = the running job). Daily limit per moderator
+        (`429 daily_limit`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiSearchRequest"
+      responses:
+        "202":
+          description: The search was queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiSearch"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/mod/ai-searches/{jobId}:
+    parameters:
+      - name: jobId
+        in: path
+        required: true
+        description: Job ID.
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getAiSearch
+      tags: [moderation]
+      summary: Status and result of one AI search
+      description: Only the caller's own searches (`404` otherwise). The app polls every 10 s (E-12).
+      responses:
+        "200":
+          description: The search.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiSearch"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
   /v1/mod/categories:
     get:
       operationId: listModCategories
@@ -1213,6 +1307,66 @@ components:
       type: string
       description: One of the 6 preset colors (theme-farben.md).
       enum: ["#FFB547", "#FF6B8B", "#5EEAD4", "#8B9CFF", "#7ED957", "#C792EA"]
+    AiSearchStatus:
+      type: string
+      enum: [queued, running, completed, failed]
+    AiSearchRequest:
+      type: object
+      required: [postalCode]
+      properties:
+        postalCode:
+          type: string
+          pattern: "^[0-9]{5}$"
+    AiSearchSkipped:
+      type: object
+      description: Finds that were not stored, by reason (counts only, no content).
+      required: [duplicate, outOfRegion, invalid, unverifiedSource]
+      properties:
+        duplicate:
+          type: integer
+          minimum: 0
+        outOfRegion:
+          type: integer
+          minimum: 0
+        invalid:
+          type: integer
+          minimum: 0
+        unverifiedSource:
+          type: integer
+          minimum: 0
+    AiSearch:
+      type: object
+      description: An AI search job (R10).
+      required: [id, postalCode, placeName, status, createdAt, newEventIds, skipped]
+      properties:
+        id:
+          type: string
+          format: uuid
+        postalCode:
+          type: string
+        placeName:
+          type: string
+        status:
+          $ref: "#/components/schemas/AiSearchStatus"
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: ["string", "null"]
+          format: date-time
+        finishedAt:
+          type: ["string", "null"]
+          format: date-time
+        newEventIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        skipped:
+          $ref: "#/components/schemas/AiSearchSkipped"
+        errorCode:
+          type: ["string", "null"]
+          enum: [llm_unavailable, search_unavailable, timeout, internal, null]
     ModCategory:
       type: object
       description: Category in the moderation view, including inactive ones.
@@ -1640,6 +1794,15 @@ components:
           minimum: 0
         source:
           $ref: "#/components/schemas/EventSource"
+        sourceUrl:
+          type: ["string", "null"]
+          description: Page an AI find came from (R10).
+        foundAt:
+          type: ["string", "null"]
+          format: date-time
+        aiJobId:
+          type: ["string", "null"]
+          format: uuid
         version:
           type: integer
           minimum: 1
