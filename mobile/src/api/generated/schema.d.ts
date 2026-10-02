@@ -387,6 +387,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/mod/ai-searches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's AI searches, newest first
+         * @description At most the 20 newest searches of the calling moderator. `status=running` returns
+         *     queued and running jobs; the app uses it to restore the status bar after a restart.
+         */
+        get: operations["listAiSearches"];
+        put?: never;
+        /**
+         * Start an AI search for events around a postal code (flow C)
+         * @description Returns at once; a worker searches the web with an LLM and stores verified finds as
+         *     drafts (`source = ai`). The postal code must belong to the caller's region
+         *     (`422 postal_code_outside_region`). One running search per moderator (`409
+         *     search_running`, `fields.jobId` = the running job). Daily limit per moderator
+         *     (`429 daily_limit`).
+         */
+        post: operations["startAiSearch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/mod/ai-searches/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job ID. */
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Status and result of one AI search
+         * @description Only the caller's own searches (`404` otherwise). The app polls every 10 s (E-12).
+         */
+        get: operations["getAiSearch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/mod/categories": {
         parameters: {
             query?: never;
@@ -637,6 +689,36 @@ export interface components {
          * @enum {string}
          */
         CategoryColor: "#FFB547" | "#FF6B8B" | "#5EEAD4" | "#8B9CFF" | "#7ED957" | "#C792EA";
+        /** @enum {string} */
+        AiSearchStatus: "queued" | "running" | "completed" | "failed";
+        AiSearchRequest: {
+            postalCode: string;
+        };
+        /** @description Finds that were not stored, by reason (counts only, no content). */
+        AiSearchSkipped: {
+            duplicate: number;
+            outOfRegion: number;
+            invalid: number;
+            unverifiedSource: number;
+        };
+        /** @description An AI search job (R10). */
+        AiSearch: {
+            /** Format: uuid */
+            id: string;
+            postalCode: string;
+            placeName: string;
+            status: components["schemas"]["AiSearchStatus"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            startedAt?: string | null;
+            /** Format: date-time */
+            finishedAt?: string | null;
+            newEventIds: string[];
+            skipped: components["schemas"]["AiSearchSkipped"];
+            /** @enum {string|null} */
+            errorCode?: "llm_unavailable" | "search_unavailable" | "timeout" | "internal" | null;
+        };
         /** @description Category in the moderation view, including inactive ones. */
         ModCategory: {
             /** Format: uuid */
@@ -862,6 +944,12 @@ export interface components {
             publishedAt?: string | null;
             favoriteCount: number;
             source: components["schemas"]["EventSource"];
+            /** @description Page an AI find came from (R10). */
+            sourceUrl?: string | null;
+            /** Format: date-time */
+            foundAt?: string | null;
+            /** Format: uuid */
+            aiJobId?: string | null;
             version: number;
             /** @description All images in order, including processing and failed ones (R08). */
             images: components["schemas"]["ModImage"][];
@@ -1723,6 +1811,89 @@ export interface operations {
             404: components["responses"]["Error"];
             409: components["responses"]["Error"];
             422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    listAiSearches: {
+        parameters: {
+            query?: {
+                /** @description Filter; `running` includes `queued`. */
+                status?: components["schemas"]["AiSearchStatus"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The searches. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiSearch"][];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    startAiSearch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiSearchRequest"];
+            };
+        };
+        responses: {
+            /** @description The search was queued. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiSearch"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getAiSearch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job ID. */
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The search. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiSearch"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

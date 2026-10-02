@@ -14,6 +14,8 @@ from arq.connections import RedisSettings
 from stadtfest.adapters.inbound.worker.jobs import (
     IDP_DELETION_MAX_TRIES,
     JOBS,
+    compact_ai_search_logs,
+    fail_stuck_searches,
     purge_images,
     purge_outbox,
     run_outbox_relay,
@@ -60,6 +62,8 @@ def build_worker_settings(settings: Settings) -> type:
         cron_jobs: ClassVar[list[Any]] = [
             cron(purge_outbox, hour={3}, minute={30}, unique=True),
             cron(purge_images, hour={3}, minute={45}, unique=True),
+            cron(fail_stuck_searches, minute={0, 10, 20, 30, 40, 50}, unique=True),
+            cron(compact_ai_search_logs, weekday="sun", hour={4}, minute={15}, unique=True),
         ]
         redis_settings = RedisSettings.from_dsn(str(settings.redis_url))
         timezone = TIMEZONE

@@ -11,6 +11,7 @@ from uuid import UUID
 
 from geoalchemy2 import Geography, Geometry
 from sqlalchemy import ColumnElement, cast, delete, func, insert, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from stadtfest.adapters.outbound.persistence.images import image_from_row
@@ -21,12 +22,14 @@ from stadtfest.adapters.outbound.persistence.models import (
     OutboxRow,
     ProgramItemRow,
     RegionRow,
+    RejectedSourceRow,
 )
 from stadtfest.application.moderation.ports import (
     ModEventSummary,
     ModRegion,
     VersionConflictError,
 )
+from stadtfest.domain.ai_ingestion.finds import normalize_url
 from stadtfest.domain.events.event import EventStatus
 from stadtfest.domain.events.images import EventImage
 from stadtfest.domain.events.maintenance import (
@@ -47,7 +50,7 @@ def _location(content: EventContent) -> ColumnElement[object] | None:
     )
 
 
-def _columns(event: ManagedEvent) -> dict[str, object]:
+def event_columns(event: ManagedEvent) -> dict[str, object]:
     """Column values of the event row (without id, version and audit fields)."""
     c = event.content
     return {
@@ -228,6 +231,9 @@ class SqlManagedEventRepository:
             version=event.version,
             favorite_count=event.favorite_count,
             source=event.source,
+            source_url=event.source_url,
+            ai_job_id=event.ai_job_id,
+            found_at=event.found_at,
             published_at=event.published_at,
         )
 
@@ -239,9 +245,12 @@ class SqlManagedEventRepository:
                     id=event.id,
                     version=1,
                     source=event.source,
+                    source_url=event.source_url,
+                    ai_job_id=event.ai_job_id,
+                    found_at=event.found_at,
                     created_by=user_id,
                     updated_by=user_id,
-                    **_columns(event),
+                    **event_columns(event),
                 )
             )
             await _write_program(session, event)
@@ -250,7 +259,7 @@ class SqlManagedEventRepository:
 
     async def save(self, event: ManagedEvent, expected_version: int, user_id: UUID) -> int:
         """Update the row if the version matches; program and outbox in the same transaction."""
-        values = _columns(event) | {
+        values = event_columns(event) | {
             "version": EventRow.version + 1,
             "updated_by": user_id,
             "updated_at": func.now(),
@@ -272,6 +281,15 @@ class SqlManagedEventRepository:
                 raise VersionConflictError
             await _write_program(session, event)
             await _write_outbox(session, event)
+            if event.deleted and event.source == "ai" and event.source_url:
+                # A discarded AI find is never suggested again in this region (R10-US4).
+                await session.execute(
+                    pg_insert(RejectedSourceRow)
+                    .values(
+                        region_id=event.region_id, url_normalized=normalize_url(event.source_url)
+                    )
+                    .on_conflict_do_nothing()
+                )
         return int(version)
 
 
@@ -290,6 +308,14 @@ class SqlModRegionDirectory:
         """The region with this key, or None."""
         async with self._sessions() as session:
             row = await session.scalar(select(RegionRow).where(RegionRow.key == key))
+        if row is None:
+            return None
+        return ModRegion(row.id, Region(row.key, row.name, frozenset(row.postal_codes or ())))
+
+    async def by_id(self, region_id: UUID) -> ModRegion | None:
+        """The region with this ID, or None."""
+        async with self._sessions() as session:
+            row = await session.get(RegionRow, region_id)
         if row is None:
             return None
         return ModRegion(row.id, Region(row.key, row.name, frozenset(row.postal_codes or ())))

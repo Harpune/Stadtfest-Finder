@@ -40,6 +40,25 @@ class IdpAdminProvider(StrEnum):
     FAKE = "fake"
 
 
+class LlmProvider(StrEnum):
+    """LLM behind the one generic adapter (CLAUDE.md "AI ingestion", ADR 0012)."""
+
+    MISTRAL = "mistral"
+    OPENAI = "openai"
+    ANTHROPIC = "anthropic"
+    GOOGLE = "google"
+    OLLAMA = "ollama"
+    FAKE = "fake"
+
+
+class WebSearchProvider(StrEnum):
+    """Web search used as tool of the LLM (ADR 0013)."""
+
+    SEARXNG = "searxng"
+    BRAVE = "brave"
+    FAKE = "fake"
+
+
 class LogFormat(StrEnum):
     """Log output format."""
 
@@ -101,6 +120,22 @@ class Settings(BaseSettings):
     s3_access_key_id: str = Field(min_length=1)
     s3_secret_access_key: SecretStr
     s3_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
+    llm_provider: LlmProvider = LlmProvider.FAKE
+    llm_model: str = Field(default="mistral-large-latest", min_length=1)
+    llm_api_key: SecretStr | None = None
+    llm_base_url: AnyHttpUrl | None = Field(
+        default=None, description="Optional endpoint, e.g. http://ollama:11434/v1"
+    )
+    web_search_provider: WebSearchProvider = WebSearchProvider.FAKE
+    web_search_api_key: SecretStr | None = None
+    web_search_base_url: AnyHttpUrl | None = Field(
+        default=None, description="SearXNG instance, e.g. http://searxng:8080"
+    )
+    ai_search_radius_km: int = Field(default=25, ge=1, le=100)
+    # 0 stops the AI search: every start is answered with `429 daily_limit`.
+    ai_search_daily_limit: int = Field(default=10, ge=0, le=1000)
+    ai_search_max_tool_calls: int = Field(default=8, ge=1, le=50)
+    ai_search_timeout_s: int = Field(default=300, ge=10, le=1800)
 
     @model_validator(mode="after")
     def _check_adapters(self) -> Settings:
@@ -109,9 +144,23 @@ class Settings(BaseSettings):
         if self.geocoding_provider is GeocodingProvider.NOMINATIM and self.nominatim_url is None:
             raise ValueError("NOMINATIM_URL is required for GEOCODING_PROVIDER=nominatim")
         self._check_auth()
+        self._check_ai()
         if self.env is Environment.PROD and self.s3_public_base_url.scheme != "https":
             raise ValueError("S3_PUBLIC_BASE_URL must use https in prod")
         return self
+
+    def _check_ai(self) -> None:
+        if self.env is Environment.PROD and LlmProvider.FAKE in (self.llm_provider,):
+            raise ValueError("LLM_PROVIDER=fake is not allowed in prod")
+        if self.env is Environment.PROD and self.web_search_provider is WebSearchProvider.FAKE:
+            raise ValueError("WEB_SEARCH_PROVIDER=fake is not allowed in prod")
+        keyed = {LlmProvider.MISTRAL, LlmProvider.OPENAI, LlmProvider.ANTHROPIC, LlmProvider.GOOGLE}
+        if self.llm_provider in keyed and not self.llm_api_key:
+            raise ValueError(f"LLM_API_KEY is required for LLM_PROVIDER={self.llm_provider}")
+        if self.web_search_provider is WebSearchProvider.SEARXNG and not self.web_search_base_url:
+            raise ValueError("WEB_SEARCH_BASE_URL is required for WEB_SEARCH_PROVIDER=searxng")
+        if self.web_search_provider is WebSearchProvider.BRAVE and not self.web_search_api_key:
+            raise ValueError("WEB_SEARCH_API_KEY is required for WEB_SEARCH_PROVIDER=brave")
 
     def _check_auth(self) -> None:
         if self.env is Environment.PROD:

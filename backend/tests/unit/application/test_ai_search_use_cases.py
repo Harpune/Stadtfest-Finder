@@ -1,0 +1,301 @@
+from datetime import UTC, date, datetime, timedelta
+from uuid import uuid4
+
+import pytest
+
+from stadtfest.application.ai_ingestion.ports import SearchHit
+from stadtfest.application.ai_ingestion.use_cases import (
+    AiSearchSettings,
+    CompactAiSearchLogs,
+    FailStuckSearches,
+    GetAiSearch,
+    ListAiSearches,
+    RunAiSearch,
+    StartAiSearch,
+)
+from stadtfest.application.events.views import CategoryView
+from stadtfest.application.geocoding.ports import Place, PlaceKind
+from stadtfest.application.moderation.ports import ModRegion
+from stadtfest.application.shared.errors import (
+    ConflictError,
+    ForbiddenError,
+    InvalidInputError,
+    NotFoundError,
+    TooManyRequestsError,
+)
+from stadtfest.domain.ai_ingestion.finds import FoundEvent
+from stadtfest.domain.ai_ingestion.job import AiSearchError, AiSearchStatus
+from stadtfest.domain.events.geo import GeoPoint
+from stadtfest.domain.events.region import Region
+from stadtfest.domain.identity.principal import Principal, Role
+from tests.fakes import (
+    FakeAccountResolver,
+    FakeAiSearchRepository,
+    FakeDraftStore,
+    FakeEventFinder,
+    FakeGeocoding,
+    FakeModRegions,
+    FakeSourceChecker,
+    FakeWebSearch,
+    FixedClock,
+)
+
+TODAY = date(2026, 10, 2)
+NOW = datetime(2026, 10, 2, 9, tzinfo=UTC)
+OSTALB = ModRegion(uuid4(), Region("ostalb", "Ostalb", frozenset({"73430", "73433", "73525"})))
+MODERATOR = Principal("sub-mod", frozenset({Role.USER, Role.MODERATOR}), "ostalb")
+OTHER = Principal("sub-other", frozenset({Role.USER, Role.MODERATOR}), "ostalb")
+USER = Principal("sub-user", frozenset({Role.USER}))
+STADTFEST = CategoryView(uuid4(), "Stadtfest", "🎪", "#FFB547", 0)
+AALEN = Place("73430 Aalen", "Aalen", GeoPoint(48.8375, 10.0933), PlaceKind.POSTCODE, "73430")
+SOURCE = "https://www.aalen.de/stadtfest"
+
+
+class _Catalog:
+    async def list_active(self) -> list[CategoryView]:
+        return [STADTFEST]
+
+
+def _find(**changes: object) -> FoundEvent:
+    values: dict[str, object] = {
+        "name": "Aalener Stadtfest",
+        "date_from": date(2026, 10, 17),
+        "date_to": date(2026, 10, 18),
+        "place": "Marktplatz",
+        "address": "Marktplatz 1, 73430 Aalen",
+        "source_url": SOURCE,
+        "lat": 48.8368,
+        "lon": 10.0932,
+        "category": "Stadtfest",
+    }
+    return FoundEvent(**(values | changes))  # type: ignore[arg-type]
+
+
+class Setup:
+    def __init__(self, daily_limit: int = 3) -> None:
+        self.jobs = FakeAiSearchRepository()
+        regions = FakeModRegions({"ostalb": OSTALB})
+        accounts = FakeAccountResolver()
+        self.geocoding = FakeGeocoding(places=[AALEN], reverse_result=AALEN)
+        self.search = FakeWebSearch(hits=[SearchHit(SOURCE, "Stadtfest Aalen")])
+        self.finder = FakeEventFinder(finds=[_find()])
+        self.sources = FakeSourceChecker()
+        self.drafts = FakeDraftStore()
+        self.settings = AiSearchSettings(daily_limit=daily_limit, timeout_seconds=1)
+        clock = FixedClock(TODAY)
+        self.start = StartAiSearch(
+            self.jobs, regions, accounts, self.geocoding, clock, self.settings, now=lambda: NOW
+        )
+        self.get = GetAiSearch(self.jobs, regions, accounts)
+        self.list = ListAiSearches(self.jobs, regions, accounts)
+        self.run = RunAiSearch(
+            self.jobs,
+            regions,
+            self.finder,
+            self.search,
+            self.sources,
+            self.geocoding,
+            _Catalog(),
+            self.drafts,
+            clock,
+            self.settings,
+            now=lambda: NOW,
+        )
+
+
+@pytest.fixture
+def s() -> Setup:
+    return Setup()
+
+
+# --- start (R10-US1) -----------------------------------------------------------------------
+
+
+async def test_start_queues_a_job_with_the_place_name(s: Setup) -> None:
+    job = await s.start(MODERATOR, "73430")
+
+    assert (job.status, job.postal_code, job.place_name) == (
+        AiSearchStatus.QUEUED,
+        "73430",
+        "Aalen",
+    )
+    assert s.jobs.outbox == ["ai_search.requested"]
+
+
+async def test_start_rules(s: Setup) -> None:
+    with pytest.raises(ForbiddenError):
+        await s.start(USER, "73430")
+    with pytest.raises(InvalidInputError):
+        await s.start(MODERATOR, "7343")
+    with pytest.raises(InvalidInputError) as outside:
+        await s.start(MODERATOR, "89073")
+    assert outside.value.code == "postal_code_outside_region"
+
+
+async def test_one_running_search_per_moderator(s: Setup) -> None:
+    first = await s.start(MODERATOR, "73430")
+    with pytest.raises(ConflictError) as error:
+        await s.start(MODERATOR, "73433")
+    assert (error.value.code, error.value.fields) == ("search_running", {"jobId": str(first.id)})
+    await s.start(OTHER, "73433")  # other moderators are not blocked
+
+
+async def test_daily_limit(s: Setup) -> None:
+    for _ in range(3):
+        job = await s.start(MODERATOR, "73430")
+        await s.run(job.id)
+    with pytest.raises(TooManyRequestsError):
+        await s.start(MODERATOR, "73430")
+
+
+async def test_daily_limit_zero_stops_the_ai_search() -> None:
+    with pytest.raises(TooManyRequestsError):
+        await Setup(daily_limit=0).start(MODERATOR, "73430")
+
+
+async def test_jobs_are_private_to_their_moderator(s: Setup) -> None:
+    job = await s.start(MODERATOR, "73430")
+    assert (await s.get(MODERATOR, job.id)).id == job.id
+    assert [j.id for j in await s.list(MODERATOR, active_only=True)] == [job.id]
+    with pytest.raises(NotFoundError):
+        await s.get(OTHER, job.id)
+
+
+# --- pipeline (R10-US3) ----------------------------------------------------------------------
+
+
+async def test_pipeline_stores_verified_finds_as_drafts(s: Setup) -> None:
+    job = await s.start(MODERATOR, "73430")
+
+    done = await s.run(job.id)
+
+    assert done is not None
+    assert done.status is AiSearchStatus.COMPLETED
+    assert len(done.new_event_ids) == 1
+    stored = s.drafts.stored[0]
+    assert (stored.postal_code, stored.category_id) == ("73430", STADTFEST.id)
+    assert done.log["queries"] == ["Feste 73430"]
+    assert done.log["urls"] == [SOURCE]
+    assert s.jobs.outbox[-1] == "ai_search.completed"
+    assert await s.run(job.id) is None  # delivered twice: nothing happens
+
+
+async def test_prompt_has_only_public_parameters(s: Setup) -> None:
+    job = await s.start(MODERATOR, "73430")
+    await s.run(job.id)
+
+    _, prompt = s.finder.prompts[0]
+    assert "73430 Aalen" in prompt
+    assert "Stadtfest" in prompt
+    for private in ("sub-mod", str(OSTALB.id), "ostalb", str(job.moderator_id)):
+        assert private not in prompt
+
+
+async def test_no_draft_without_a_verified_source(s: Setup) -> None:
+    """DoD: sources the search tool never returned, or dead pages, are rejected."""
+    s.finder.finds = [
+        _find(source_url="https://invented.example/fest"),
+        _find(name="Zweites Fest", source_url="https://www.aalen.de/stadtfest/"),
+    ]
+    s.sources.dead = {"https://www.aalen.de/stadtfest/"}
+    job = await s.start(MODERATOR, "73430")
+
+    done = await s.run(job.id)
+
+    assert done is not None
+    assert done.new_event_ids == ()
+    assert done.skipped.unverified_source == 2
+    assert s.drafts.stored == []
+
+
+async def test_invalid_out_of_region_and_duplicate_finds_are_counted(s: Setup) -> None:
+    s.finder.invalid = 2
+    s.finder.finds = [
+        _find(date_from=date(2026, 9, 1), date_to=date(2026, 9, 2)),  # past
+        _find(name="Bekanntes Fest"),
+        _find(name="Doppelt im Lauf"),
+        _find(name="Doppelt im Lauf"),
+    ]
+    s.drafts.known_names = {"Bekanntes Fest"}
+    job = await s.start(MODERATOR, "73430")
+    done = await s.run(job.id)
+    assert done is not None
+    assert (done.skipped.invalid, done.skipped.duplicate) == (3, 2)
+    assert len(done.new_event_ids) == 1
+
+    s.geocoding.reverse_result = Place(
+        "89073 Ulm", "Ulm", GeoPoint(48.4, 9.99), PlaceKind.POSTCODE, "89073"
+    )
+    s.finder.finds = [_find(name="Ulmer Fest")]
+    second = await s.start(OTHER, "73430")
+    done = await s.run(second.id)
+    assert done is not None
+    assert done.skipped.out_of_region == 1
+
+
+async def test_implausible_coordinates_are_geocoded_again(s: Setup) -> None:
+    s.finder.finds = [_find(lat=0.0, lon=0.0)]
+    job = await s.start(MODERATOR, "73430")
+    await s.run(job.id)
+
+    assert s.drafts.stored[0].location == AALEN.location
+    assert s.geocoding.search_calls[-1] == "Marktplatz 1, 73430 Aalen"
+
+
+async def test_uncertain_category_stays_empty(s: Setup) -> None:
+    s.finder.finds = [_find(category="Konzert")]
+    job = await s.start(MODERATOR, "73430")
+    await s.run(job.id)
+    assert s.drafts.stored[0].category_id is None
+
+
+@pytest.mark.parametrize(
+    ("break_it", "code"),
+    [("llm", AiSearchError.LLM_UNAVAILABLE), ("search", AiSearchError.SEARCH_UNAVAILABLE)],
+)
+async def test_provider_failures_fail_the_job(s: Setup, break_it: str, code: AiSearchError) -> None:
+    if break_it == "llm":
+        s.finder.unavailable = True
+    else:
+        s.search.unavailable = True
+    job = await s.start(MODERATOR, "73430")
+
+    done = await s.run(job.id)
+
+    assert done is not None
+    assert (done.status, done.error_code) == (AiSearchStatus.FAILED, code)
+    assert s.jobs.outbox[-1] == "ai_search.failed"
+
+
+async def test_timeout_fails_the_job(s: Setup) -> None:
+    s.finder.delay_seconds = 2
+    job = await s.start(MODERATOR, "73430")
+
+    done = await s.run(job.id)
+
+    assert done is not None
+    assert done.error_code is AiSearchError.TIMEOUT
+
+
+# --- watchdog and log retention -----------------------------------------------------------
+
+
+async def test_watchdog_fails_stuck_jobs(s: Setup) -> None:
+    job = await s.start(MODERATOR, "73430")
+    later = NOW + timedelta(seconds=3)
+
+    assert await FailStuckSearches(s.jobs, s.settings, now=lambda: later)() == 1
+    stuck = await s.jobs.get(job.id)
+    assert stuck is not None
+    assert (stuck.status, stuck.error_code) == (AiSearchStatus.FAILED, AiSearchError.TIMEOUT)
+
+
+async def test_old_logs_are_compacted(s: Setup) -> None:
+    job = await s.start(MODERATOR, "73430")
+    await s.run(job.id)
+
+    compact = CompactAiSearchLogs(s.jobs, now=lambda: NOW + timedelta(days=91))
+    assert await compact() == 1
+    stored = await s.jobs.get(job.id)
+    assert stored is not None
+    assert stored.log == {}

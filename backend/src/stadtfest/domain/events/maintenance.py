@@ -190,6 +190,10 @@ class ManagedEvent:
     version: int = 1
     favorite_count: int = 0
     source: str = "manual"
+    # AI finds (R10): the page it came from, the job and when it was found.
+    source_url: str | None = None
+    ai_job_id: UUID | None = None
+    found_at: datetime | None = None
     published_at: datetime | None = None
     deleted: bool = False
     pending_events: list[DomainEvent] = field(default_factory=list)

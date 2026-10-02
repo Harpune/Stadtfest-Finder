@@ -8,6 +8,11 @@ from fastapi import Depends, Request
 from redis.asyncio import Redis
 
 from stadtfest.adapters.outbound.storage.urls import ImageUrls
+from stadtfest.application.ai_ingestion.use_cases import (
+    GetAiSearch,
+    ListAiSearches,
+    StartAiSearch,
+)
 from stadtfest.application.collections.use_cases import (
     AddFavorite,
     IsFavorite,
@@ -92,6 +97,9 @@ class RestDependencies(Protocol):
     update_category: UpdateCategory
     order_categories: OrderCategories
     delete_category: DeleteCategory
+    start_ai_search: StartAiSearch
+    get_ai_search: GetAiSearch
+    list_ai_searches: ListAiSearches
 
 
 def container(request: Request) -> RestDependencies:

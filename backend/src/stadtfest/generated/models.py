@@ -40,6 +40,50 @@ class CategoryColor(
     ]
 
 
+class AiSearchStatus(RootModel[Literal["queued", "running", "completed", "failed"]]):
+    root: Literal["queued", "running", "completed", "failed"]
+
+
+class AiSearchRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    postal_code: Annotated[str, Field(alias="postalCode", pattern="^[0-9]{5}$")]
+
+
+class AiSearchSkipped(BaseModel):
+    """Finds that were not stored, by reason (counts only, no content)."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    duplicate: Annotated[int, Field(ge=0)]
+    out_of_region: Annotated[int, Field(alias="outOfRegion", ge=0)]
+    invalid: Annotated[int, Field(ge=0)]
+    unverified_source: Annotated[int, Field(alias="unverifiedSource", ge=0)]
+
+
+class AiSearch(BaseModel):
+    """An AI search job (R10)."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    postal_code: Annotated[str, Field(alias="postalCode")]
+    place_name: Annotated[str, Field(alias="placeName")]
+    status: AiSearchStatus
+    created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
+    started_at: Annotated[AwareDatetime | None, Field(alias="startedAt")] = None
+    finished_at: Annotated[AwareDatetime | None, Field(alias="finishedAt")] = None
+    new_event_ids: Annotated[list[UUID], Field(alias="newEventIds")]
+    skipped: AiSearchSkipped
+    error_code: Annotated[
+        Literal["llm_unavailable", "search_unavailable", "timeout", "internal"] | None,
+        Field(alias="errorCode"),
+    ] = None
+
+
 class ModCategory(BaseModel):
     """Category in the moderation view, including inactive ones."""
 
@@ -585,6 +629,11 @@ class ModEventDetail(BaseModel):
     published_at: Annotated[AwareDatetime | None, Field(alias="publishedAt")] = None
     favorite_count: Annotated[int, Field(alias="favoriteCount", ge=0)]
     source: EventSource
+    source_url: Annotated[
+        str | None, Field(alias="sourceUrl", description="Page an AI find came from (R10).")
+    ] = None
+    found_at: Annotated[AwareDatetime | None, Field(alias="foundAt")] = None
+    ai_job_id: Annotated[UUID | None, Field(alias="aiJobId")] = None
     version: Annotated[int, Field(ge=1)]
     images: Annotated[
         list[ModImage],

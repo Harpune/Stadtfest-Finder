@@ -157,6 +157,70 @@ export const strings = {
     down: 'Nach unten verschieben',
   },
   mod: {
+    ai: {
+      searchButton: 'Suchen',
+      sheetTitle: 'Feste automatisch suchen',
+      sheetText:
+        'Ein Dienst sucht online nach Veranstaltungen rund um die Postleitzahl und legt Funde als Entwurf an. Du prüfst und veröffentlichst sie wie gewohnt.',
+      postalCode: 'Postleitzahl',
+      postalInvalid: 'Bitte gib eine fünfstellige Postleitzahl ein.',
+      postalUnknown: 'Diese Postleitzahl kennen wir nicht.',
+      start: 'Suche starten',
+      running: (code: string, place: string) =>
+        `Suche läuft für ${code}${place ? ` ${place}` : ''} …`,
+      found: (n: number, code: string) =>
+        `${n === 1 ? '1 neuer Entwurf' : `${n} neue Entwürfe`} aus der Suche für ${code}`,
+      nothing: (code: string, duplicates: number) =>
+        `Keine neuen Feste für ${code} gefunden${duplicates ? ` · ${duplicates} schon bekannt` : ''}`,
+      failed: 'Suche fehlgeschlagen',
+      retry: 'Erneut versuchen',
+      review: 'Prüfen',
+      dismiss: 'Ausblenden',
+      startedToast: 'Suche gestartet · du kannst weiterarbeiten',
+      doneToast: (n: number) =>
+        n === 1 ? '1 neuer Entwurf gefunden' : `${n} neue Entwürfe gefunden`,
+      reviewTitle: 'Funde prüfen',
+      reviewProgress: (i: number, n: number) => `Fund ${i} von ${n}`,
+      reviewDone: (n: number) => `${n} von ${n} erledigt`,
+      autoFound: 'Automatisch gefunden',
+      foundOn: 'Gefunden auf',
+      open: 'Öffnen ↗',
+      searchFor: (code: string, when: string) => `Suche für ${code} · ${when}`,
+      today: 'heute',
+      missing: 'fehlt',
+      fields: {
+        category: 'Kategorie',
+        period: 'Zeitraum',
+        location: 'Ort',
+        openingHours: 'Öffnungszeiten',
+        price: 'Eintritt',
+        description: 'Beschreibung',
+      },
+      noImage: 'Kein Bild gefunden',
+      discard: 'Verwerfen',
+      edit: 'Bearbeiten',
+      publish: 'Veröffentlichen',
+      discarded: 'Verworfen',
+      published: 'Veröffentlicht',
+      needsFields:
+        'Bitte ergänze die fehlenden Angaben, bevor du veröffentlichst.',
+      paused: 'Pausiert · offene Funde bleiben als Entwurf',
+      close: 'Prüfen pausieren',
+      allDone: 'Alle Funde geprüft',
+      summaryPublished: (n: number) => `${n} veröffentlicht`,
+      summaryEdited: (n: number) =>
+        `${n} bearbeitet und als Entwurf gespeichert`,
+      summaryDiscarded: (n: number) => `${n} verworfen`,
+      toOverview: 'Zur Übersicht',
+      alreadyHandled: 'Dieser Fund wurde schon bearbeitet.',
+      errors: {
+        search_running: 'Für dich läuft schon eine Suche.',
+        postal_code_outside_region:
+          'Diese Postleitzahl liegt nicht in deiner Region.',
+        daily_limit:
+          'Du hast heute schon die maximale Anzahl an Suchen gestartet.',
+      },
+    },
     categories: {
       title: 'Kategorien',
       add: '+ Neu',

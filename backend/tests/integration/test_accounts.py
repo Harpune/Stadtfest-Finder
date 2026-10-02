@@ -15,7 +15,12 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from stadtfest.adapters.outbound.persistence.accounts import SqlRegionDirectory, SqlUserRepository
-from stadtfest.adapters.outbound.persistence.models import AppUserRow, EventRow
+from stadtfest.adapters.outbound.persistence.models import (
+    AiSearchJobRow,
+    AppUserRow,
+    EventRow,
+    RegionRow,
+)
 from tests.integration.seed_support import load
 
 pytestmark = pytest.mark.integration
@@ -70,6 +75,15 @@ async def test_delete_personal_data_removes_user_and_audit_references(
             .where(EventRow.id == event_id)
             .values(created_by=user.id, updated_by=user.id)
         )
+        job_id = uuid4()
+        session.add(
+            AiSearchJobRow(
+                id=job_id,
+                moderator_id=user.id,
+                region_id=await session.scalar(select(RegionRow.id).limit(1)),
+                postal_code="73430",
+            )
+        )
 
     assert await users.delete_personal_data(subject) is True
     assert await users.delete_personal_data(subject) is False
@@ -78,6 +92,9 @@ async def test_delete_personal_data_removes_user_and_audit_references(
         assert await session.get(AppUserRow, user.id) is None
         event = await session.get_one(EventRow, event_id)
         assert (event.created_by, event.updated_by) == (None, None)
+        # The AI search stays for the statistics, without the moderator (R10).
+        job = await session.get_one(AiSearchJobRow, job_id)
+        assert job.moderator_id is None
 
 
 async def test_region_lookup(sessions: async_sessionmaker[AsyncSession]) -> None:

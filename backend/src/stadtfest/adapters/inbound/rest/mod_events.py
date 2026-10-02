@@ -108,6 +108,9 @@ def _detail(view: ModEventView, urls: ImageUrls) -> api.ModEventDetail:
         published_at=event.published_at,
         favorite_count=event.favorite_count,
         source=_source(event.source),
+        source_url=event.source_url,
+        found_at=event.found_at,
+        ai_job_id=event.ai_job_id,
         version=event.version,
         images=[mod_image(image, urls) for image in view.images],
     )

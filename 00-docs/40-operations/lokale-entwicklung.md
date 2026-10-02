@@ -45,6 +45,7 @@ Für native Builds zusätzlich **mindestens 20 GB freien Speicher** einplanen (P
 | SeaweedFS (S3) | http://localhost:58333 | Schlüssel in `infra/dev/seaweedfs/s3.json` |
 | Keycloak | http://localhost:58080 | Admin `admin`/`admin`; Realm `stadtfest` |
 | Nominatim (optional) | http://localhost:58088 | `docker compose -f infra/compose.dev.yaml --profile geo up -d` (Import dauert) |
+| SearXNG (optional, Web-Suche der KI-Suche) | http://localhost:58089 | `docker compose -f infra/compose.dev.yaml --profile search up -d`, dazu `WEB_SEARCH_PROVIDER=searxng` ([web-suche.md](web-suche.md)) |
 
 - Ports lassen sich in `.env` ändern (`*_HOST_PORT`).
 - **Testnutzer:** `nutzer@example.test` (Rolle `user`), `moderator@example.test` (`moderator`, Region `ostalb`), `katadmin@example.test` (`moderator`, `category_admin`). Alle Zugänge mit Passwörtern auf einen Blick: [Dev-Nutzer](dev-nutzer.md). Sie gelten nur lokal.

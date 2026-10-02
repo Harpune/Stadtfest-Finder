@@ -1,6 +1,6 @@
 # Löschkonzept
 
-> Stand R08: Nutzerkonto (`app_user`), Favoriten (`favorite`), Upload-Slots (`upload`) und Festbilder. Jedes Inkrement mit Personenbezug erweitert Tabelle, `SqlUserRepository.delete_personal_data` und Tests im selben PR.
+> Stand R10: Nutzerkonto (`app_user`), Favoriten (`favorite`), Upload-Slots (`upload`), Festbilder und KI-Suchaufträge (`ai_search_job`). Jedes Inkrement mit Personenbezug erweitert Tabelle, `SqlUserRepository.delete_personal_data` und Tests im selben PR.
 
 ## Aufbewahrung und Löschung je Datenart
 
@@ -12,6 +12,8 @@
 | Upload-Slots (`upload`) | Nutzer-ID des Moderators, Dateityp, Größe, Zeitpunkt | bis zur Verarbeitung des Bildes; nie angehängte nach 24 h | nach erfolgreicher Verarbeitung (`mark_ready`); täglicher Job `purge_images` (03:45 Uhr); Kontolöschung: `ON DELETE CASCADE` | `test_images.py`, `test_image_use_cases.py` | R08 |
 | Festbilder (`event_image`, Dateien unter `public/images/`) | keine Metadaten (entfernt); ggf. abgebildete Personen | bis zum Entfernen oder Löschen des Fests | `DELETE …/images/{id}` → `image.removed` löscht die Dateien; Bilder gelöschter Feste löscht `purge_images` | `test_images.py`, `test_pillow_processor.py` | R08 |
 | Originaldateien (`uploads/`) | ggf. EXIF mit GPS-Position | bis zur Verarbeitung; fehlgeschlagene bis zum Entfernen bzw. 24 h, wenn nie angehängt | `ProcessImage` löscht sie; `purge_images`; Lifecycle-Regel im Bucket als Sicherheitsnetz | `test_images.py` | R08 |
+| KI-Suchaufträge (`ai_search_job`) | Nutzer-ID des Moderators; das Protokoll enthält keine Nutzerdaten | Zeile unbegrenzt (Statistik); Protokoll-Inhalte (Suchanfragen, URLs) 90 Tage nach Abschluss | `DeleteAccount`, Schritt 1: `moderator_id` auf `null` (`ON DELETE SET NULL`); wöchentlicher Job `compact_ai_search_logs` (So 04:15) lässt nur Zähler stehen | `test_accounts.py`, `test_ai_search_use_cases.py` | R10 |
+| Verworfene Quellen (`rejected_source`) | keiner: Region und URL einer öffentlichen Seite | unbegrenzt, damit verworfene Funde nicht erneut vorgeschlagen werden | – | `test_ai_search.py` | R10 |
 | Outbox (`outbox`) | keiner: nur Fest-IDs und Feldnamen | 14 Tage nach Versand | täglicher Job `purge_outbox` (03:30 Uhr) | `test_moderation.py` | R07 |
 | Konto beim IdP (Zitadel/Keycloak) | E-Mail, Name, Anmeldedaten, Rollen, Region | bis zur Kontolöschung | `DeleteAccount`, Schritt 2 (IdP-Admin-Port, ADR 0010) | `test_idp_admin_adapters.py`, `test_keycloak_login.py` | R05 |
 | Retry-Job `delete_idp_user` (Redis) | IdP-Subject im Job | bis zum Erfolg, höchstens ca. 2 Tage (15 Versuche) | automatisch nach Ausführung | `test_worker_jobs.py` | R05 |
@@ -23,7 +25,7 @@
 Auslöser: „Konto löschen“ auf der Konto-Seite der App → Dialog „Konto endgültig löschen?“ → `DELETE /v1/me` (`204`). Use Case `DeleteAccount` (`application/identity/use_cases.py`):
 
 0. **Token sperren:** Zuerst merkt sich die API den gehashten IdP-Subject in Redis, bis das Access-Token des Aufrufers abgelaufen ist (plus Toleranz). Solange lehnt sie jedes Token dieses Kontos mit `401` ab. So legt ein paralleler oder späterer Aufruf mit dem noch gültigen Token (z. B. `GET /v1/me`) das Konto nicht wieder an. Ist Redis nicht erreichbar, läuft die Löschung trotzdem weiter (Warnung `deleted_accounts_unavailable` im Log).
-1. **Lokale Daten:** `SqlUserRepository.delete_personal_data` löscht in **einer Transaktion** den Eintrag in `app_user` und setzt `created_by`/`updated_by` aller Feste mit dieser Nutzer-ID auf `null`. Die Favoriten (R06) entfernt `ON DELETE CASCADE`; vorher wird `favorite_count` der betroffenen Feste verringert. Spätere Inkremente ergänzen hier ihre Tabellen (Geräte R11, Freunde R12, Listen R13, Einladungen R14).
+1. **Lokale Daten:** `SqlUserRepository.delete_personal_data` löscht in **einer Transaktion** den Eintrag in `app_user` und setzt `created_by`/`updated_by` aller Feste mit dieser Nutzer-ID auf `null`. `ai_search_job.moderator_id` setzt die Datenbank per `ON DELETE SET NULL` auf `null` (R10). Die Favoriten (R06) entfernt `ON DELETE CASCADE`; vorher wird `favorite_count` der betroffenen Feste verringert. Spätere Inkremente ergänzen hier ihre Tabellen (Geräte R11, Freunde R12, Listen R13, Einladungen R14).
 2. **IdP:** Der IdP-Admin-Port löscht den Nutzer beim IdP (Zitadel User API v2, lokal Keycloak Admin API). Ist der Nutzer dort schon weg (`404`), gilt das als Erfolg.
 3. **Retry:** Ist der IdP nicht erreichbar, reiht der Use Case den arq-Job `delete_idp_user` ein (Job-ID `delete_idp_user:<subject>`, doppelte Anfragen werden zusammengefasst). Der Worker versucht es mit wachsenden Abständen (1, 2, 4 … Minuten, höchstens 6 Stunden) bis zu 15-mal, also etwa zwei Tage lang. Scheitert auch der letzte Versuch, loggt der Worker `idp_deletion_failed` mit der Job-ID; der Nutzer wird dann von Hand gelöscht ([Zitadel-Anleitung](../40-operations/zitadel.md#nutzer-von-hand-löschen)).
 4. Lässt sich auch der Job nicht einreihen (Redis weg), antwortet die API mit `503`. Die lokalen Daten sind dann schon gelöscht; die App bietet erneut „Löschen“ an, und die Wiederholung ist unschädlich.

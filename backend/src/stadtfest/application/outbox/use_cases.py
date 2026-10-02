@@ -19,6 +19,7 @@ from stadtfest.application.outbox.ports import (
     OutboxStore,
 )
 from stadtfest.application.shared.ports import CachePort
+from stadtfest.domain.ai_ingestion.job import AiSearchEventType
 from stadtfest.domain.events.category import CATEGORY_CHANGED
 from stadtfest.domain.events.images import ImageEventType
 from stadtfest.domain.events.maintenance import DomainEventType
@@ -46,11 +47,12 @@ class RelayOutbox:
 
 
 ProcessImageHandler = Callable[[UUID], Awaitable[object]]
+RunAiSearchHandler = Callable[[UUID], Awaitable[object]]
 DeleteImageFilesHandler = Callable[[UUID, UUID | None], Awaitable[None]]
 
 
 class HandleDomainEvent:
-    """Consumers: cache invalidation, deleted events (R07), images (R08), categories (R09)."""
+    """Consumers: caches and deleted events (R07), images (R08), categories (R09), AI (R10)."""
 
     def __init__(
         self,
@@ -58,15 +60,23 @@ class HandleDomainEvent:
         favorites: EventFavorites,
         process_image: ProcessImageHandler,
         delete_image_files: DeleteImageFilesHandler,
+        run_ai_search: RunAiSearchHandler | None = None,
     ) -> None:
         """Create the use case."""
         self._cache = cache
         self._favorites = favorites
         self._process_image = process_image
         self._delete_image_files = delete_image_files
+        self._run_ai_search = run_ai_search
 
     async def __call__(self, message: OutboxMessage) -> None:
         """React to one domain event."""
+        if message.type == AiSearchEventType.REQUESTED.value:
+            if self._run_ai_search is not None:
+                await self._run_ai_search(UUID(str(message.payload["jobId"])))
+            return
+        if message.type in {AiSearchEventType.COMPLETED.value, AiSearchEventType.FAILED.value}:
+            return  # push to the moderator follows in R11 (E-12)
         if message.type == CATEGORY_CHANGED:
             # Chips (public list, ETag) and catalog counts/filters follow (R09-US5).
             await self._cache.bump_generation(CATEGORIES_NAMESPACE)

@@ -84,8 +84,20 @@ sequenceDiagram
 | Fehler | `failed` erzeugt die Leiste „Suche fehlgeschlagen · Erneut versuchen“ (Annahme, nicht gestaltet). |
 | Protokoll | Suchanfragen, Quellen und Ergebnis pro Job speichern (Nachvollziehbarkeit). |
 
+## Stand der Umsetzung (R10)
+
+- Der Abschluss wird per Polling erkannt (alle 10 s, E-12); Push an den Moderator folgt mit R11. Beim Öffnen der Moderation stellt die App eine laufende Suche über `GET /v1/mod/ai-searches?status=running` wieder her.
+- `updatedEventIds` entfällt: Bestehende Feste werden nie geändert, Treffer zählen als `skipped.duplicate`.
+- Duplikat: ähnlicher Name (Trigramm ≥ 0,5), überlappender Zeitraum und < 2 km Abstand, oder dieselbe normalisierte Quelle, oder eine in der Region verworfene Quelle (`rejected_source`).
+- Quellen: nur URLs aus den Suchergebnissen desselben Jobs, die erreichbar sind ([ADR 0013](../../25-adr/0013-web-suche-searxng.md)). Bilder werden nicht übernommen („Kein Bild gefunden“).
+- Limits: eine laufende Suche je Moderator (`409 search_running`), `AI_SEARCH_DAILY_LIMIT` Suchen je Tag (`429 daily_limit`), PLZ außerhalb der Region `422 postal_code_outside_region`.
+- Fehlerleiste „Suche fehlgeschlagen“ mit „Erneut versuchen“ (startet dieselbe PLZ neu).
+- „Veröffentlichen“ öffnet bei fehlender Pflichtangabe (Kategorie, Zeitraum, Ort) das Formular. Nach dem Speichern bzw. Zurück zählt der Fund als „bearbeitet“.
+- Die Aktionen stehen in zwei Zeilen: „Veröffentlichen“ über die volle Breite, darunter „Verwerfen“ und „Bearbeiten“. In einer Zeile brachen die Beschriftungen auf 393 dp breiten Geräten mitten im Wort um (Gerätetest 02.10.2026).
+- Lokal liefern `LLM_PROVIDER=fake` und `WEB_SEARCH_PROVIDER=fake` drei feste Funde rund um Aalen (Lichterfest Wasseralfingen, Herbstmarkt im Stadtgarten, Ellwanger Brunnenfest).
+
 ## Offene Punkte
 
 - Sollen Updates an bestehenden Festen, z. B. geänderte Öffnungszeiten, als Änderungsvorschlag erscheinen? Aktuell werden sie übersprungen.
-- Kosten und Rate-Limit für KI-Aufrufe pro Moderator bzw. Region.
+- Kosten je Region beobachten; bisher begrenzt nur das Tageslimit je Moderator.
 - Bildrechte bei übernommenen Bildern aus Quellen: Vorerst werden nur Links gespeichert, keine Bilder übernommen (Empfehlung).

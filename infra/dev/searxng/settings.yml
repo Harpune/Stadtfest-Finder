@@ -1,0 +1,36 @@
+# SearXNG as web search tool of the AI search (ADR 0013). Only the backend calls it.
+# Defaults of the image plus the changes below; see 00-docs/40-operations/web-suche.md.
+use_default_settings:
+  engines:
+    # Tor engines need a Tor proxy and fail to load without one.
+    remove:
+      - ahmia
+      - torch
+
+general:
+  instance_name: stadtfest-search
+
+server:
+  # Overridden by SEARXNG_SECRET; set a random value in production.
+  secret_key: "dev-only-not-secret"
+  # Internal instance: no bot detection, no public UI traffic.
+  limiter: false
+  public_instance: false
+  image_proxy: false
+
+search:
+  safe_search: 2
+  default_lang: "de-DE"
+  # The backend needs JSON; without it SearXNG answers 403.
+  formats:
+    - html
+    - json
+
+outgoing:
+  request_timeout: 5.0
+  max_request_timeout: 10.0
+
+engines:
+  # Brave rate-limits scraping ("too many requests"); other engines cover it.
+  - name: brave
+    disabled: true

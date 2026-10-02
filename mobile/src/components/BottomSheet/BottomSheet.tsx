@@ -163,7 +163,11 @@ export function BottomSheet({
       >
         {title ? (
           <View style={styles.header}>
-            <Text variant="displayL" accessibilityRole="header">
+            <Text
+              variant="displayL"
+              accessibilityRole="header"
+              style={styles.title}
+            >
               {title}
             </Text>
             <IconButton
@@ -187,8 +191,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
     paddingTop: 4,
   },
+  // Long titles wrap instead of pushing the ✕ off the edge.
+  title: {flex: 1},
   body: {paddingHorizontal: 20, gap: 22},
   footer: {
     flexDirection: 'row',
