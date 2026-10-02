@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Any, ClassVar
 from uuid import UUID
 
 from geoalchemy2 import Geography
-from sqlalchemy import ARRAY, Computed, ForeignKey, String, Text
+from sqlalchemy import ARRAY, Computed, DateTime, ForeignKey, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
     """Declarative base for all tables."""
+
+    # All timestamp columns are `timestamptz` (migrations); bind aware datetimes as such.
+    type_annotation_map: ClassVar[dict[Any, Any]] = {datetime: DateTime(timezone=True)}
 
 
 class CategoryRow(Base):
@@ -140,3 +145,15 @@ class FavoriteRow(Base):
         ForeignKey("event.id", ondelete="CASCADE"), primary_key=True
     )
     created_at: Mapped[datetime] = mapped_column(server_default="now()")
+
+
+class OutboxRow(Base):
+    """Table `outbox` (R07, ADR 0005): domain events written with the change itself."""
+
+    __tablename__ = "outbox"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    type: Mapped[str]
+    payload: Mapped[dict[str, object]] = mapped_column(JSONB)
+    occurred_at: Mapped[datetime] = mapped_column(server_default="now()")
+    dispatched_at: Mapped[datetime | None]

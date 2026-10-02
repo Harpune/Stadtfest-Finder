@@ -1,0 +1,106 @@
+# Moderator publishes (R07): login as moderator → Moderator-Ansicht → "+ Neues Fest" →
+# required fields → Veröffentlichen → Beenden → the event shows up on the map.
+# Requires the local stack (`make dev`, `make seed`) with Keycloak and the dev realm.
+# Tag `typing`: see login.yaml. The date pickers use today's date (the system picker's
+# default), so the event is listed on the map right away.
+appId: de.stadtfestfinder.app
+name: Moderator veröffentlicht ein Fest
+tags:
+  - typing
+env:
+  USERNAME: moderator@example.test # dev realm moderator, region "ostalb"
+  PASSWORD: stadtfest-dev
+  NAME: Maestro-Testfest Aalen
+---
+- runFlow:
+    file: shared/launch.yaml
+    env:
+      LOCATION: never
+
+# Login via the drawer
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.login
+- tapOn:
+    id: login.email
+- tapOn:
+    text: 'Fortfahren|Continue'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: username
+    timeout: 60000
+- tapOn:
+    id: username
+- inputText: ${USERNAME}
+- tapOn:
+    id: password
+- inputText: ${PASSWORD}
+- tapOn:
+    id: kc-login
+- extendedWaitUntil:
+    visible:
+      id: discover.screen
+    timeout: 60000
+
+# Moderation view
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.moderator
+- extendedWaitUntil:
+    visible:
+      id: mod.banner
+    timeout: 20000
+- tapOn:
+    id: mod.events.new
+
+# Publishing an empty form marks the required fields (08-06)
+- tapOn:
+    id: mod.form.name
+- inputText: ${NAME}
+- tapOn:
+    id: mod.form.publish
+- assertVisible: 'Bitte wähle eine Kategorie.'
+
+# Required fields: category, dates (system picker, today), location by address
+- tapOn:
+    id: 'mod.form.category.*'
+    index: 0
+- tapOn:
+    id: mod.form.start
+- tapOn:
+    text: 'Fertig|OK'
+- tapOn:
+    id: mod.form.end
+- tapOn:
+    text: 'Fertig|OK'
+- tapOn:
+    id: mod.form.address
+- inputText: Marktplatz Aalen
+- extendedWaitUntil:
+    visible:
+      id: mod.form.address.suggestion.0
+    timeout: 20000
+- tapOn:
+    id: mod.form.address.suggestion.0
+- tapOn:
+    id: mod.form.publish
+- extendedWaitUntil:
+    visible: 'Veröffentlicht · jetzt in der App sichtbar'
+    timeout: 20000
+
+# Back to the user view: the event is in the list of the map area
+- tapOn:
+    id: mod.banner.exit
+- extendedWaitUntil:
+    visible:
+      id: discover.screen
+    timeout: 20000
+- tapOn:
+    id: discover.search.input
+- inputText: Maestro-Testfest
+- extendedWaitUntil:
+    visible: ${NAME}
+    timeout: 20000

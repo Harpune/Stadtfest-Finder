@@ -71,8 +71,8 @@ flowchart TD
 | 2 | 08-01 | Suche / Status-Chip | Filtert Name und Ort. Chips mit Anzahl: Alle, Entwurf, Veröffentlicht, Vergangen, Abgesagt. | clientseitig oder `GET …?q=&status=` | lokal / sync |
 | 3 | 08-05 | „+ Neues Fest“ | Leeres Formular mit Status „Entwurf“. | – | lokal |
 | 4 | 08-02 | Fest öffnen | Formular mit allen Feldern, ⋯-Menü. | `GET /v1/mod/events/{id}` | sync |
-| 5 | 08-03 | Ort: Adresse eingeben | Adresse wird geocodiert, die Karte springt zum Ergebnis. | `GET /v1/geocode?q=` | sync, debounced |
-| 6 | 08-07 | Ort: „Pin auf Karte“ | Ein Tipp auf die Karte setzt den Pin. Ohne Adresse wird die Adresse per Reverse-Geocoding gefüllt. | `GET /v1/geocode/reverse?lat=&lon=` | sync |
+| 5 | 08-03 | Ort: Adresse eingeben | Ab 3 Zeichen erscheinen bis zu 5 Vorschläge unter dem Feld („Suche Orte …“, „Kein Ort gefunden“). Ein Vorschlag setzt Adresse, PLZ, Ort und Pin; die Karte springt zum Ergebnis. | `GET /v1/geocode?q=&limit=5` | sync, debounced (300 ms) |
+| 6 | 08-07 | Ort: „Pin auf Karte“ oder Tipp auf die Kartenvorschau | Vollbildkarte: verschieben und zoomen (+/−), der Pin bleibt in der Mitte, „Pin übernehmen“ setzt ihn. ✕ oder Android-Zurück verwerfen. Ohne Adresse wird die Adresse per Reverse-Geocoding gefüllt. | `GET /v1/geocode/reverse?lat=&lon=` | sync |
 | 7 | 08-04 | Programmpunkt hinzufügen/entfernen | Zeilen „Tag, Zeit“ und „Programmpunkt“. | – (wird mit dem Fest gespeichert) | lokal |
 | 8 | 08-04 | „+ Hochladen“ | Auswahl aus der Mediathek. Die Kachel zeigt „Lädt hoch“, das erste Bild ist das Titelbild. | `POST /v1/mod/uploads` → signierte URL. Danach `PUT` der Datei direkt in den Speicher, dann `POST /v1/mod/events/{id}/images {uploadId}`. Thumbnails werden im Hintergrund erzeugt. | sync (Upload) + async (Thumbnails) |
 | 9 | 08-04 | Bild entfernen (✕) | Entfernt die Kachel sofort. | `DELETE /v1/mod/events/{id}/images/{imageId}` | sync |
@@ -104,6 +104,18 @@ flowchart TD
 | Ende | – | ✓, ≥ Beginn | „Bitte wähle das Ende.“ / „Das Ende liegt vor dem Beginn.“ |
 | Adresse oder Pin | – | ✓, innerhalb der Region | „Bitte gib eine Adresse ein oder setze einen Pin.“ |
 | Öffnungszeiten, Beschreibung, Programm, Eintritt, Anfahrt, Website, Bilder | – | – | – |
+
+## Stand der Umsetzung (R07)
+
+- Bilder (08-04 unten) folgen in R08, die KI-Suche („Suchen“) in R10, der Tab „Kategorien“ in R09; bis dahin zeigt der Tab einen Hinweis.
+- Datumsfelder nutzen die Systemauswahl (`@react-native-community/datetimepicker`, Entscheidung 01.10.2026).
+- Die Status-Chips der Übersicht zeigen die Anzahl je Status und filtern auf dem Gerät.
+- „Als Entwurf“ bei einem veröffentlichten Fest speichert die Änderungen und zieht das Fest danach zurück (`PATCH` + `POST …/unpublish`).
+- Abgesagte Feste lassen sich nur noch in Textfeldern ändern; der Button „Als Entwurf“ entfällt dort.
+- Die Kartenvorschau im Formular nimmt keine Gesten an, damit sie nicht mit dem Scrollen kollidiert. Den Pin setzt die Vollbildkarte (`LocationPicker`, Entscheidung 01.10.2026 nach Gerätetest).
+- Android-Zurück schließt zuerst offene Ebenen (Tastatur, Dialog, ⋯-Menü, Vollbildkarte) und erst danach das Formular.
+- Lokal liefert der Fake-Geocoder (`GEOCODING_PROVIDER=fake`) nur feste Orte rund um Aalen; er findet Wortanfänge in beliebiger Reihenfolge („Marktpl Aalen“, „Wasseralf“). Echte Adressen gibt es lokal nur mit Nominatim (`--profile geo`).
+- Die Benachrichtigungen aus der Tabelle „Asynchrone Folgen“ kommen mit R11; die Events werden schon jetzt über die Outbox erzeugt.
 
 ## Regeln
 

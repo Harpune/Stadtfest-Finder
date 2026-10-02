@@ -66,6 +66,22 @@ flowchart LR
 
 `name`, `date_from`, `date_to`, `place`, `address`, `coordinates`, `category`, `source_url`, `description`. Das Schema ist versioniert im Code und wird vor dem Speichern validiert. Ohne überprüfbare `source_url` wird ein Fund verworfen.
 
+## Domain-Events über die Outbox (ab R07, ADR 0005)
+
+```mermaid
+flowchart LR
+  UC[Use Case<br/>z. B. Fest veröffentlichen] -->|eine Transaktion| DB[(event + outbox)]
+  DB -->|Relay im Worker<br/>jede Sekunde, SKIP LOCKED| Q[[arq-Queue · Redis]]
+  Q --> H[handle_domain_event]
+  H -->|alle Fest-Events| C[Katalog-Cache-Generation erhöhen]
+  H -->|event.deleted| F[Favoriten des Fests entfernen]
+  H -.->|ab R11| N[Benachrichtigungen]
+```
+
+- Jede Änderung eines Fests in der Moderation schreibt ihr Domain-Event (`event.published`, `event.updated` mit `changedFields`, `event.unpublished`, `event.cancelled`, `event.deleted`) **in derselben Transaktion** in die Tabelle `outbox`. Der Payload enthält nur IDs und Feldnamen.
+- Das Relay läuft als Hintergrundschleife im Worker-Prozess, sperrt offene Einträge mit `FOR UPDATE SKIP LOCKED`, reiht sie mit der Event-ID als Job-ID in arq ein und markiert sie als versendet. Zustellung „at least once“; die Konsumenten sind idempotent.
+- Versendete Einträge löscht ein täglicher Job nach 14 Tagen (03:30 Uhr).
+
 ## Abbildung im Code
 
 | Container | Einstiegspunkt | Paket |

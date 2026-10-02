@@ -64,8 +64,10 @@ export function ProfileDrawer({visible, onClose}: ProfileDrawerProps) {
           label={strings.drawer.moderator}
           tone="primary"
           chevron
-          // The moderation view follows in R07.
-          onPress={() => toast(strings.drawer.moderatorSoon)}
+          onPress={() => {
+            onClose();
+            router.push('/mod');
+          }}
           testID="drawer.moderator"
         />
       ) : null}

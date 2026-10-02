@@ -8,7 +8,7 @@ import {Spinner} from '../Spinner/Spinner';
 import {Text} from '../Text/Text';
 
 export type ButtonVariant =
-  'primary' | 'secondary' | 'ghost' | 'danger' | 'mod';
+  'primary' | 'secondary' | 'ghost' | 'danger' | 'destructive' | 'mod';
 export type ButtonSize = 'large' | 'medium';
 
 export interface ButtonProps {
@@ -51,6 +51,13 @@ function colorsFor(theme: Theme, variant: ButtonVariant) {
         foreground: c.error,
         border: c.errorContainer,
       };
+    case 'destructive':
+      // Solid pink confirm button of destructive dialogs (08-09, 08-10).
+      return {
+        background: c.secondary,
+        foreground: c.onSecondary,
+        border: c.secondary,
+      };
     case 'mod':
       return {
         background: c.mod.primary,
@@ -87,7 +94,7 @@ export function Button({
       style={({pressed}) => [
         styles.base,
         {
-          height: size === 'large' ? 54 : 44,
+          minHeight: size === 'large' ? 54 : 44,
           borderRadius:
             size === 'large' ? theme.radius.buttonLarge : theme.radius.button,
           backgroundColor: colors.background,
@@ -101,7 +108,9 @@ export function Button({
         {loading ? <Spinner color={colors.foreground} /> : null}
         <Text
           variant="bodyStrong"
-          style={{color: colors.foreground, fontSize: 16}}
+          // Long labels wrap to a second line and the button grows (08-09).
+          numberOfLines={2}
+          style={[styles.label, {color: colors.foreground}]}
         >
           {loading ? loadingLabel : label}
         </Text>
@@ -116,6 +125,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 18,
+    paddingVertical: 6,
   },
-  content: {flexDirection: 'row', alignItems: 'center', gap: 8},
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    maxWidth: '100%',
+  },
+  label: {fontSize: 16, textAlign: 'center', flexShrink: 1},
 });

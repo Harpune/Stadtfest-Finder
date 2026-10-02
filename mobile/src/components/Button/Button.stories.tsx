@@ -10,7 +10,14 @@ const meta = {
   argTypes: {
     variant: {
       control: 'select',
-      options: ['primary', 'secondary', 'ghost', 'danger', 'mod'],
+      options: [
+        'primary',
+        'secondary',
+        'ghost',
+        'danger',
+        'destructive',
+        'mod',
+      ],
     },
     size: {control: 'inline-radio', options: ['large', 'medium']},
   },
@@ -28,6 +35,9 @@ export const Ghost: Story = {
 };
 export const Danger: Story = {
   args: {variant: 'danger', label: 'Liste löschen'},
+};
+export const Destructive: Story = {
+  args: {variant: 'destructive', label: 'Endgültig löschen'},
 };
 export const Moderator: Story = {
   args: {variant: 'mod', label: 'Veröffentlichen'},
