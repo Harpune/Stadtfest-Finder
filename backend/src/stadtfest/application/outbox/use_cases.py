@@ -11,7 +11,7 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from stadtfest.application.events.use_cases import CATALOG_NAMESPACE
+from stadtfest.application.events.use_cases import CATALOG_NAMESPACE, CATEGORIES_NAMESPACE
 from stadtfest.application.outbox.ports import (
     EventFavorites,
     EventQueue,
@@ -19,6 +19,7 @@ from stadtfest.application.outbox.ports import (
     OutboxStore,
 )
 from stadtfest.application.shared.ports import CachePort
+from stadtfest.domain.events.category import CATEGORY_CHANGED
 from stadtfest.domain.events.images import ImageEventType
 from stadtfest.domain.events.maintenance import DomainEventType
 
@@ -49,7 +50,7 @@ DeleteImageFilesHandler = Callable[[UUID, UUID | None], Awaitable[None]]
 
 
 class HandleDomainEvent:
-    """Consumers: cache invalidation, clean-up of deleted events (R07), images (R08)."""
+    """Consumers: cache invalidation, deleted events (R07), images (R08), categories (R09)."""
 
     def __init__(
         self,
@@ -66,6 +67,11 @@ class HandleDomainEvent:
 
     async def __call__(self, message: OutboxMessage) -> None:
         """React to one domain event."""
+        if message.type == CATEGORY_CHANGED:
+            # Chips (public list, ETag) and catalog counts/filters follow (R09-US5).
+            await self._cache.bump_generation(CATEGORIES_NAMESPACE)
+            await self._cache.bump_generation(CATALOG_NAMESPACE)
+            return
         if message.type in set(ImageEventType):
             await self._handle_image(ImageEventType(message.type), message.payload)
             return

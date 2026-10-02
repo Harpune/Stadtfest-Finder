@@ -28,6 +28,7 @@ from stadtfest.adapters.outbound.geocoding.nominatim import (
 from stadtfest.adapters.outbound.imaging.pillow import PillowImageProcessor
 from stadtfest.adapters.outbound.persistence.accounts import SqlRegionDirectory, SqlUserRepository
 from stadtfest.adapters.outbound.persistence.catalog import SqlCatalog
+from stadtfest.adapters.outbound.persistence.categories import SqlCategoryRepository
 from stadtfest.adapters.outbound.persistence.database import DatabaseProbe, create_engine
 from stadtfest.adapters.outbound.persistence.favorites import SqlFavoriteRepository
 from stadtfest.adapters.outbound.persistence.images import SqlImageRepository
@@ -72,6 +73,13 @@ from stadtfest.application.identity.use_cases import (
     EnsureAccount,
     GetMe,
     UpdateMe,
+)
+from stadtfest.application.moderation.categories import (
+    CreateCategory,
+    DeleteCategory,
+    ListModCategories,
+    OrderCategories,
+    UpdateCategory,
 )
 from stadtfest.application.moderation.images import (
     AttachImage,
@@ -166,6 +174,11 @@ class Container:
     retry_image: RetryImage
     process_image: ProcessImage
     purge_images: PurgeImages
+    list_mod_categories: ListModCategories
+    create_category: CreateCategory
+    update_category: UpdateCategory
+    order_categories: OrderCategories
+    delete_category: DeleteCategory
 
     @classmethod
     def build(cls, settings: Settings) -> Container:
@@ -226,6 +239,7 @@ class Container:
         deleted_accounts = RedisDeletedAccounts(redis)
         favorites = SqlFavoriteRepository(sessions, image_urls)
         images = SqlImageRepository(sessions)
+        categories = SqlCategoryRepository(sessions)
         managed = SqlManagedEventRepository(sessions)
         mod_regions = SqlModRegionDirectory(sessions)
         ensure_account = EnsureAccount(users)
@@ -287,6 +301,11 @@ class Container:
             retry_image=RetryImage(*mod, images, cache, storage),
             process_image=process_image,
             purge_images=PurgeImages(images, storage),
+            list_mod_categories=ListModCategories(categories),
+            create_category=CreateCategory(categories),
+            update_category=UpdateCategory(categories),
+            order_categories=OrderCategories(categories),
+            delete_category=DeleteCategory(categories),
         )
 
     async def aclose(self) -> None:
