@@ -36,6 +36,7 @@ flowchart LR
   APP -- "A1/B2/C1/C8 · HTTPS/REST, JWT" --> API
   APP -. "B1 · OIDC Auth Code + PKCE" .-> IDP
   APP -. "Vektorkacheln, Stil" .-> TILES
+  APP -. "Bild-Upload (signierte URL), Bilder laden" .-> OBJ
   MCPC -- "D1 · MCP über Streamable HTTP" --> MCP
   API --> SVC
   MCP -- D2 --> SVC
@@ -75,12 +76,15 @@ flowchart LR
   Q --> H[handle_domain_event]
   H -->|alle Fest-Events| C[Katalog-Cache-Generation erhöhen]
   H -->|event.deleted| F[Favoriten des Fests entfernen]
+  H -->|image.uploaded| I[Bild prüfen, Metadaten entfernen,<br/>Varianten in den Objektspeicher]
+  H -->|image.removed| R[Bilddateien löschen]
   H -.->|ab R11| N[Benachrichtigungen]
 ```
 
 - Jede Änderung eines Fests in der Moderation schreibt ihr Domain-Event (`event.published`, `event.updated` mit `changedFields`, `event.unpublished`, `event.cancelled`, `event.deleted`) **in derselben Transaktion** in die Tabelle `outbox`. Der Payload enthält nur IDs und Feldnamen.
 - Das Relay läuft als Hintergrundschleife im Worker-Prozess, sperrt offene Einträge mit `FOR UPDATE SKIP LOCKED`, reiht sie mit der Event-ID als Job-ID in arq ein und markiert sie als versendet. Zustellung „at least once“; die Konsumenten sind idempotent.
 - Versendete Einträge löscht ein täglicher Job nach 14 Tagen (03:30 Uhr).
+- Ab R08 laufen auch Bild-Events über die Outbox (`image.uploaded`, `image.removed`, [ADR 0011](../25-adr/0011-bildauslieferung.md)). Die App lädt Fotos mit signierter URL direkt in den Objektspeicher und lädt Varianten direkt aus dessen öffentlichem Präfix `public/`. Ein täglicher Job (03:45 Uhr) räumt verwaiste Uploads und Bilder gelöschter Feste auf.
 
 ## Abbildung im Code
 

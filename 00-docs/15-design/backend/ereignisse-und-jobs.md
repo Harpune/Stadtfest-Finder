@@ -18,7 +18,8 @@ Alles, was nicht unmittelbar für die Antwort an den Aufrufer nötig ist, läuft
 | `list.member_added` | `POST /lists`, `POST /lists/{id}/members` (05) | Notifier | Hinweis „X hat dich zur Liste … hinzugefügt“ (Annahme). |
 | `ai_search.requested` | `POST /mod/ai-searches` (09) | KI-Such-Worker | Suche, Extraktion, Duplikatabgleich, Entwürfe anlegen. |
 | `ai_search.completed` / `.failed` | KI-Such-Worker | Notifier (nur Moderator) | Push/SSE an den Moderator, Leiste in der Übersicht. |
-| `image.uploaded` | `POST /mod/events/{id}/images` | Bild-Worker | Thumbnails und Formate erzeugen, CDN-URLs setzen. |
+| `image.uploaded` | `POST /mod/events/{id}/images`, `…/retry` | Bild-Worker | Typ prüfen, Metadaten entfernen, Varianten `full`/`card`/`thumb` als WebP und JPEG erzeugen, Original löschen ([ADR 0011](../../25-adr/0011-bildauslieferung.md)). |
+| `image.removed` | `DELETE /mod/events/{id}/images/{imageId}` | Bild-Worker | Varianten und Original löschen. |
 
 ## Zeitgesteuerte Jobs
 

@@ -52,7 +52,7 @@ Für native Builds zusätzlich **mindestens 20 GB freien Speicher** einplanen (P
 ## Anmeldung lokal (R05)
 
 - Die App meldet sich per PKCE am lokalen Keycloak an (`EXPO_PUBLIC_AUTH_ISSUER`, Standard `http://localhost:58080/realms/stadtfest`). Das Backend prüft die Tokens gegen denselben Issuer (`AUTH_ISSUER` in `.env`). Beide Adressen müssen **gleich** sein, denn Keycloak schreibt den aufgerufenen Host in `iss`.
-- **Android-Emulator:** `adb reverse tcp:58080 tcp:58080 && adb reverse tcp:8000 tcp:8000`, dann funktioniert `localhost` auch im Emulator. **Echtes Gerät:** in `mobile/.env` und `.env` die LAN-IP statt `localhost` eintragen.
+- **Android-Emulator:** `adb reverse tcp:58080 tcp:58080 && adb reverse tcp:8000 tcp:8000 && adb reverse tcp:58333 tcp:58333` (58333: Objektspeicher für Bild-Upload und -Anzeige, R08), dann funktioniert `localhost` auch im Emulator. **Echtes Gerät:** in `mobile/.env` und `.env` die LAN-IP statt `localhost` eintragen.
 - **Kontolöschung:** `.env` enthält `IDP_ADMIN_PROVIDER=keycloak` mit dem Dev-Client `stadtfest-admin` (siehe `.env.example`). Fehlen die Variablen in einer älteren `.env`, nutzt das Backend den Fake und löscht den Keycloak-Nutzer nicht.
 - **Realm aktualisieren:** Keycloak importiert `stadtfest-realm.json` nur, wenn der Realm noch nicht existiert. Nach Änderungen am Realm (z. B. dem Client `stadtfest-admin` aus R05) den Container neu anlegen: `docker compose -f infra/compose.dev.yaml up -d --force-recreate keycloak`. Lokal angelegte Nutzer gehen dabei verloren.
 
@@ -61,7 +61,7 @@ Für native Builds zusätzlich **mindestens 20 GB freien Speicher** einplanen (P
 - **PostGIS-Image:** `imresamu/postgis` ist der Multi-Arch-Build des PostGIS-Docker-Maintainers. Das offizielle Image hat kein ARM64 (Apple Silicon).
 - **Integrationstests** (`make test`) starten eigene Container per Testcontainers, Docker muss laufen. `make test-unit` braucht kein Docker.
 - **Maestro** (`make test-e2e`) erwartet einen laufenden Simulator bzw. Emulator mit installiertem Development-Build und laufendem Metro.
-- **Echtes Android-Gerät per USB:** USB-Debugging einschalten, dann `adb reverse tcp:8081 tcp:8081`, `adb reverse tcp:8000 tcp:8000` und `adb reverse tcp:58080 tcp:58080`. So erreicht das Gerät Metro, API und Keycloak unter `localhost`, und der Issuer im Token passt zum Backend. Build: `cd mobile/android && ./gradlew assembleDebug`, Installation: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
+- **Echtes Android-Gerät per USB:** USB-Debugging einschalten, dann `adb reverse tcp:8081 tcp:8081`, `adb reverse tcp:8000 tcp:8000`, `adb reverse tcp:58080 tcp:58080` und `adb reverse tcp:58333 tcp:58333`. So erreicht das Gerät Metro, API, Keycloak und den Objektspeicher (SeaweedFS) unter `localhost`, und der Issuer im Token passt zum Backend. Build: `cd mobile/android && ./gradlew assembleDebug`, Installation: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
 - Maestro 2.10 kann auf manchen echten Android-Geräten keinen Text eingeben (Pixel 8, Android 17: `inputText` bricht nach 120 s ab, auch mit abgeschalteten Animationen). Flows mit Texteingabe tragen das Tag `typing`; auf solchen Geräten `cd mobile && maestro test --exclude-tags typing .maestro` verwenden.
 - **Codegen:** Nach Änderungen an `api/openapi.yaml` oder `00-docs/15-design/design/design-tokens.json` immer `make gen` ausführen und das Ergebnis committen (CI prüft auf Drift).
 

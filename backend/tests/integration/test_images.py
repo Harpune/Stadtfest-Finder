@@ -315,3 +315,11 @@ async def test_purge_removes_stale_uploads_and_images_of_deleted_events(world: W
     assert not await world.storage.exists(all_variant_keys(image.id)[0])
     async with world.sessions() as session:
         assert await session.scalar(select(UploadRow.id).where(UploadRow.id == stale)) is None
+
+
+async def test_account_deletion_removes_the_upload_slots(world: World) -> None:
+    upload_id = await _upload(world, b"pending")
+    assert await SqlUserRepository(world.sessions).delete_personal_data(MODERATOR.subject)
+
+    async with world.sessions() as session:
+        assert await session.get(UploadRow, upload_id) is None

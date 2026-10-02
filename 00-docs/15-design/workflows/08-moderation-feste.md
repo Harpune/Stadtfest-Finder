@@ -107,7 +107,7 @@ flowchart TD
 
 ## Stand der Umsetzung (R07)
 
-- Bilder (08-04 unten) folgen in R08, die KI-Suche („Suchen“) in R10, der Tab „Kategorien“ in R09; bis dahin zeigt der Tab einen Hinweis.
+- Die KI-Suche („Suchen“) folgt in R10, der Tab „Kategorien“ in R09; bis dahin zeigt der Tab einen Hinweis.
 - Datumsfelder nutzen die Systemauswahl (`@react-native-community/datetimepicker`, Entscheidung 01.10.2026).
 - Die Status-Chips der Übersicht zeigen die Anzahl je Status und filtern auf dem Gerät.
 - „Als Entwurf“ bei einem veröffentlichten Fest speichert die Änderungen und zieht das Fest danach zurück (`PATCH` + `POST …/unpublish`).
@@ -123,3 +123,13 @@ flowchart TD
 - Jede Zeile zeigt Status-Pill, ggf. „Automatisch gefunden“ ([09](09-moderation-ki-suche.md)) und „♥ Anzahl Favoriten“.
 - **Region:** Liegt der Pin außerhalb der eigenen Region, lehnt das Backend das Veröffentlichen mit `422 region_mismatch` ab (Annahme).
 - **Gleichzeitiges Bearbeiten:** Optimistische Sperre über `version`. Bei `409` erscheint „Dieses Fest wurde inzwischen geändert“ mit der Möglichkeit, neu zu laden (Annahme).
+
+## Stand der Umsetzung (R08)
+
+- Bilder stehen im Formular unter „Website“ (08-04): Raster mit 3 Spalten, „Titelbild“ am ersten Bild, ✕ entfernt sofort, gestrichelte Kachel „+ Hochladen“ (bis 12 Bilder).
+- Die Mediathek erlaubt Mehrfachauswahl. Die App verkleinert auf höchstens 2.560 px und speichert JPEG mit Qualität 0,85. Die Kacheln zeigen „Lädt hoch“, danach „Wird verarbeitet“. Die App fragt alle 2 s nach, bis das Bild fertig ist.
+- **Titelbild ändern:** lange drücken → Menü „Als Titelbild“ / „Bild entfernen“ (Entscheidung 02.10.2026 statt Ziehen, das im Design fehlt).
+- Fehlgeschlagene Bilder zeigen „Fehlgeschlagen · Erneut versuchen“.
+- Bei einem neuen Fest speichert der erste Upload automatisch einen Entwurf. Ohne Namen erscheint der Hinweis, zuerst einen Namen einzugeben.
+- Bildänderungen erhöhen nicht die `version` des Fests. Gleichzeitiges Bearbeiten der Felder bleibt davon unberührt.
+- Die Katalog-Generation wird bei jeder Bildänderung erhöht, nicht nur beim Titelbild veröffentlichter Feste. Das ist einfacher und kostet nur einen zusätzlichen Cache-Neuaufbau.
