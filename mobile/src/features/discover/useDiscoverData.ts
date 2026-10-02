@@ -24,9 +24,14 @@ const CATEGORIES_STALE_MS = 15 * 60 * 1000;
 
 /** Active categories in moderation order (stale after 15 min; the API adds an ETag). */
 export function useCategories() {
-  return $api.useQuery('get', '/v1/categories', undefined, {
-    staleTime: CATEGORIES_STALE_MS,
-  });
+  return $api.useQuery(
+    'get',
+    '/v1/categories',
+    // Revalidate (ETag, usually 304) instead of using Android's HTTP cache for 15 min:
+    // otherwise leaving the moderation view showed changed chips only much later.
+    {headers: {'Cache-Control': 'no-cache'}},
+    {staleTime: CATEGORIES_STALE_MS},
+  );
 }
 
 /**

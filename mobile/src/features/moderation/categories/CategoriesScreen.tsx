@@ -106,8 +106,8 @@ export function CategoriesScreen() {
                   label={category.name}
                   emoji={category.emoji}
                   variant="sheet"
+                  // Preview only: looks like the real chip, a tap does nothing.
                   onPress={() => undefined}
-                  disabled
                   testID={`mod.categories.preview.${category.id}`}
                 />
               ))}

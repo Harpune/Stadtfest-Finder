@@ -210,8 +210,8 @@ function CategoryForm({
               label={fields.name.trim() || strings.mod.categories.title}
               emoji={fields.emoji}
               variant="sheet"
+              // Preview only: looks like the real chip, a tap does nothing.
               onPress={() => undefined}
-              disabled
               testID="mod.category.preview.chip"
             />
             <EventMarker
