@@ -32,7 +32,8 @@ tags:
     description: |
       Event maintenance for moderators of a region (R07, context `moderation`). Requires the
       role `moderator`; events of other regions answer `404`. Changes are written together
-      with a domain event (transactional outbox, ADR 0005).
+      with a domain event (transactional outbox, ADR 0005). Categories (R09) are app-wide:
+      `moderator` reads, `category_admin` writes.
   - name: account
     description: |
       Profile of the signed-in user (flow B). The user is created on the first call; the
@@ -697,6 +698,155 @@ paths:
           $ref: "#/components/responses/Error"
         default:
           $ref: "#/components/responses/Error"
+  /v1/mod/categories:
+    get:
+      operationId: listModCategories
+      tags: [moderation]
+      summary: All categories for maintenance
+      description: |
+        All categories including inactive ones, in chip order, with the number of events
+        (all regions and statuses except deleted). Roles `moderator` or `category_admin`.
+      responses:
+        "200":
+          description: The categories.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ModCategory"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createModCategory
+      tags: [moderation]
+      summary: Create a category (appended at the end)
+      description: |
+        Role `category_admin`. Name 1–40 characters and unique ignoring case (`422` with
+        `fields.name` = `required` / `duplicate`); emoji and color only from the presets.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModCategoryCreate"
+      responses:
+        "201":
+          description: The new category.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModCategory"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/mod/categories/order:
+    put:
+      operationId: orderModCategories
+      tags: [moderation]
+      summary: Set the chip order
+      description: |
+        Role `category_admin`. The complete list of category IDs in the new order (`422`
+        if one is missing, unknown or repeated).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryOrderRequest"
+      responses:
+        "200":
+          description: The categories in the new order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ModCategory"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/mod/categories/{categoryId}:
+    parameters:
+      - $ref: "#/components/parameters/CategoryId"
+    patch:
+      operationId: updateModCategory
+      tags: [moderation]
+      summary: Change a category
+      description: |
+        Role `category_admin`. Only the given fields change. Deactivated categories are no
+        filter chip anymore and cannot be chosen for publishing; their events stay visible.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModCategoryPatch"
+      responses:
+        "200":
+          description: The changed category.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModCategory"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteModCategory
+      tags: [moderation]
+      summary: Delete a category, moving its events
+      description: |
+        Role `category_admin`. If events use the category, `replacementId` is required
+        (`422 replacement_required`); the events (including deleted ones) move and the
+        category is deleted in one transaction. `replacementId` must be another existing
+        category (`422 invalid_replacement`).
+      parameters:
+        - name: replacementId
+          in: query
+          required: false
+          description: Category that takes over the events.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryDeleted"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
   /v1/mod/geocode/reverse:
     get:
       operationId: reverseGeocodeEventLocation
@@ -899,6 +1049,14 @@ components:
       schema:
         type: string
   parameters:
+    CategoryId:
+      name: categoryId
+      in: path
+      required: true
+      description: Category ID.
+      schema:
+        type: string
+        format: uuid
     ImageId:
       name: imageId
       in: path
@@ -1047,6 +1205,89 @@ components:
         sortOrder:
           type: integer
           minimum: 0
+    CategoryEmoji:
+      type: string
+      description: One of the 12 preset emojis (design reference §14).
+      enum: ["🎪", "🎡", "🎄", "🐎", "🍺", "🍷", "🎭", "🎶", "🏰", "🎃", "🌸", "🔥"]
+    CategoryColor:
+      type: string
+      description: One of the 6 preset colors (theme-farben.md).
+      enum: ["#FFB547", "#FF6B8B", "#5EEAD4", "#8B9CFF", "#7ED957", "#C792EA"]
+    ModCategory:
+      type: object
+      description: Category in the moderation view, including inactive ones.
+      required: [id, name, emoji, color, active, sortOrder, eventCount]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        emoji:
+          type: string
+        color:
+          type: string
+          pattern: "^#[0-9A-F]{6}$"
+        active:
+          type: boolean
+        sortOrder:
+          type: integer
+          minimum: 0
+        eventCount:
+          type: integer
+          minimum: 0
+          description: Events of all regions and statuses except deleted.
+    ModCategoryCreate:
+      type: object
+      required: [name, emoji, color]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 40
+        emoji:
+          $ref: "#/components/schemas/CategoryEmoji"
+        color:
+          $ref: "#/components/schemas/CategoryColor"
+        active:
+          type: boolean
+          default: true
+    ModCategoryPatch:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 40
+        emoji:
+          $ref: "#/components/schemas/CategoryEmoji"
+        color:
+          $ref: "#/components/schemas/CategoryColor"
+        active:
+          type: boolean
+    CategoryOrderRequest:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: string
+            format: uuid
+    CategoryDeleted:
+      type: object
+      required: [movedEvents]
+      properties:
+        movedEvents:
+          type: integer
+          minimum: 0
+          description: Events moved to the replacement category.
+        replacementId:
+          type: ["string", "null"]
+          format: uuid
     CategoryRef:
       type: object
       description: Category as embedded in an event detail.

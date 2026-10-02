@@ -387,6 +387,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/mod/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * All categories for maintenance
+         * @description All categories including inactive ones, in chip order, with the number of events
+         *     (all regions and statuses except deleted). Roles `moderator` or `category_admin`.
+         */
+        get: operations["listModCategories"];
+        put?: never;
+        /**
+         * Create a category (appended at the end)
+         * @description Role `category_admin`. Name 1–40 characters and unique ignoring case (`422` with
+         *     `fields.name` = `required` / `duplicate`); emoji and color only from the presets.
+         */
+        post: operations["createModCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/mod/categories/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the chip order
+         * @description Role `category_admin`. The complete list of category IDs in the new order (`422`
+         *     if one is missing, unknown or repeated).
+         */
+        put: operations["orderModCategories"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/mod/categories/{categoryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Category ID. */
+                categoryId: components["parameters"]["CategoryId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a category, moving its events
+         * @description Role `category_admin`. If events use the category, `replacementId` is required
+         *     (`422 replacement_required`); the events (including deleted ones) move and the
+         *     category is deleted in one transaction. `replacementId` must be another existing
+         *     category (`422 invalid_replacement`).
+         */
+        delete: operations["deleteModCategory"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a category
+         * @description Role `category_admin`. Only the given fields change. Deactivated categories are no
+         *     filter chip anymore and cannot be chosen for publishing; their events stay visible.
+         */
+        patch: operations["updateModCategory"];
+        trace?: never;
+    };
     "/v1/mod/geocode/reverse": {
         parameters: {
             query?: never;
@@ -548,6 +626,50 @@ export interface components {
             /** @example #FFB547 */
             color: string;
             sortOrder: number;
+        };
+        /**
+         * @description One of the 12 preset emojis (design reference §14).
+         * @enum {string}
+         */
+        CategoryEmoji: "🎪" | "🎡" | "🎄" | "🐎" | "🍺" | "🍷" | "🎭" | "🎶" | "🏰" | "🎃" | "🌸" | "🔥";
+        /**
+         * @description One of the 6 preset colors (theme-farben.md).
+         * @enum {string}
+         */
+        CategoryColor: "#FFB547" | "#FF6B8B" | "#5EEAD4" | "#8B9CFF" | "#7ED957" | "#C792EA";
+        /** @description Category in the moderation view, including inactive ones. */
+        ModCategory: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            emoji: string;
+            color: string;
+            active: boolean;
+            sortOrder: number;
+            /** @description Events of all regions and statuses except deleted. */
+            eventCount: number;
+        };
+        ModCategoryCreate: {
+            name: string;
+            emoji: components["schemas"]["CategoryEmoji"];
+            color: components["schemas"]["CategoryColor"];
+            /** @default true */
+            active: boolean;
+        };
+        ModCategoryPatch: {
+            name?: string;
+            emoji?: components["schemas"]["CategoryEmoji"];
+            color?: components["schemas"]["CategoryColor"];
+            active?: boolean;
+        };
+        CategoryOrderRequest: {
+            ids: string[];
+        };
+        CategoryDeleted: {
+            /** @description Events moved to the replacement category. */
+            movedEvents: number;
+            /** Format: uuid */
+            replacementId?: string | null;
         };
         /** @description Category as embedded in an event detail. */
         CategoryRef: {
@@ -918,6 +1040,8 @@ export interface components {
         };
     };
     parameters: {
+        /** @description Category ID. */
+        CategoryId: string;
         /** @description Image ID. */
         ImageId: string;
         /** @description Event ID. */
@@ -1598,6 +1722,148 @@ export interface operations {
             403: components["responses"]["Error"];
             404: components["responses"]["Error"];
             409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    listModCategories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The categories. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModCategory"][];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    createModCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModCategoryCreate"];
+            };
+        };
+        responses: {
+            /** @description The new category. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModCategory"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    orderModCategories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryOrderRequest"];
+            };
+        };
+        responses: {
+            /** @description The categories in the new order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModCategory"][];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteModCategory: {
+        parameters: {
+            query?: {
+                /** @description Category that takes over the events. */
+                replacementId?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Category ID. */
+                categoryId: components["parameters"]["CategoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryDeleted"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    updateModCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Category ID. */
+                categoryId: components["parameters"]["CategoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModCategoryPatch"];
+            };
+        };
+        responses: {
+            /** @description The changed category. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModCategory"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
             422: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
