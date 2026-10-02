@@ -31,6 +31,7 @@ export type IconName =
   | 'more'
   | 'pin'
   | 'grip'
+  | 'check'
   | 'chevronRight';
 
 export interface IconProps {
@@ -188,6 +189,8 @@ function renderIcon(name: IconName, c: Common) {
           )}
         </>
       );
+    case 'check':
+      return <Polyline points="5 12.5 10 17.5 19 7" {...c} />;
     case 'chevronRight':
       return <Polyline points="9 6 15 12 9 18" {...c} />;
     case 'pin':

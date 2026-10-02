@@ -7,6 +7,7 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {FlatList, StyleSheet, View} from 'react-native';
 
 import {
+  AiSearchBanner,
   Button,
   ChipRow,
   Chip,
@@ -26,6 +27,8 @@ import {
 import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
 
+import {AiSearch, useAiSearch} from './ai/AiSearchProvider';
+import {AiSearchSheet} from './ai/AiSearchSheet';
 import {
   ModEventSummary,
   useExitModeration,
@@ -60,6 +63,8 @@ export function ModEventsScreen() {
   const exit = useExitModeration();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<StatusFilter>('all');
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const ai = useAiSearch();
   const categoryOf = buildCategoryLookup(categories.data);
 
   // The role was taken away meanwhile: back to the user view (R07-US1).
@@ -100,6 +105,13 @@ export function ModEventsScreen() {
           {strings.mod.title}
         </Text>
         <Button
+          label={strings.mod.ai.searchButton}
+          variant="modOutline"
+          size="medium"
+          onPress={() => setSheetOpen(true)}
+          testID="mod.events.aiSearch"
+        />
+        <Button
           label={strings.mod.newEvent}
           variant="mod"
           size="medium"
@@ -114,6 +126,13 @@ export function ModEventsScreen() {
         variant="surface"
         testID="mod.events.search"
       />
+      {ai.search ? (
+        <SearchStatus
+          search={ai.search}
+          onDismiss={ai.dismiss}
+          onRetry={() => void ai.start(ai.search?.postalCode ?? '')}
+        />
+      ) : null}
       <ChipRow testID="mod.events.filters">
         {FILTERS.map(key => (
           <Chip
@@ -134,71 +153,74 @@ export function ModEventsScreen() {
   );
 
   return (
-    <FlatList
-      testID="mod.events"
-      data={items ? visible : []}
-      keyExtractor={event => event.id}
-      contentContainerStyle={styles.content}
-      style={{backgroundColor: theme.colors.background}}
-      ListHeaderComponent={header}
-      refreshing={events.isRefetching}
-      onRefresh={() => void events.refetch()}
-      renderItem={({item}) => {
-        const category = item.categoryId
-          ? categoryOf(item.categoryId)
-          : undefined;
-        const start = item.startDate ? parseIsoDate(item.startDate) : null;
-        const range =
-          item.startDate && item.endDate
-            ? `${formatDateRange(item.startDate, item.endDate)} ${yearOf(item.endDate)}`
-            : '';
-        const meta = [
-          `${category?.emoji ?? '📍'} ${item.city || item.place || '–'}`,
-          range,
-        ]
-          .filter(Boolean)
-          .join(' · ');
-        return (
-          <ModEventRow
-            name={item.name}
-            status={item.status}
-            day={start ? String(start.day) : '–'}
-            month={start ? monthShort(start.month).toUpperCase() : ''}
-            meta={meta}
-            favoriteCount={item.favoriteCount}
-            autoFound={item.source === 'ai'}
-            onPress={() => router.push(`/mod/fest/${item.id}`)}
-            testID={`mod.events.row.${item.id}`}
-          />
-        );
-      }}
-      ListEmptyComponent={
-        events.isPending ? (
-          <View style={styles.list}>
-            {[0, 1, 2].map(i => (
-              <ModEventRowSkeleton key={i} />
-            ))}
-          </View>
-        ) : events.isError && !forbidden ? (
-          <EmptyState
-            title={strings.mod.loadFailed}
-            text=""
-            primary={{
-              label: strings.mod.retry,
-              onPress: () => void events.refetch(),
-              testID: 'mod.events.retry',
-            }}
-            testID="mod.events.error"
-          />
-        ) : (
-          <EmptyState
-            title={strings.mod.emptyTitle}
-            text={strings.mod.emptyText}
-            testID="mod.events.empty"
-          />
-        )
-      }
-    />
+    <>
+      <AiSearchSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} />
+      <FlatList
+        testID="mod.events"
+        data={items ? visible : []}
+        keyExtractor={event => event.id}
+        contentContainerStyle={styles.content}
+        style={{backgroundColor: theme.colors.background}}
+        ListHeaderComponent={header}
+        refreshing={events.isRefetching}
+        onRefresh={() => void events.refetch()}
+        renderItem={({item}) => {
+          const category = item.categoryId
+            ? categoryOf(item.categoryId)
+            : undefined;
+          const start = item.startDate ? parseIsoDate(item.startDate) : null;
+          const range =
+            item.startDate && item.endDate
+              ? `${formatDateRange(item.startDate, item.endDate)} ${yearOf(item.endDate)}`
+              : '';
+          const meta = [
+            `${category?.emoji ?? '📍'} ${item.city || item.place || '–'}`,
+            range,
+          ]
+            .filter(Boolean)
+            .join(' · ');
+          return (
+            <ModEventRow
+              name={item.name}
+              status={item.status}
+              day={start ? String(start.day) : '–'}
+              month={start ? monthShort(start.month).toUpperCase() : ''}
+              meta={meta}
+              favoriteCount={item.favoriteCount}
+              autoFound={item.source === 'ai'}
+              onPress={() => router.push(`/mod/fest/${item.id}`)}
+              testID={`mod.events.row.${item.id}`}
+            />
+          );
+        }}
+        ListEmptyComponent={
+          events.isPending ? (
+            <View style={styles.list}>
+              {[0, 1, 2].map(i => (
+                <ModEventRowSkeleton key={i} />
+              ))}
+            </View>
+          ) : events.isError && !forbidden ? (
+            <EmptyState
+              title={strings.mod.loadFailed}
+              text=""
+              primary={{
+                label: strings.mod.retry,
+                onPress: () => void events.refetch(),
+                testID: 'mod.events.retry',
+              }}
+              testID="mod.events.error"
+            />
+          ) : (
+            <EmptyState
+              title={strings.mod.emptyTitle}
+              text={strings.mod.emptyText}
+              testID="mod.events.empty"
+            />
+          )
+        }
+      />
+    </>
   );
 }
 
@@ -209,3 +231,52 @@ const styles = StyleSheet.create({
   title: {flex: 1},
   list: {gap: 12},
 });
+
+/** Status bar of the AI search (09-02, 09-03). */
+function SearchStatus({
+  search,
+  onDismiss,
+  onRetry,
+}: {
+  search: AiSearch;
+  onDismiss: () => void;
+  onRetry: () => void;
+}) {
+  if (search.status === 'queued' || search.status === 'running') {
+    return (
+      <AiSearchBanner
+        state="running"
+        text={strings.mod.ai.running(search.postalCode, search.placeName)}
+        testID="mod.ai.banner"
+      />
+    );
+  }
+  if (search.status === 'failed') {
+    return (
+      <AiSearchBanner
+        state="failed"
+        text={strings.mod.ai.failed}
+        onRetry={onRetry}
+        onDismiss={onDismiss}
+        testID="mod.ai.banner"
+      />
+    );
+  }
+  const found = search.newEventIds.length;
+  return found > 0 ? (
+    <AiSearchBanner
+      state="found"
+      text={strings.mod.ai.found(found, search.postalCode)}
+      onReview={() => router.push(`/mod/pruefen/${search.id}`)}
+      onDismiss={onDismiss}
+      testID="mod.ai.banner"
+    />
+  ) : (
+    <AiSearchBanner
+      state="nothing"
+      text={strings.mod.ai.nothing(search.postalCode, search.skipped.duplicate)}
+      onDismiss={onDismiss}
+      testID="mod.ai.banner"
+    />
+  );
+}

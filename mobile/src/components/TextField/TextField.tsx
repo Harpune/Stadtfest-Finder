@@ -28,6 +28,10 @@ export interface TextFieldProps extends Pick<
   multiline?: boolean;
   /** Hide the label (e.g. second field under one heading). */
   hideLabel?: boolean;
+  /** `code`: large spaced digits, e.g. a postal code (09-01). */
+  variant?: 'default' | 'code';
+  /** Border color of a valid, focused-looking field (e.g. the moderation accent). */
+  accentColor?: string;
 }
 
 /** Labeled text input (height 52, radius 14) as in the login design (03-04). */
@@ -41,6 +45,8 @@ export function TextField({
   maxLength,
   multiline = false,
   hideLabel = false,
+  variant = 'default',
+  accentColor,
   ...inputProps
 }: TextFieldProps) {
   const theme = useTheme();
@@ -63,12 +69,15 @@ export function TextField({
         style={[
           styles.input,
           multiline ? styles.multiline : null,
+          variant === 'code'
+            ? [styles.code, {fontFamily: theme.fonts.semibold}]
+            : null,
           {
             color: c.onSurface,
             backgroundColor: c.surface,
-            borderColor: error ? c.error : c.outline,
+            borderColor: error ? c.error : (accentColor ?? c.outline),
             borderRadius: theme.radius.input,
-            fontFamily: theme.fonts.regular,
+            ...(variant === 'code' ? null : {fontFamily: theme.fonts.regular}),
             opacity: disabled ? 0.5 : 1,
           },
         ]}
@@ -85,6 +94,8 @@ export function TextField({
 const styles = StyleSheet.create({
   container: {gap: 6},
   input: {height: 52, borderWidth: 1, paddingHorizontal: 16, fontSize: 16},
+  // 22/600 with 0.12 em tracking (09-01).
+  code: {height: 64, fontSize: 22, letterSpacing: 2.64},
   multiline: {
     height: undefined,
     minHeight: 110,

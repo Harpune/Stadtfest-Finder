@@ -9,6 +9,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {ModBanner, ModTabBar} from '@/components';
 import {useAuth} from '@/features/auth/AuthProvider';
+import {AiSearchProvider} from '@/features/moderation/ai/AiSearchProvider';
 import {useExitModeration} from '@/features/moderation/useModeration';
 import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
@@ -40,13 +41,15 @@ export default function ModerationLayout() {
         testID="mod.banner"
       />
       <View style={styles.content}>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: {backgroundColor: theme.colors.background},
-            animation: 'slide_from_right',
-          }}
-        />
+        <AiSearchProvider>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: {backgroundColor: theme.colors.background},
+              animation: 'slide_from_right',
+            }}
+          />
+        </AiSearchProvider>
       </View>
       <ModTabBar
         tabs={TABS}
