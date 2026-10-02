@@ -1,6 +1,14 @@
 // Global test setup: native modules that need mocks in Jest.
 import 'react-native-gesture-handler/jestSetup';
 
+// Reanimated 4 / Worklets (SortableList, R09): official mocks, no native runtime in Jest.
+jest.mock('react-native-worklets', () =>
+  require('react-native-worklets/lib/module/mock'),
+);
+jest.mock('react-native-reanimated', () =>
+  require('react-native-reanimated/mock'),
+);
+
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );

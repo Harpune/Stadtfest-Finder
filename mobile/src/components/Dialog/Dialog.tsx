@@ -18,6 +18,8 @@ export interface DialogProps {
   tone?: 'default' | 'danger' | 'mod';
   /** Shows a spinner in the confirm button and blocks both buttons. */
   busy?: boolean;
+  /** Blocks the confirm button, e.g. until a replacement is chosen (10-04). */
+  confirmDisabled?: boolean;
   testID: string;
 }
 
@@ -32,6 +34,7 @@ export function Dialog({
   onCancel,
   tone = 'default',
   busy = false,
+  confirmDisabled = false,
   testID,
   children,
 }: PropsWithChildren<DialogProps>) {
@@ -85,6 +88,7 @@ export function Dialog({
               }
               onPress={onConfirm}
               loading={busy}
+              disabled={confirmDisabled}
               testID={`${testID}.confirm`}
               style={styles.confirm}
             />

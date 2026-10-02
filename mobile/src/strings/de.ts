@@ -151,7 +151,69 @@ export const strings = {
     darkModeSystem: 'Darstellung folgt wieder dem System',
     moderator: 'Moderator-Ansicht',
   },
+  sortable: {
+    handle: 'Zum Verschieben ziehen',
+    up: 'Nach oben verschieben',
+    down: 'Nach unten verschieben',
+  },
   mod: {
+    categories: {
+      title: 'Kategorien',
+      add: '+ Neu',
+      intro:
+        'Gilt app-weit. Ziehe am Griff, um die Reihenfolge der Filter-Chips auf der Startseite festzulegen.',
+      introReadOnly:
+        'Gilt app-weit. Nur Kategorie-Admins können Kategorien ändern.',
+      preview: 'Vorschau Startseite',
+      events: (n: number) => (n === 1 ? '1 Fest' : `${n} Feste`),
+      inactive: (n: number) =>
+        `Deaktiviert · ${n === 1 ? '1 Fest' : `${n} Feste`}`,
+      orderSaved:
+        'Reihenfolge gespeichert · Chips auf der Startseite aktualisiert',
+      empty: 'Noch keine Kategorien',
+      emptyText: 'Lege die erste Kategorie mit „+ Neu“ an.',
+      loadFailed: 'Kategorien nicht geladen',
+      loadFailedText: 'Prüfe die Verbindung und versuche es erneut.',
+      retry: 'Erneut laden',
+      editTitle: 'Kategorie bearbeiten',
+      newTitle: 'Neue Kategorie',
+      viewTitle: 'Kategorie',
+      readOnly: 'Nur Kategorie-Admins können Kategorien ändern.',
+      formPreview: 'Vorschau',
+      name: 'Name *',
+      emoji: 'Emoji',
+      color: 'Farbe',
+      colorHint:
+        'Die Farbe umrandet die Marker dieser Kategorie auf der Karte.',
+      colorLabel: (hex: string) => `Farbe ${hex}`,
+      active: 'Aktiv',
+      activeHint:
+        'Deaktivierte Kategorien erscheinen nicht als Chip. Zugeordnete Feste bleiben sichtbar.',
+      save: 'Speichern',
+      delete: 'Kategorie löschen',
+      saved: 'Gespeichert · Chips auf der Startseite aktualisiert',
+      created: 'Kategorie angelegt',
+      errors: {
+        required: 'Bitte gib einen Namen ein.',
+        duplicate: 'Diesen Namen gibt es schon.',
+        too_long: 'Der Name ist zu lang (höchstens 40 Zeichen).',
+      },
+      deleteDialog: {
+        title: (name: string) => `„${name}“ löschen?`,
+        simple: 'Die Kategorie wird endgültig gelöscht.',
+        withEvents: (n: number) =>
+          `${n === 1 ? '1 Fest ist' : `${n} Feste sind`} dieser Kategorie zugeordnet. Wähle eine Ersatzkategorie, in die sie verschoben werden.`,
+        deletedOnly:
+          'Gelöschte Feste verweisen noch auf diese Kategorie. Wähle eine Ersatzkategorie.',
+        replacement: 'Ersatzkategorie *',
+        choose: 'Ersatz wählen',
+        confirmMove: 'Löschen und verschieben',
+        confirm: 'Endgültig löschen',
+      },
+      deleted: 'Kategorie gelöscht',
+      deletedMoved: (n: number, name: string) =>
+        `Gelöscht · ${n === 1 ? '1 Fest' : `${n} Feste`} nach „${name}“ verschoben`,
+    },
     images: {
       title: 'Bilder',
       add: '+ Hochladen',
@@ -190,7 +252,6 @@ export const strings = {
     forbidden: 'Die Moderator-Ansicht ist für dich nicht freigegeben',
     tabEvents: 'Feste',
     tabCategories: 'Kategorien',
-    categoriesSoon: 'Die Kategorien-Verwaltung folgt in Kürze',
     title: 'Feste',
     newEvent: '+ Neues Fest',
     searchPlaceholder: 'Fest oder Ort in deiner Region',

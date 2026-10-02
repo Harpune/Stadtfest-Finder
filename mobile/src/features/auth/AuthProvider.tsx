@@ -59,6 +59,8 @@ interface AuthContextValue {
   /** Email from the ID token; the backend never stores it (E-08). */
   email: string | null;
   isModerator: boolean;
+  /** May change app-wide categories (R09, role `category_admin`). */
+  isCategoryAdmin: boolean;
   pendingAction: PendingAction | null;
   /**
    * Requests an account action. For guests it remembers the action and shows the hint.
@@ -275,6 +277,7 @@ export function AuthProvider({
       user,
       email: readIdTokenClaims(idToken).email ?? null,
       isModerator: user?.roles.includes('moderator') ?? false,
+      isCategoryAdmin: user?.roles.includes('category_admin') ?? false,
       pendingAction,
       requestAccountAction,
       openLogin,

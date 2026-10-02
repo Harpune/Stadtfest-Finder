@@ -124,6 +124,8 @@ export function useExitModeration() {
       void queryClient.invalidateQueries({
         queryKey: ['get', '/v1/events/count'],
       });
+      // Category changes show up as chips at once (R09-US5).
+      void queryClient.invalidateQueries({queryKey: ['get', '/v1/categories']});
       queryClient.removeQueries({queryKey: ['get', '/v1/mod/events']});
       // Back to the map in the root stack; dismissAll() would only pop the nested
       // moderation stack (form → overview).

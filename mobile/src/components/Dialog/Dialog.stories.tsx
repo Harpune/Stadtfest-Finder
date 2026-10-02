@@ -49,3 +49,6 @@ export const Neutral: Story = {
     confirmLabel: 'Neu laden',
   },
 };
+export const ConfirmDisabled: Story = {
+  args: {confirmDisabled: true, confirmLabel: 'Ersatz wählen'},
+};

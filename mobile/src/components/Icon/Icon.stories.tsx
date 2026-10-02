@@ -28,6 +28,11 @@ const NAMES: IconName[] = [
   'parking',
   'globe',
   'arrowUpRight',
+  'shield',
+  'more',
+  'pin',
+  'grip',
+  'chevronRight',
 ];
 
 const meta = {

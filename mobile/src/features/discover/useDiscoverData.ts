@@ -19,9 +19,10 @@ type CountParams = NonNullable<
 
 /** Map shows up to this many markers per viewport (R03 open point: limit 500). */
 export const SEARCH_PAGE_SIZE = 500;
-const CATEGORIES_STALE_MS = 60 * 60 * 1000;
+// Category changes reach the chips after at most 15 min (R09-US5).
+const CATEGORIES_STALE_MS = 15 * 60 * 1000;
 
-/** Active categories in moderation order (cached 1 h; the API adds an ETag). */
+/** Active categories in moderation order (stale after 15 min; the API adds an ETag). */
 export function useCategories() {
   return $api.useQuery('get', '/v1/categories', undefined, {
     staleTime: CATEGORIES_STALE_MS,

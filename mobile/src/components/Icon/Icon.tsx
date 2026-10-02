@@ -29,7 +29,9 @@ export type IconName =
   | 'arrowUpRight'
   | 'shield'
   | 'more'
-  | 'pin';
+  | 'pin'
+  | 'grip'
+  | 'chevronRight';
 
 export interface IconProps {
   name: IconName;
@@ -169,6 +171,25 @@ function renderIcon(name: IconName, c: Common) {
           <Circle cx={18} cy={12} r={1.2} {...c} fill={c.stroke} />
         </>
       );
+    case 'grip':
+      return (
+        <>
+          {[9, 15].flatMap(x =>
+            [6, 12, 18].map(y => (
+              <Circle
+                key={`${x}-${y}`}
+                cx={x}
+                cy={y}
+                r={1.4}
+                {...c}
+                fill={c.stroke}
+              />
+            )),
+          )}
+        </>
+      );
+    case 'chevronRight':
+      return <Polyline points="9 6 15 12 9 18" {...c} />;
     case 'pin':
       return (
         <>
