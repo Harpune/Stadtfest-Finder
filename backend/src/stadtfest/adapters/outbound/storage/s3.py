@@ -97,19 +97,19 @@ class S3ObjectStorage:
         self._client = self._presign_client = None
 
     async def presign_put(
-        self, key: str, content_type: str, size_bytes: int, expires_in_seconds: int
+        self, key: str, content_type: str, expires_in_seconds: int
     ) -> PresignedUpload:
-        """Sign a PUT of exactly this type and size (both are signed headers)."""
+        """Sign a PUT of this key only.
+
+        Neither type nor size are signed headers: Android's HTTP client sets its own
+        Content-Type and streams without Content-Length for files, which breaks such
+        signatures. The worker checks the type by content and attaching checks the size.
+        """
         _, presign = await self._clients()
         try:
             url = await presign.generate_presigned_url(
                 "put_object",
-                Params={
-                    "Bucket": self._config.bucket,
-                    "Key": key,
-                    "ContentType": content_type,
-                    "ContentLength": size_bytes,
-                },
+                Params={"Bucket": self._config.bucket, "Key": key},
                 ExpiresIn=expires_in_seconds,
             )
         except _STORAGE_ERRORS as exc:
@@ -130,18 +130,18 @@ class S3ObjectStorage:
         except _STORAGE_ERRORS as exc:
             raise StorageUnavailableError from exc
 
-    async def exists(self, key: str) -> bool:
-        """Whether the object exists."""
+    async def size(self, key: str) -> int | None:
+        """Size of the object in bytes, or None if it does not exist."""
         client, _ = await self._clients()
         try:
-            await client.head_object(Bucket=self._config.bucket, Key=key)
+            head = await client.head_object(Bucket=self._config.bucket, Key=key)
         except ClientError as exc:
             if _error_code(exc) in _NOT_FOUND:
-                return False
+                return None
             raise StorageUnavailableError from exc
         except _STORAGE_ERRORS as exc:
             raise StorageUnavailableError from exc
-        return True
+        return int(head["ContentLength"])
 
     async def write(self, key: str, data: bytes, content_type: str) -> None:
         """Store an immutable public object."""

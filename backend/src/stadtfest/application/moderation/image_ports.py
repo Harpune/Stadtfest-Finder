@@ -31,9 +31,13 @@ class ObjectStorage(Protocol):
     """S3-compatible object storage (ADR 0007)."""
 
     async def presign_put(
-        self, key: str, content_type: str, size_bytes: int, expires_in_seconds: int
+        self, key: str, content_type: str, expires_in_seconds: int
     ) -> PresignedUpload:
-        """Sign a direct upload of exactly this type and size.
+        """Sign a direct upload; returns the URL and the headers to send.
+
+        Only the key is signed. Android's HTTP client sets its own Content-Type and streams
+        files without a length, so type and size are checked after the upload instead
+        (`size` when attaching, magic bytes in the worker).
 
         Raises:
             StorageUnavailableError: If signing is impossible.
@@ -48,8 +52,8 @@ class ObjectStorage(Protocol):
         """
         ...
 
-    async def exists(self, key: str) -> bool:
-        """Whether the object exists.
+    async def size(self, key: str) -> int | None:
+        """Size of the object in bytes, or None if it does not exist.
 
         Raises:
             StorageUnavailableError: If the storage cannot be reached.

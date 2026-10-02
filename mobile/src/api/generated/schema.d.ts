@@ -398,8 +398,9 @@ export interface paths {
         put?: never;
         /**
          * Request a signed upload URL for an image
-         * @description Returns a pre-signed `PUT` URL into the object storage, valid for 10 minutes. The app
-         *     uploads the file there directly with exactly the given headers, then attaches it with
+         * @description Returns a pre-signed `PUT` URL into the object storage, valid for 10 minutes (only the
+         *     key is signed; type and size are checked after the upload). The app uploads the file there directly with exactly the given
+         *     headers, then attaches it with
          *     `POST /v1/mod/events/{eventId}/images`. Allowed are JPEG, PNG and WebP up to 10 MB
          *     (`422 validation_failed` otherwise).
          */
@@ -737,7 +738,7 @@ export interface components {
         UploadContentType: "image/jpeg" | "image/png" | "image/webp";
         UploadRequest: {
             contentType: components["schemas"]["UploadContentType"];
-            /** @description Exact file size; the signed URL only accepts this size. */
+            /** @description Exact file size; attaching the upload fails if the stored file differs. */
             sizeBytes: number;
         };
         Upload: {

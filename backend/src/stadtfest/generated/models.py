@@ -270,7 +270,7 @@ class UploadRequest(BaseModel):
         int,
         Field(
             alias="sizeBytes",
-            description="Exact file size; the signed URL only accepts this size.",
+            description="Exact file size; attaching the upload fails if the stored file differs.",
             ge=1,
             le=10485760,
         ),

@@ -133,10 +133,7 @@ class CreateUpload(_Moderation):
         )
         try:
             signed = await self._storage.presign_put(
-                upload_key(upload.id),
-                content_type,
-                size_bytes,
-                int(UPLOAD_URL_LIFETIME.total_seconds()),
+                upload_key(upload.id), content_type, int(UPLOAD_URL_LIFETIME.total_seconds())
             )
         except StorageUnavailableError:
             raise ServiceUnavailableError(STORAGE_UNAVAILABLE) from None
@@ -181,7 +178,7 @@ class AttachImage(_ImageModeration):
             upload is None
             or upload.consumed_at is not None
             or upload.user_id != await self._accounts(principal)
-            or not await self._uploaded(upload.id)
+            or await self._uploaded_size(upload.id) != upload.size_bytes
         ):
             raise InvalidInputError({"uploadId": INVALID_UPLOAD}, INVALID_UPLOAD)
         current = await self._images.list_for_event(event.id)
@@ -193,9 +190,10 @@ class AttachImage(_ImageModeration):
         await self._images.attach(image, self._now())
         return image
 
-    async def _uploaded(self, upload_id: UUID) -> bool:
+    async def _uploaded_size(self, upload_id: UUID) -> int | None:
+        # The declared size is the limit: the signed URL does not enforce it (see port).
         try:
-            return await self._storage.exists(upload_key(upload_id))
+            return await self._storage.size(upload_key(upload_id))
         except StorageUnavailableError:
             raise ServiceUnavailableError(STORAGE_UNAVAILABLE) from None
 
@@ -267,7 +265,7 @@ class RetryImage(_ImageModeration):
         if image.status is not ImageStatus.FAILED or image.upload_id is None:
             raise ConflictError(NOT_RETRYABLE)
         try:
-            uploaded = await self._storage.exists(upload_key(image.upload_id))
+            uploaded = await self._storage.size(upload_key(image.upload_id)) is not None
         except StorageUnavailableError:
             raise ServiceUnavailableError(STORAGE_UNAVAILABLE) from None
         if not uploaded:

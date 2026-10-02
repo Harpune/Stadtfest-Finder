@@ -101,10 +101,10 @@ def s() -> Setup:
 # --- upload (R08-US1) --------------------------------------------------------------------
 
 
-async def test_upload_slot_is_signed_for_type_and_size_for_10_minutes(s: Setup) -> None:
+async def test_upload_slot_is_signed_for_the_type_for_10_minutes(s: Setup) -> None:
     slot = await s.create_upload(MODERATOR, "image/png", 2048)
 
-    assert s.storage.signed == [(upload_key(slot.upload_id), "image/png", 2048, 600)]
+    assert s.storage.signed == [(upload_key(slot.upload_id), "image/png", 600)]
     assert slot.headers == {"Content-Type": "image/png"}
     assert slot.expires_at == NOW + timedelta(minutes=10)
     assert s.images.uploads[slot.upload_id].consumed_at is None
@@ -148,7 +148,7 @@ async def test_attach_at_a_position_moves_the_others_back(s: Setup) -> None:
     assert [i.id for i in await s.images.list_for_event(event.id)] == [cover.id, first.id]
 
 
-@pytest.mark.parametrize("problem", ["unknown", "not_uploaded", "used", "foreign"])
+@pytest.mark.parametrize("problem", ["unknown", "not_uploaded", "wrong_size", "used", "foreign"])
 async def test_attach_rejects_invalid_uploads(s: Setup, problem: str) -> None:
     event = s.event()
     upload_id = await s.uploaded()
@@ -156,6 +156,9 @@ async def test_attach_rejects_invalid_uploads(s: Setup, problem: str) -> None:
         upload_id = uuid4()
     elif problem == "not_uploaded":
         s.storage.objects.clear()
+    elif problem == "wrong_size":
+        # More than declared: the signed URL does not limit the size, attaching does.
+        s.storage.objects[upload_key(upload_id)] = b"IMG" + b"x" * 1000
     elif problem == "used":
         await s.attach(MODERATOR, event.id, upload_id, None)
     principal = OTHER_MODERATOR if problem == "foreign" else MODERATOR

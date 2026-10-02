@@ -703,8 +703,9 @@ paths:
       tags: [moderation]
       summary: Request a signed upload URL for an image
       description: |
-        Returns a pre-signed `PUT` URL into the object storage, valid for 10 minutes. The app
-        uploads the file there directly with exactly the given headers, then attaches it with
+        Returns a pre-signed `PUT` URL into the object storage, valid for 10 minutes (only the
+        key is signed; type and size are checked after the upload). The app uploads the file there directly with exactly the given
+        headers, then attaches it with
         `POST /v1/mod/events/{eventId}/images`. Allowed are JPEG, PNG and WebP up to 10 MB
         (`422 validation_failed` otherwise).
       requestBody:
@@ -1396,7 +1397,7 @@ components:
           type: integer
           minimum: 1
           maximum: 10485760
-          description: Exact file size; the signed URL only accepts this size.
+          description: Exact file size; attaching the upload fails if the stored file differs.
     Upload:
       type: object
       required: [uploadId, url, method, headers, expiresAt]

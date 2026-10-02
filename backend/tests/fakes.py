@@ -499,17 +499,17 @@ class FakeObjectStorage:
     objects: dict[str, bytes] = field(default_factory=dict)
     content_types: dict[str, str] = field(default_factory=dict)
     unavailable: bool = False
-    signed: list[tuple[str, str, int, int]] = field(default_factory=list)
+    signed: list[tuple[str, str, int]] = field(default_factory=list)
 
     def _check(self) -> None:
         if self.unavailable:
             raise StorageUnavailableError
 
     async def presign_put(
-        self, key: str, content_type: str, size_bytes: int, expires_in_seconds: int
+        self, key: str, content_type: str, expires_in_seconds: int
     ) -> PresignedUpload:
         self._check()
-        self.signed.append((key, content_type, size_bytes, expires_in_seconds))
+        self.signed.append((key, content_type, expires_in_seconds))
         return PresignedUpload(
             f"https://s3.test/bucket/{key}?signature=x", {"Content-Type": content_type}
         )
@@ -518,9 +518,10 @@ class FakeObjectStorage:
         self._check()
         return self.objects.get(key)
 
-    async def exists(self, key: str) -> bool:
+    async def size(self, key: str) -> int | None:
         self._check()
-        return key in self.objects
+        content = self.objects.get(key)
+        return None if content is None else len(content)
 
     async def write(self, key: str, data: bytes, content_type: str) -> None:
         self._check()

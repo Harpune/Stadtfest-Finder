@@ -125,8 +125,9 @@ export function useExitModeration() {
         queryKey: ['get', '/v1/events/count'],
       });
       queryClient.removeQueries({queryKey: ['get', '/v1/mod/events']});
-      if (router.canDismiss()) router.dismissAll();
-      else router.replace('/');
+      // Back to the map in the root stack; dismissAll() would only pop the nested
+      // moderation stack (form → overview).
+      router.dismissTo('/');
       toast(message);
     },
     [queryClient, toast],

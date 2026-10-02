@@ -16,7 +16,8 @@ Fotos von Smartphones enthalten oft EXIF-Daten mit GPS-Position und Gerätedaten
 
 - **Upload mit signierter URL:** Die App fragt `POST /v1/mod/uploads` an und lädt die Datei per `PUT` direkt in den Objektspeicher (ADR 0007), nicht über die API.
   - Die URL gilt 10 Minuten.
-  - Signiert sind auch Content-Type und exakte Größe.
+  - Signiert ist nur der Schlüssel. Content-Type und Größe sind **nicht** signiert: Androids HTTP-Client setzt für Dateien einen eigenen Content-Type und sendet ohne `Content-Length`, die Signatur passt dann nicht (Gerätetest 02.10.2026).
+  - Stattdessen prüft das Backend beim Anhängen per `HEAD`, dass die Datei genau die angemeldete Größe hat (höchstens 10 MB), sonst `422 invalid_upload`. Den Typ prüft der Worker am Inhalt.
   - Erlaubt sind JPEG, PNG und WebP bis 10 MB.
   - Originale liegen unter `uploads/<upload-id>` und sind nicht öffentlich lesbar.
 - **Verarbeitung im Worker:** `image.uploaded` läuft über die Outbox (ADR 0005). Der Worker erledigt Folgendes:

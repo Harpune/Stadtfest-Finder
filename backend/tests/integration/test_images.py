@@ -240,7 +240,7 @@ async def test_round_trip_strips_metadata_and_publishes_variants(world: World) -
     event = await _published_event(world)
     original = _photo_with_gps()
     upload_id = await _upload(world, original)
-    assert await world.storage.exists(upload_key(upload_id))
+    assert await world.storage.size(upload_key(upload_id)) == len(original)
 
     image = await world.attach(MODERATOR, event.id, upload_id, None)
     await world.deliver()
@@ -248,7 +248,7 @@ async def test_round_trip_strips_metadata_and_publishes_variants(world: World) -
     stored = await world.images.get(image.id)
     assert stored is not None
     assert (stored.status, stored.width, stored.height) == (ImageStatus.READY, 1600, 1067)
-    assert not await world.storage.exists(upload_key(upload_id))
+    assert await world.storage.size(upload_key(upload_id)) is None
     async with world.sessions() as session:
         assert await session.get(UploadRow, upload_id) is None
     # Variants are publicly readable without credentials and carry no EXIF.
@@ -289,7 +289,7 @@ async def test_remove_deletes_the_files(world: World) -> None:
     await world.deliver()
 
     for key in all_variant_keys(image.id):
-        assert not await world.storage.exists(key)
+        assert await world.storage.size(key) is None
 
 
 async def test_purge_removes_stale_uploads_and_images_of_deleted_events(world: World) -> None:
@@ -311,8 +311,8 @@ async def test_purge_removes_stale_uploads_and_images_of_deleted_events(world: W
 
     assert result.uploads >= 1
     assert result.images >= 1
-    assert not await world.storage.exists(upload_key(stale))
-    assert not await world.storage.exists(all_variant_keys(image.id)[0])
+    assert await world.storage.size(upload_key(stale)) is None
+    assert await world.storage.size(all_variant_keys(image.id)[0]) is None
     async with world.sessions() as session:
         assert await session.scalar(select(UploadRow.id).where(UploadRow.id == stale)) is None
 
