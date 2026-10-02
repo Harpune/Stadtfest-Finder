@@ -1,0 +1,22 @@
+{
+  "comment": "Structured output as a provider returned it for 73430 (anonymized: names and URLs of public event pages only). The second item lacks date_to and must be counted as invalid.",
+  "events": [
+    {
+      "name": "Aalener Stadtfest",
+      "date_from": "2026-10-17",
+      "date_to": "2026-10-18",
+      "place": "Marktplatz",
+      "address": "Marktplatz 1, 73430 Aalen",
+      "coordinates": {"lat": 48.8368, "lon": 10.0932},
+      "category": "Stadtfest",
+      "source_url": "https://www.aalen.de/stadtfest",
+      "description": "Musik auf drei Bühnen und Handwerkermarkt."
+    },
+    {
+      "name": "Kirbe Wasseralfingen",
+      "date_from": "2026-10-10",
+      "place": "Festplatz",
+      "source_url": "https://www.wasseralfingen.de/kirbe"
+    }
+  ]
+}

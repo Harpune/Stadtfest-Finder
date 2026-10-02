@@ -26,7 +26,15 @@ from stadtfest.adapters.outbound.geocoding.nominatim import (
     create_nominatim_client,
 )
 from stadtfest.adapters.outbound.imaging.pillow import PillowImageProcessor
+from stadtfest.adapters.outbound.llm.fake import FakeEventFinder
+from stadtfest.adapters.outbound.llm.pydantic_ai import (
+    LlmConfig,
+    LlmKind,
+    PydanticAiEventFinder,
+    build_model,
+)
 from stadtfest.adapters.outbound.persistence.accounts import SqlRegionDirectory, SqlUserRepository
+from stadtfest.adapters.outbound.persistence.ai_search import SqlAiSearchRepository, SqlDraftStore
 from stadtfest.adapters.outbound.persistence.catalog import SqlCatalog
 from stadtfest.adapters.outbound.persistence.categories import SqlCategoryRepository
 from stadtfest.adapters.outbound.persistence.database import DatabaseProbe, create_engine
@@ -43,8 +51,25 @@ from stadtfest.adapters.outbound.queue.arq_jobs import (
     ArqEventQueue,
     create_arq_redis,
 )
+from stadtfest.adapters.outbound.search.brave import BraveWebSearch
+from stadtfest.adapters.outbound.search.fake import FakeWebSearch
+from stadtfest.adapters.outbound.sources.http import (
+    AllowAllSourceChecker,
+    HttpSourceChecker,
+    create_source_client,
+)
 from stadtfest.adapters.outbound.storage.s3 import S3Config, S3ObjectStorage
 from stadtfest.adapters.outbound.storage.urls import ImageUrls
+from stadtfest.application.ai_ingestion.ports import EventFinder, SourceChecker, WebSearchPort
+from stadtfest.application.ai_ingestion.use_cases import (
+    AiSearchSettings,
+    CompactAiSearchLogs,
+    FailStuckSearches,
+    GetAiSearch,
+    ListAiSearches,
+    RunAiSearch,
+    StartAiSearch,
+)
 from stadtfest.application.collections.use_cases import (
     AddFavorite,
     IsFavorite,
@@ -102,7 +127,13 @@ from stadtfest.application.moderation.use_cases import (
     UpdateModEvent,
 )
 from stadtfest.application.outbox.use_cases import HandleDomainEvent, PurgeOutbox, RelayOutbox
-from stadtfest.bootstrap.settings import GeocodingProvider, IdpAdminProvider, Settings
+from stadtfest.bootstrap.settings import (
+    GeocodingProvider,
+    IdpAdminProvider,
+    LlmProvider,
+    Settings,
+    WebSearchProvider,
+)
 
 
 def _secret(value: SecretStr | None) -> str:
@@ -179,6 +210,13 @@ class Container:
     update_category: UpdateCategory
     order_categories: OrderCategories
     delete_category: DeleteCategory
+    ai_http: list[httpx.AsyncClient]
+    start_ai_search: StartAiSearch
+    get_ai_search: GetAiSearch
+    list_ai_searches: ListAiSearches
+    run_ai_search: RunAiSearch
+    fail_stuck_searches: FailStuckSearches
+    compact_ai_search_logs: CompactAiSearchLogs
 
     @classmethod
     def build(cls, settings: Settings) -> Container:
@@ -246,6 +284,27 @@ class Container:
         mod = (managed, mod_regions, clock)
         outbox = SqlOutboxStore(sessions)
         process_image = ProcessImage(images, storage, PillowImageProcessor(), cache)
+        ai_http: list[httpx.AsyncClient] = []
+        finder, search, sources = _ai_adapters(settings, ai_http)
+        ai_settings = AiSearchSettings(
+            radius_km=settings.ai_search_radius_km,
+            daily_limit=settings.ai_search_daily_limit,
+            max_tool_calls=settings.ai_search_max_tool_calls,
+            timeout_seconds=settings.ai_search_timeout_s,
+        )
+        ai_jobs = SqlAiSearchRepository(sessions)
+        run_ai_search = RunAiSearch(
+            ai_jobs,
+            mod_regions,
+            finder,
+            search,
+            sources,
+            geocoding,
+            catalog,
+            SqlDraftStore(sessions),
+            clock,
+            ai_settings,
+        )
         delete_image_files = DeleteImageFiles(storage)
 
         return cls(
@@ -289,7 +348,11 @@ class Container:
             delete_mod_event=DeleteModEvent(*mod, ensure_account),
             relay_outbox=RelayOutbox(outbox, ArqEventQueue(arq_redis)),
             handle_domain_event=HandleDomainEvent(
-                cache, SqlEventFavorites(sessions), process_image, delete_image_files
+                cache,
+                SqlEventFavorites(sessions),
+                process_image,
+                delete_image_files,
+                run_ai_search,
             ),
             purge_outbox=PurgeOutbox(outbox),
             storage=storage,
@@ -306,6 +369,15 @@ class Container:
             update_category=UpdateCategory(categories),
             order_categories=OrderCategories(categories),
             delete_category=DeleteCategory(categories),
+            ai_http=ai_http,
+            start_ai_search=StartAiSearch(
+                ai_jobs, mod_regions, ensure_account, geocoding, clock, ai_settings
+            ),
+            get_ai_search=GetAiSearch(ai_jobs, mod_regions, ensure_account),
+            list_ai_searches=ListAiSearches(ai_jobs, mod_regions, ensure_account),
+            run_ai_search=run_ai_search,
+            fail_stuck_searches=FailStuckSearches(ai_jobs, ai_settings),
+            compact_ai_search_logs=CompactAiSearchLogs(ai_jobs),
         )
 
     async def aclose(self) -> None:
@@ -314,6 +386,43 @@ class Container:
             await self.http.aclose()
         await self.auth_http.aclose()
         await self.storage.aclose()
+        for client in self.ai_http:
+            await client.aclose()
         await self.arq_redis.aclose()
         await self.redis.aclose()
         await self.engine.dispose()
+
+
+def _ai_adapters(
+    settings: Settings, clients: list[httpx.AsyncClient]
+) -> tuple[EventFinder, WebSearchPort, SourceChecker]:
+    """LLM, web search and source check as configured (fail fast is in `Settings`)."""
+    finder: EventFinder
+    if settings.llm_provider is LlmProvider.FAKE:
+        finder = FakeEventFinder()
+    else:
+        finder = PydanticAiEventFinder(
+            build_model(
+                LlmConfig(
+                    kind=LlmKind(settings.llm_provider.value),
+                    model=settings.llm_model,
+                    api_key=(
+                        settings.llm_api_key.get_secret_value() if settings.llm_api_key else None
+                    ),
+                    base_url=str(settings.llm_base_url) if settings.llm_base_url else None,
+                )
+            )
+        )
+    search: WebSearchPort
+    sources: SourceChecker
+    if settings.web_search_provider is WebSearchProvider.BRAVE and settings.web_search_api_key:
+        search_client = httpx.AsyncClient(timeout=10.0)
+        source_client = create_source_client()
+        clients.extend([search_client, source_client])
+        search = BraveWebSearch(search_client, settings.web_search_api_key.get_secret_value())
+        sources = HttpSourceChecker(source_client)
+    else:
+        # The fake search returns example pages that do not exist (dev/test only).
+        search = FakeWebSearch()
+        sources = AllowAllSourceChecker()
+    return finder, search, sources

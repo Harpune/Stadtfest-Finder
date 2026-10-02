@@ -14,6 +14,7 @@ from stadtfest.adapters.inbound.rest import (
     geocoding,
     health,
     me,
+    mod_ai_searches,
     mod_categories,
     mod_events,
     mod_images,
@@ -73,4 +74,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(mod_events.router)
     app.include_router(mod_images.router)
     app.include_router(mod_categories.router)
+    app.include_router(mod_ai_searches.router)
     return app

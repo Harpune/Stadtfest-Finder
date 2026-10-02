@@ -1,0 +1,12 @@
+{
+  "type": "search",
+  "query": {"original": "Stadtfest Aalen 2026"},
+  "web": {
+    "type": "search",
+    "results": [
+      {"title": "Reichsstädter Tage – Stadt Aalen", "url": "https://www.aalen.de/reichsstaedter-tage", "description": "Das große Stadtfest in der Altstadt.", "language": "de"},
+      {"title": "Veranstaltungen in Aalen", "url": "https://www.aalen.de/veranstaltungen", "description": "Alle Termine."},
+      {"title": "Ohne URL"}
+    ]
+  }
+}
