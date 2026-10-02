@@ -152,6 +152,31 @@ export const strings = {
     moderator: 'Moderator-Ansicht',
   },
   mod: {
+    images: {
+      title: 'Bilder',
+      add: '+ Hochladen',
+      cover: 'Titelbild',
+      coverTile: 'Titelbild',
+      tile: (n: number) => `Bild ${n}`,
+      remove: (n: number) => `Bild ${n} entfernen`,
+      uploading: 'Lädt hoch',
+      processing: 'Wird verarbeitet',
+      failed: 'Fehlgeschlagen',
+      retry: 'Erneut versuchen',
+      longPressHint: 'Lange drücken für weitere Aktionen',
+      rightsHint:
+        'Nur Bilder hochladen, an denen du die Rechte hast. Keine erkennbaren Personen.',
+      makeCover: 'Als Titelbild',
+      removeImage: 'Bild entfernen',
+      permissionDenied:
+        'Ohne Zugriff auf deine Fotos kannst du keine Bilder hochladen. Du kannst ihn in den Einstellungen erlauben.',
+      needsName:
+        'Bitte gib zuerst einen Namen ein, dann kannst du Bilder hochladen.',
+      draftCreated: 'Als Entwurf gespeichert, Bilder werden hochgeladen',
+      uploadFailed: 'Das Bild konnte nicht hochgeladen werden.',
+      tooMany: 'Ein Fest kann höchstens 12 Bilder haben.',
+      coverSet: 'Titelbild geändert',
+    },
     picker: {
       title: 'Ort auf der Karte wählen',
       hint: 'Karte verschieben und zoomen, der Pin bleibt in der Mitte.',

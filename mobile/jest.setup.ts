@@ -177,3 +177,29 @@ jest.mock('expo-auth-session', () => {
     TokenTypeHint: {RefreshToken: 'refresh_token'},
   };
 });
+
+// expo-image-picker / expo-image-manipulator (R08): native modules; tests set the results.
+jest.mock('expo-image-picker', () => ({
+  requestMediaLibraryPermissionsAsync: jest.fn(async () => ({granted: true})),
+  launchImageLibraryAsync: jest.fn(async () => ({
+    canceled: true,
+    assets: null,
+  })),
+}));
+jest.mock('expo-image-manipulator', () => {
+  const context = {
+    resize: jest.fn(),
+    renderAsync: jest.fn(async () => ({
+      saveAsync: jest.fn(async () => ({
+        uri: 'file:///prepared.jpg',
+        width: 2560,
+        height: 1707,
+      })),
+    })),
+  };
+  return {
+    ImageManipulator: {manipulate: jest.fn(() => context)},
+    SaveFormat: {JPEG: 'jpeg', PNG: 'png', WEBP: 'webp'},
+    __context: context,
+  };
+});

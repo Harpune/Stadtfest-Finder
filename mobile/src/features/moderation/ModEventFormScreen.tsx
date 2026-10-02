@@ -50,6 +50,7 @@ import {
   newProgramRow,
   publishErrors,
 } from './form';
+import {ImagesSection} from './ImagesSection';
 import {
   modApi,
   ModResult,
@@ -92,12 +93,14 @@ export function ModEventFormScreen({eventId}: {eventId: string | null}) {
 }
 
 function EventFormBody({
-  event,
+  event: initialEvent,
   onReload,
 }: {
   event: ModEventDetail | undefined;
   onReload: () => void;
 }) {
+  // A new event becomes stored once images are added (auto draft, R08-US1).
+  const [event, setEvent] = useState(initialEvent);
   const theme = useTheme();
   const c = theme.colors;
   const toast = useToast();
@@ -257,6 +260,26 @@ function EventFormBody({
     } finally {
       setBusy(null);
     }
+  };
+
+  /** The event ID for image uploads; saves a new event as draft first. */
+  const ensureEvent = async (): Promise<string | null> => {
+    if (event) return event.id;
+    const found = draftErrors(form);
+    if (Object.keys(found).length > 0) {
+      setErrors(found);
+      toast(strings.mod.images.needsName);
+      return null;
+    }
+    const result = await modApi.create(formToCreate(form));
+    if (!result.ok) {
+      handleFailure(result);
+      return null;
+    }
+    setEvent(result.event);
+    refresh(result.event);
+    toast(strings.mod.images.draftCreated);
+    return result.event.id;
   };
 
   const statusLabel = strings.mod.status[status];
@@ -446,6 +469,13 @@ function EventFormBody({
           autoCapitalize="none"
           maxLength={500}
           testID="mod.form.website"
+        />
+
+        <ImagesSection
+          eventId={event?.id ?? null}
+          images={initialEvent?.images ?? []}
+          disabled={cancelled}
+          ensureEvent={ensureEvent}
         />
       </ScrollView>
 

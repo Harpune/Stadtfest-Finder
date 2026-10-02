@@ -1,4 +1,5 @@
 import type {Meta, StoryObj} from '@storybook/react-native';
+import {Image} from 'react-native';
 import {fn} from 'storybook/test';
 
 import {EventListCard, EventListCardSkeleton} from './EventListCard';
@@ -34,5 +35,13 @@ export const Cancelled: Story = {
 };
 export const Later: Story = {
   args: {statusLabel: 'Ab 10. Okt', statusTone: 'later'},
+};
+export const WithImage: Story = {
+  args: {
+    // Bundled asset instead of a remote URL: stories never load third-party hosts.
+    imageUrl: Image.resolveAssetSource(
+      require('../../../assets/splash-icon.png') as number,
+    ).uri,
+  },
 };
 export const Loading: Story = {render: () => <EventListCardSkeleton />};
