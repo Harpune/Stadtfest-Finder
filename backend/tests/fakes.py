@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import json
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from stadtfest.application.collections.ports import FavoriteView
 from stadtfest.application.events.criteria import PageCursor, SearchCriteria
@@ -27,6 +28,13 @@ from stadtfest.application.identity.ports import (
     RegionRecord,
     UserRecord,
 )
+from stadtfest.application.moderation.image_ports import (
+    PresignedUpload,
+    ProcessedImage,
+    StorageUnavailableError,
+    UnsupportedImageError,
+    UploadRecord,
+)
 from stadtfest.application.moderation.ports import (
     ModEventSummary,
     ModRegion,
@@ -35,6 +43,13 @@ from stadtfest.application.moderation.ports import (
 from stadtfest.application.outbox.ports import OutboxMessage
 from stadtfest.application.shared.ports import JsonValue
 from stadtfest.domain.events.geo import GeoPoint
+from stadtfest.domain.events.images import (
+    EventImage,
+    ImageEventType,
+    ImageFormat,
+    ImageStatus,
+    Variant,
+)
 from stadtfest.domain.events.maintenance import DomainEvent, ManagedEvent
 from stadtfest.domain.identity.principal import Principal
 
@@ -247,13 +262,13 @@ class FakeFavoriteRepository:
 
 @dataclass
 class FakeAccountResolver:
-    """Records for whom an account was ensured."""
+    """Records for whom an account was ensured; the same subject always gets the same ID."""
 
     ensured: list[str] = field(default_factory=list)
 
     async def __call__(self, principal: Principal) -> UUID:
         self.ensured.append(principal.subject)
-        return uuid4()
+        return uuid5(NAMESPACE_URL, principal.subject)
 
 
 @dataclass
@@ -263,6 +278,14 @@ class FakeManagedEventRepository:
     events: dict[UUID, ManagedEvent] = field(default_factory=dict)
     outbox: list[DomainEvent] = field(default_factory=list)
     audit: list[UUID] = field(default_factory=list)
+    # Shared with `FakeImageRepository(images=...)` in image tests.
+    images: list[EventImage] = field(default_factory=list)
+
+    async def list_images(self, event_id: UUID) -> list[EventImage]:
+        return sorted(
+            (image for image in self.images if image.event_id == event_id),
+            key=lambda image: image.position,
+        )
 
     async def list_for_region(
         self, region_id: UUID, ids: frozenset[UUID] | None
@@ -360,3 +383,167 @@ class FakeEventFavorites:
     async def remove_for_event(self, event_id: UUID) -> int:
         self.removed.append(event_id)
         return 1
+
+
+# --- images (R08) -------------------------------------------------------------------------
+
+
+@dataclass
+class FakeImageRepository:
+    """Uploads and images in memory; records the outbox messages it would write."""
+
+    images: list[EventImage] = field(default_factory=list)
+    uploads: dict[UUID, UploadRecord] = field(default_factory=dict)
+    outbox: list[tuple[str, dict[str, str | None]]] = field(default_factory=list)
+    deleted_event_ids: set[UUID] = field(default_factory=set)
+
+    def _replace(self, image_id: UUID, **changes: object) -> None:
+        for index, image in enumerate(self.images):
+            if image.id == image_id:
+                self.images[index] = dataclasses.replace(image, **changes)  # type: ignore[arg-type]
+
+    def _renumber(self, event_id: UUID, ordered: Sequence[UUID]) -> None:
+        for position, image_id in enumerate(ordered):
+            self._replace(image_id, position=position)
+
+    async def add_upload(self, upload: UploadRecord) -> None:
+        self.uploads[upload.id] = upload
+
+    async def get_upload(self, upload_id: UUID) -> UploadRecord | None:
+        return self.uploads.get(upload_id)
+
+    async def list_for_event(self, event_id: UUID) -> list[EventImage]:
+        return sorted(
+            (image for image in self.images if image.event_id == event_id),
+            key=lambda image: image.position,
+        )
+
+    async def get(self, image_id: UUID) -> EventImage | None:
+        return next((image for image in self.images if image.id == image_id), None)
+
+    async def attach(self, image: EventImage, consumed_at: datetime) -> None:
+        current = [i.id for i in await self.list_for_event(image.event_id)]
+        current.insert(image.position, image.id)
+        self.images.append(image)
+        self._renumber(image.event_id, current)
+        if image.upload_id is not None:
+            upload = self.uploads[image.upload_id]
+            self.uploads[upload.id] = dataclasses.replace(upload, consumed_at=consumed_at)
+        self.outbox.append(
+            (
+                ImageEventType.UPLOADED.value,
+                {"imageId": str(image.id), "eventId": str(image.event_id)},
+            )
+        )
+
+    async def reorder(self, event_id: UUID, image_ids: Sequence[UUID]) -> None:
+        self._renumber(event_id, image_ids)
+
+    async def remove(self, event_id: UUID, image_id: UUID) -> EventImage | None:
+        image = await self.get(image_id)
+        if image is None or image.event_id != event_id:
+            return None
+        self.images.remove(image)
+        self._renumber(event_id, [i.id for i in await self.list_for_event(event_id)])
+        self.outbox.append(
+            (
+                ImageEventType.REMOVED.value,
+                {
+                    "imageId": str(image.id),
+                    "uploadId": str(image.upload_id) if image.upload_id else None,
+                },
+            )
+        )
+        return image
+
+    async def retry(self, image_id: UUID) -> None:
+        self._replace(image_id, status=ImageStatus.PROCESSING)
+        self.outbox.append((ImageEventType.UPLOADED.value, {"imageId": str(image_id)}))
+
+    async def mark_ready(self, image_id: UUID, width: int, height: int) -> bool:
+        image = await self.get(image_id)
+        if image is None:
+            return False
+        if image.upload_id is not None:
+            self.uploads.pop(image.upload_id, None)
+        self._replace(
+            image_id, status=ImageStatus.READY, width=width, height=height, upload_id=None
+        )
+        return True
+
+    async def mark_failed(self, image_id: UUID) -> None:
+        self._replace(image_id, status=ImageStatus.FAILED)
+
+    async def stale_uploads(self, created_before: datetime) -> list[UploadRecord]:
+        return [
+            u
+            for u in self.uploads.values()
+            if u.consumed_at is None and u.created_at < created_before
+        ]
+
+    async def delete_uploads(self, upload_ids: Sequence[UUID]) -> None:
+        for upload_id in upload_ids:
+            self.uploads.pop(upload_id, None)
+
+    async def images_of_deleted_events(self) -> list[EventImage]:
+        return [i for i in self.images if i.event_id in self.deleted_event_ids]
+
+    async def delete_images(self, image_ids: Sequence[UUID]) -> None:
+        self.images[:] = [i for i in self.images if i.id not in set(image_ids)]
+
+
+@dataclass
+class FakeObjectStorage:
+    """Objects in memory. `uploaded` simulates files the app put via a signed URL."""
+
+    objects: dict[str, bytes] = field(default_factory=dict)
+    content_types: dict[str, str] = field(default_factory=dict)
+    unavailable: bool = False
+    signed: list[tuple[str, str, int]] = field(default_factory=list)
+
+    def _check(self) -> None:
+        if self.unavailable:
+            raise StorageUnavailableError
+
+    async def presign_put(
+        self, key: str, content_type: str, expires_in_seconds: int
+    ) -> PresignedUpload:
+        self._check()
+        self.signed.append((key, content_type, expires_in_seconds))
+        return PresignedUpload(
+            f"https://s3.test/bucket/{key}?signature=x", {"Content-Type": content_type}
+        )
+
+    async def read(self, key: str) -> bytes | None:
+        self._check()
+        return self.objects.get(key)
+
+    async def size(self, key: str) -> int | None:
+        self._check()
+        content = self.objects.get(key)
+        return None if content is None else len(content)
+
+    async def write(self, key: str, data: bytes, content_type: str) -> None:
+        self._check()
+        self.objects[key] = data
+        self.content_types[key] = content_type
+
+    async def delete(self, keys: Sequence[str]) -> None:
+        self._check()
+        for key in keys:
+            self.objects.pop(key, None)
+
+
+@dataclass
+class FakeImageProcessor:
+    """Accepts any content starting with `IMG`; produces one tiny file per variant."""
+
+    async def process(self, data: bytes) -> ProcessedImage:
+        if not data.startswith(b"IMG"):
+            raise UnsupportedImageError
+        files: Mapping[tuple[Variant, ImageFormat], bytes] = {
+            (variant, image_format): f"{variant}.{image_format}".encode()
+            for variant in Variant
+            for image_format in ImageFormat
+        }
+        return ProcessedImage(width=1600, height=1200, files=files)

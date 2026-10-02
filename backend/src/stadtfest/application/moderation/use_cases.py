@@ -29,6 +29,7 @@ from stadtfest.application.shared.errors import (
 )
 from stadtfest.application.shared.ports import Clock
 from stadtfest.domain.events.event import EventStatus
+from stadtfest.domain.events.images import EventImage
 from stadtfest.domain.events.maintenance import (
     EventContent,
     InvalidTransitionError,
@@ -63,10 +64,11 @@ def mod_status(status: EventStatus, end_date: date | None, today: date) -> ModSt
 
 @dataclass(frozen=True, slots=True)
 class ModEventView:
-    """An event as returned to the moderator, with its derived status."""
+    """An event as returned to the moderator, with its derived status and images (R08)."""
 
     event: ManagedEvent
     status: ModStatus
+    images: tuple[EventImage, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,9 +110,10 @@ class _Moderation:
             raise NotFoundError
         return region, event
 
-    def _view(self, event: ManagedEvent) -> ModEventView:
+    async def _view(self, event: ManagedEvent, *, with_images: bool = True) -> ModEventView:
+        images = tuple(await self._events.list_images(event.id)) if with_images else ()
         return ModEventView(
-            event, mod_status(event.status, event.content.end_date, self._clock.today())
+            event, mod_status(event.status, event.content.end_date, self._clock.today()), images
         )
 
 
@@ -158,7 +161,7 @@ class GetModEvent(_Moderation):
     async def __call__(self, principal: Principal, event_id: UUID) -> ModEventView:
         """Return the event of the caller's region."""
         _, event = await self._own_event(principal, event_id)
-        return self._view(event)
+        return await self._view(event)
 
 
 class CreateModEvent(_Moderation):
@@ -183,7 +186,7 @@ class CreateModEvent(_Moderation):
             raise InvalidInputError({"name": "required"})
         event = ManagedEvent(uuid4(), region.id, EventStatus.DRAFT, content)
         await self._events.add(event, await self._accounts(principal))
-        return self._view(event)
+        return await self._view(event, with_images=False)
 
 
 class _Changing(_Moderation):
@@ -206,7 +209,7 @@ class _Changing(_Moderation):
             )
         except VersionConflictError:
             raise ConflictError(VERSION_CONFLICT) from None
-        return self._view(event)
+        return await self._view(event)
 
 
 class UpdateModEvent(_Changing):

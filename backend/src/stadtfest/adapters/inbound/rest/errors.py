@@ -39,6 +39,9 @@ _CODE_MESSAGES: dict[str, str] = {
     "version_conflict": "Dieses Fest wurde inzwischen geändert.",
     "invalid_transition": "Das ist in diesem Status nicht möglich.",
     "region_mismatch": "Der Ort liegt außerhalb deiner Region.",
+    "invalid_upload": "Das Bild wurde nicht vollständig hochgeladen. Bitte versuche es erneut.",
+    "too_many_images": "Ein Fest kann höchstens 12 Bilder haben.",
+    "not_retryable": "Dieses Bild lässt sich nicht erneut verarbeiten. Bitte lade es neu hoch.",
 }
 _INTERNAL_ERROR = ("internal_error", "Da ist etwas schiefgelaufen. Bitte versuche es erneut.")
 

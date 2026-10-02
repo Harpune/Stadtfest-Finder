@@ -14,6 +14,8 @@ from fastapi import APIRouter, Header, Query, Response
 from stadtfest.adapters.inbound.rest.auth import CurrentPrincipal
 from stadtfest.adapters.inbound.rest.dependencies import Deps
 from stadtfest.adapters.inbound.rest.errors import error_response
+from stadtfest.adapters.inbound.rest.mod_images import mod_image
+from stadtfest.adapters.outbound.storage.urls import ImageUrls
 from stadtfest.application.moderation.use_cases import ModEventRow, ModEventView, ModStatus
 from stadtfest.application.shared.errors import InvalidInputError
 from stadtfest.domain.events.maintenance import EventContent, ProgramEntry
@@ -70,7 +72,7 @@ def _changes(body: api.ModEventFields) -> dict[str, object]:
     }
 
 
-def _detail(view: ModEventView) -> api.ModEventDetail:
+def _detail(view: ModEventView, urls: ImageUrls) -> api.ModEventDetail:
     event, c = view.event, view.event.content
     return api.ModEventDetail(
         id=event.id,
@@ -107,6 +109,7 @@ def _detail(view: ModEventView) -> api.ModEventDetail:
         favorite_count=event.favorite_count,
         source=_source(event.source),
         version=event.version,
+        images=[mod_image(image, urls) for image in view.images],
     )
 
 
@@ -176,7 +179,7 @@ async def create_mod_event(
     changes.pop("name", None)
     view = await deps.create_mod_event(principal, _with(content, changes))
     response.headers.update(_etag(view.event.version))
-    return _detail(view)
+    return _detail(view, deps.image_urls)
 
 
 def _with(content: EventContent, changes: dict[str, object]) -> EventContent:
@@ -190,7 +193,7 @@ async def get_mod_event(
     """One event for editing."""
     view = await deps.get_mod_event(principal, event_id)
     response.headers.update(_etag(view.event.version))
-    return _detail(view)
+    return _detail(view, deps.image_urls)
 
 
 @router.patch(
@@ -215,7 +218,7 @@ async def update_mod_event(
         )
     view = await deps.update_mod_event(principal, event_id, _changes(body), version)
     response.headers.update(_etag(view.event.version))
-    return _detail(view)
+    return _detail(view, deps.image_urls)
 
 
 @router.delete("/{event_id}", operation_id="deleteModEvent", status_code=204)
@@ -234,7 +237,7 @@ async def publish_mod_event(
     """Publish a draft."""
     view = await deps.publish_mod_event(principal, event_id)
     response.headers.update(_etag(view.event.version))
-    return _detail(view)
+    return _detail(view, deps.image_urls)
 
 
 @router.post(
@@ -246,7 +249,7 @@ async def unpublish_mod_event(
     """Withdraw a published event."""
     view = await deps.unpublish_mod_event(principal, event_id)
     response.headers.update(_etag(view.event.version))
-    return _detail(view)
+    return _detail(view, deps.image_urls)
 
 
 @router.post("/{event_id}/cancel", operation_id="cancelModEvent", response_model=api.ModEventDetail)
@@ -260,4 +263,4 @@ async def cancel_mod_event(
     """Cancel a published event."""
     view = await deps.cancel_mod_event(principal, event_id, body.reason if body else None)
     response.headers.update(_etag(view.event.version))
-    return _detail(view)
+    return _detail(view, deps.image_urls)

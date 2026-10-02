@@ -42,13 +42,19 @@ class PublicEventStatus(RootModel[Literal["published", "cancelled"]]):
 
 
 class Image(BaseModel):
-    """Event image variants (R08)."""
+    """Event image variants (R08), WebP with immutable URLs: `url` (long edge 1,600 px),
+    `cardUrl` (600 px), `thumbUrl` (200 px). `jpegUrl` is the full size as JPEG, e.g. for
+    link previews.
+
+    """
 
     model_config = ConfigDict(
         populate_by_name=True,
     )
     url: AnyUrl
+    card_url: Annotated[AnyUrl | None, Field(alias="cardUrl")] = None
     thumb_url: Annotated[AnyUrl, Field(alias="thumbUrl")]
+    jpeg_url: Annotated[AnyUrl | None, Field(alias="jpegUrl")] = None
     width: Annotated[int | None, Field(ge=1)] = None
     height: Annotated[int | None, Field(ge=1)] = None
 
@@ -235,38 +241,70 @@ class ModProgramItem(BaseModel):
     subtitle: Annotated[str | None, Field(max_length=200)] = None
 
 
-class ModEventDetail(BaseModel):
-    """Event with all editable fields; fields of drafts may be empty."""
+class ModImageStatus(RootModel[Literal["processing", "ready", "failed"]]):
+    root: Literal["processing", "ready", "failed"]
+
+
+class ModImage(BaseModel):
+    """An event image in the moderation view. Variants only when `ready`."""
 
     model_config = ConfigDict(
         populate_by_name=True,
     )
     id: UUID
-    region_id: Annotated[UUID, Field(alias="regionId")]
-    name: str
-    short_name: Annotated[str, Field(alias="shortName")]
-    status: ModEventStatus
-    category_id: Annotated[UUID | None, Field(alias="categoryId")] = None
-    start_date: Annotated[date_aliased | None, Field(alias="startDate")] = None
-    end_date: Annotated[date_aliased | None, Field(alias="endDate")] = None
-    opening_hours: Annotated[list[str], Field(alias="openingHours")]
-    price: str | None = None
-    place: str
-    address: str
-    city: str
-    postal_code: Annotated[str | None, Field(alias="postalCode")] = None
-    lat: float | None = None
-    lon: float | None = None
-    description: str | None = None
-    program: list[ModProgramItem]
-    transit: str | None = None
-    parking: str | None = None
-    website_url: Annotated[str | None, Field(alias="websiteUrl")] = None
-    cancel_reason: Annotated[str | None, Field(alias="cancelReason")] = None
-    published_at: Annotated[AwareDatetime | None, Field(alias="publishedAt")] = None
-    favorite_count: Annotated[int, Field(alias="favoriteCount", ge=0)]
-    source: EventSource
-    version: Annotated[int, Field(ge=1)]
+    status: ModImageStatus
+    position: Annotated[int, Field(description="0 is the cover image.", ge=0)]
+    image: Annotated[Image | None, Field(description="Variants; `null` until the image is ready.")]
+
+
+class UploadContentType(RootModel[Literal["image/jpeg", "image/png", "image/webp"]]):
+    root: Literal["image/jpeg", "image/png", "image/webp"]
+
+
+class UploadRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    content_type: Annotated[UploadContentType, Field(alias="contentType")]
+    size_bytes: Annotated[
+        int,
+        Field(
+            alias="sizeBytes",
+            description="Exact file size; attaching the upload fails if the stored file differs.",
+            ge=1,
+            le=10485760,
+        ),
+    ]
+
+
+class Upload(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    upload_id: Annotated[UUID, Field(alias="uploadId")]
+    url: AnyUrl
+    method: Literal["PUT"]
+    headers: Annotated[
+        dict[str, str], Field(description="Headers the upload request must send unchanged.")
+    ]
+    expires_at: Annotated[AwareDatetime, Field(alias="expiresAt")]
+
+
+class AttachImageRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    upload_id: Annotated[UUID, Field(alias="uploadId")]
+    position: Annotated[
+        int | None, Field(description="Insert position; appended if missing.", ge=0, le=11)
+    ] = None
+
+
+class ImageOrderRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    image_ids: Annotated[list[UUID], Field(alias="imageIds", max_length=12, min_length=1)]
 
 
 class OpeningHour(RootModel[str]):
@@ -358,6 +396,10 @@ class ReverseGeocodeResult(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    street: Annotated[
+        str | None,
+        Field(description="Street and house number; only `/v1/mod/geocode/reverse` fills it."),
+    ] = None
     postal_code: Annotated[str | None, Field(alias="postalCode", pattern="^[0-9]{5}$")] = None
     city: str
     label: str
@@ -431,6 +473,44 @@ class ReadinessStatus(BaseModel):
     checks: Annotated[
         dict[str, Literal["ok", "unavailable"]],
         Field(description="Status per dependency, e.g. `database`, `redis`."),
+    ]
+
+
+class ModEventDetail(BaseModel):
+    """Event with all editable fields; fields of drafts may be empty."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    region_id: Annotated[UUID, Field(alias="regionId")]
+    name: str
+    short_name: Annotated[str, Field(alias="shortName")]
+    status: ModEventStatus
+    category_id: Annotated[UUID | None, Field(alias="categoryId")] = None
+    start_date: Annotated[date_aliased | None, Field(alias="startDate")] = None
+    end_date: Annotated[date_aliased | None, Field(alias="endDate")] = None
+    opening_hours: Annotated[list[str], Field(alias="openingHours")]
+    price: str | None = None
+    place: str
+    address: str
+    city: str
+    postal_code: Annotated[str | None, Field(alias="postalCode")] = None
+    lat: float | None = None
+    lon: float | None = None
+    description: str | None = None
+    program: list[ModProgramItem]
+    transit: str | None = None
+    parking: str | None = None
+    website_url: Annotated[str | None, Field(alias="websiteUrl")] = None
+    cancel_reason: Annotated[str | None, Field(alias="cancelReason")] = None
+    published_at: Annotated[AwareDatetime | None, Field(alias="publishedAt")] = None
+    favorite_count: Annotated[int, Field(alias="favoriteCount", ge=0)]
+    source: EventSource
+    version: Annotated[int, Field(ge=1)]
+    images: Annotated[
+        list[ModImage],
+        Field(description="All images in order, including processing and failed ones (R08)."),
     ]
 
 

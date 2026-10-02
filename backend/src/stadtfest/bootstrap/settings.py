@@ -86,6 +86,21 @@ class Settings(BaseSettings):
     idp_admin_client_id: str | None = None
     idp_admin_client_secret: SecretStr | None = None
     idp_admin_token: SecretStr | None = None
+    s3_endpoint_url: AnyHttpUrl = Field(
+        description="S3 endpoint the backend uses, e.g. http://seaweedfs:8333 (ADR 0007)"
+    )
+    s3_presign_endpoint_url: AnyHttpUrl | None = Field(
+        default=None,
+        description="Endpoint in signed upload URLs if the app reaches the storage differently",
+    )
+    s3_public_base_url: AnyHttpUrl = Field(
+        description="URL under which the bucket's public/ prefix is readable, incl. bucket"
+    )
+    s3_bucket: str = Field(default="stadtfest-images", min_length=3, max_length=63)
+    s3_region: str = Field(default="eu-central-1", min_length=1)
+    s3_access_key_id: str = Field(min_length=1)
+    s3_secret_access_key: SecretStr
+    s3_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
 
     @model_validator(mode="after")
     def _check_adapters(self) -> Settings:
@@ -94,6 +109,8 @@ class Settings(BaseSettings):
         if self.geocoding_provider is GeocodingProvider.NOMINATIM and self.nominatim_url is None:
             raise ValueError("NOMINATIM_URL is required for GEOCODING_PROVIDER=nominatim")
         self._check_auth()
+        if self.env is Environment.PROD and self.s3_public_base_url.scheme != "https":
+            raise ValueError("S3_PUBLIC_BASE_URL must use https in prod")
         return self
 
     def _check_auth(self) -> None:

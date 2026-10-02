@@ -6,7 +6,7 @@ import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
 
 import {FavoriteButton} from '../FavoriteButton/FavoriteButton';
-import {ImagePlaceholder} from '../ImagePlaceholder/ImagePlaceholder';
+import {EventImage} from '../EventImage/EventImage';
 import {Skeleton} from '../Skeleton/Skeleton';
 import {Text} from '../Text/Text';
 import {StatusText} from '../StatusText/StatusText';
@@ -20,6 +20,8 @@ export interface EventListCardProps {
   categoryName: string;
   emoji: string;
   distanceLabel?: string;
+  /** Card variant of the cover image (R08); the striped placeholder without it. */
+  imageUrl?: string | null;
   onPress: () => void;
   onFavoritePress: () => void;
   /** Filled heart for favorites of the signed-in user (R06-US1). */
@@ -37,6 +39,7 @@ export function EventListCard({
   categoryName,
   emoji,
   distanceLabel,
+  imageUrl,
   onPress,
   onFavoritePress,
   isFavorite = false,
@@ -61,9 +64,11 @@ export function EventListCard({
       ]}
     >
       <View>
-        <ImagePlaceholder
+        <EventImage
+          uri={imageUrl}
           label={strings.discover.eventPhoto}
           style={styles.image}
+          testID={`${testID}.image`}
         />
         {statusTone === 'running' ? (
           <View style={[styles.badge, {backgroundColor: c.primary}]}>

@@ -13,8 +13,10 @@ from geoalchemy2 import Geography, Geometry
 from sqlalchemy import ColumnElement, cast, delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from stadtfest.adapters.outbound.persistence.images import image_from_row
 from stadtfest.adapters.outbound.persistence.models import (
     CategoryRow,
+    EventImageRow,
     EventRow,
     OutboxRow,
     ProgramItemRow,
@@ -26,6 +28,7 @@ from stadtfest.application.moderation.ports import (
     VersionConflictError,
 )
 from stadtfest.domain.events.event import EventStatus
+from stadtfest.domain.events.images import EventImage
 from stadtfest.domain.events.maintenance import (
     DomainEvent,
     EventContent,
@@ -160,6 +163,16 @@ class SqlManagedEventRepository:
             )
             for row in rows
         ]
+
+    async def list_images(self, event_id: UUID) -> list[EventImage]:
+        """The event's images ordered by position (R08)."""
+        async with self._sessions() as session:
+            rows = await session.scalars(
+                select(EventImageRow)
+                .where(EventImageRow.event_id == event_id)
+                .order_by(EventImageRow.position)
+            )
+            return [image_from_row(row) for row in rows]
 
     async def get(self, event_id: UUID) -> ManagedEvent | None:
         """The non-deleted event with its program."""

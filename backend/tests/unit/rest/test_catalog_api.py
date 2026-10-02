@@ -227,7 +227,12 @@ def test_geocode_and_reverse(client: TestClient) -> None:
         "kind": "postcode",
     }
     reverse = client.get("/v1/geocode/reverse", params={"lat": 48.8371, "lon": 10.0931})
-    assert reverse.json() == {"postalCode": "73430", "city": "Aalen", "label": "73430 Aalen"}
+    assert reverse.json() == {
+        "street": None,
+        "postalCode": "73430",
+        "city": "Aalen",
+        "label": "73430 Aalen",
+    }
 
 
 def test_geocode_rate_limit(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

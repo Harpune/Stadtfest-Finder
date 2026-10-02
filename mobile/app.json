@@ -46,7 +46,15 @@
           "isAndroidForegroundServiceEnabled": false
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Stadtfest-Finder braucht Zugriff auf deine Fotos, damit du Bilder zu Festen hochladen kannst. Es werden nur die ausgewählten Bilder übertragen.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
     ],
     "scheme": "stadtfest",
     "experiments": {

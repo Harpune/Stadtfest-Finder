@@ -156,6 +156,7 @@ export function EventList({
                 ? strings.discover.distance(item.distanceKm)
                 : undefined
             }
+            imageUrl={item.coverImage?.cardUrl ?? item.coverImage?.url}
             onPress={() => onOpen(item)}
             onFavoritePress={() => onFavorite(item)}
             isFavorite={favoriteIds?.has(item.id) ?? false}

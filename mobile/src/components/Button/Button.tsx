@@ -127,11 +127,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 6,
   },
+  // The label fills the inner width instead of its measured width. After a theme switch
+  // Android draws text slightly wider than measured and wrapped "Als Entwurf" to "Als"
+  // (Pixel 8, RN 0.86); buttons with a fixed width (flex) now leave room to spare.
   content: {
+    alignSelf: 'stretch',
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
-    maxWidth: '100%',
   },
-  label: {fontSize: 16, textAlign: 'center', flexShrink: 1},
+  label: {fontSize: 16, textAlign: 'center', flexGrow: 1, flexShrink: 1},
 });

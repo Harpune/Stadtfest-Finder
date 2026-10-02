@@ -7,7 +7,7 @@ lead to the same state, so at-least-once delivery is safe.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -19,6 +19,7 @@ from stadtfest.application.outbox.ports import (
     OutboxStore,
 )
 from stadtfest.application.shared.ports import CachePort
+from stadtfest.domain.events.images import ImageEventType
 from stadtfest.domain.events.maintenance import DomainEventType
 
 logger = logging.getLogger(__name__)
@@ -43,16 +44,31 @@ class RelayOutbox:
         return await self._outbox.dispatch_pending(RELAY_BATCH, self._queue.enqueue_domain_event)
 
 
-class HandleDomainEvent:
-    """Consumers in R07: cache invalidation and clean-up of deleted events."""
+ProcessImageHandler = Callable[[UUID], Awaitable[object]]
+DeleteImageFilesHandler = Callable[[UUID, UUID | None], Awaitable[None]]
 
-    def __init__(self, cache: CachePort, favorites: EventFavorites) -> None:
+
+class HandleDomainEvent:
+    """Consumers: cache invalidation, clean-up of deleted events (R07), images (R08)."""
+
+    def __init__(
+        self,
+        cache: CachePort,
+        favorites: EventFavorites,
+        process_image: ProcessImageHandler,
+        delete_image_files: DeleteImageFilesHandler,
+    ) -> None:
         """Create the use case."""
         self._cache = cache
         self._favorites = favorites
+        self._process_image = process_image
+        self._delete_image_files = delete_image_files
 
     async def __call__(self, message: OutboxMessage) -> None:
         """React to one domain event."""
+        if message.type in set(ImageEventType):
+            await self._handle_image(ImageEventType(message.type), message.payload)
+            return
         try:
             event_type = DomainEventType(message.type)
         except ValueError:
@@ -63,6 +79,14 @@ class HandleDomainEvent:
         if event_type is DomainEventType.DELETED:
             # `favorite_count` stays as historical value (R07-US7).
             await self._favorites.remove_for_event(UUID(str(message.payload["eventId"])))
+
+    async def _handle_image(self, event_type: ImageEventType, payload: dict[str, object]) -> None:
+        image_id = UUID(str(payload["imageId"]))
+        if event_type is ImageEventType.UPLOADED:
+            await self._process_image(image_id)
+        else:
+            upload_id = payload.get("uploadId")
+            await self._delete_image_files(image_id, UUID(str(upload_id)) if upload_id else None)
 
 
 class PurgeOutbox:

@@ -14,9 +14,11 @@ from arq.connections import RedisSettings
 from stadtfest.adapters.inbound.worker.jobs import (
     IDP_DELETION_MAX_TRIES,
     JOBS,
+    purge_images,
     purge_outbox,
     run_outbox_relay,
 )
+from stadtfest.application.moderation.image_ports import StorageUnavailableError
 from stadtfest.bootstrap.container import Container
 from stadtfest.bootstrap.logging import configure_logging
 from stadtfest.bootstrap.settings import Settings, get_settings
@@ -38,6 +40,10 @@ def build_worker_settings(settings: Settings) -> type:
         configure_logging(settings)
         container = Container.build(settings)
         ctx["container"] = container
+        if not settings.is_production:
+            # Local stack and tests: create the bucket on first start (prod: provisioned).
+            with contextlib.suppress(StorageUnavailableError):
+                await container.storage.ensure_bucket()
         # Outbox relay (ADR 0005) as background task of the worker process.
         ctx["relay"] = asyncio.create_task(run_outbox_relay(container.relay_outbox))
 
@@ -53,6 +59,7 @@ def build_worker_settings(settings: Settings) -> type:
         functions: ClassVar[list[Callable[..., Awaitable[object]]]] = list(JOBS)
         cron_jobs: ClassVar[list[Any]] = [
             cron(purge_outbox, hour={3}, minute={30}, unique=True),
+            cron(purge_images, hour={3}, minute={45}, unique=True),
         ]
         redis_settings = RedisSettings.from_dsn(str(settings.redis_url))
         timezone = TIMEZONE

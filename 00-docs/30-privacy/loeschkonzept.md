@@ -1,6 +1,6 @@
 # Löschkonzept
 
-> Stand R06: Nutzerkonto (`app_user`) und Favoriten (`favorite`). Jedes Inkrement mit Personenbezug erweitert Tabelle, `SqlUserRepository.delete_personal_data` und Tests im selben PR.
+> Stand R08: Nutzerkonto (`app_user`), Favoriten (`favorite`), Upload-Slots (`upload`) und Festbilder. Jedes Inkrement mit Personenbezug erweitert Tabelle, `SqlUserRepository.delete_personal_data` und Tests im selben PR.
 
 ## Aufbewahrung und Löschung je Datenart
 
@@ -9,6 +9,9 @@
 | Nutzerkonto (`app_user`) | IdP-Subject, Vor- und Nachname | bis zur Kontolöschung | `DeleteAccount`, Schritt 1 | `test_identity_use_cases.py`, `test_accounts.py` | R05 |
 | Audit-Felder (`event.created_by`, `event.updated_by`) | Verweis auf die Nutzer-ID eines Moderators | bis zur Kontolöschung | `DeleteAccount`, Schritt 1: auf `null` | `test_accounts.py` | R05 |
 | Favoriten (`favorite`) | Nutzer-ID, Fest-ID, Zeitpunkt | bis zum Entfernen oder zur Kontolöschung; Vorschlag 24 Monate nach Festende (Job ab R11) | `DELETE /v1/me/favorites/{id}`; `DeleteAccount`, Schritt 1: `favorite_count` der betroffenen Feste wird verringert, die Zeilen löscht `ON DELETE CASCADE` | `test_favorites.py` | R06 |
+| Upload-Slots (`upload`) | Nutzer-ID des Moderators, Dateityp, Größe, Zeitpunkt | bis zur Verarbeitung des Bildes; nie angehängte nach 24 h | nach erfolgreicher Verarbeitung (`mark_ready`); täglicher Job `purge_images` (03:45 Uhr); Kontolöschung: `ON DELETE CASCADE` | `test_images.py`, `test_image_use_cases.py` | R08 |
+| Festbilder (`event_image`, Dateien unter `public/images/`) | keine Metadaten (entfernt); ggf. abgebildete Personen | bis zum Entfernen oder Löschen des Fests | `DELETE …/images/{id}` → `image.removed` löscht die Dateien; Bilder gelöschter Feste löscht `purge_images` | `test_images.py`, `test_pillow_processor.py` | R08 |
+| Originaldateien (`uploads/`) | ggf. EXIF mit GPS-Position | bis zur Verarbeitung; fehlgeschlagene bis zum Entfernen bzw. 24 h, wenn nie angehängt | `ProcessImage` löscht sie; `purge_images`; Lifecycle-Regel im Bucket als Sicherheitsnetz | `test_images.py` | R08 |
 | Outbox (`outbox`) | keiner: nur Fest-IDs und Feldnamen | 14 Tage nach Versand | täglicher Job `purge_outbox` (03:30 Uhr) | `test_moderation.py` | R07 |
 | Konto beim IdP (Zitadel/Keycloak) | E-Mail, Name, Anmeldedaten, Rollen, Region | bis zur Kontolöschung | `DeleteAccount`, Schritt 2 (IdP-Admin-Port, ADR 0010) | `test_idp_admin_adapters.py`, `test_keycloak_login.py` | R05 |
 | Retry-Job `delete_idp_user` (Redis) | IdP-Subject im Job | bis zum Erfolg, höchstens ca. 2 Tage (15 Versuche) | automatisch nach Ausführung | `test_worker_jobs.py` | R05 |

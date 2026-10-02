@@ -30,12 +30,15 @@ from stadtfest.adapters.outbound.persistence.moderation import (
     SqlModRegionDirectory,
 )
 from stadtfest.adapters.outbound.persistence.outbox import SqlEventFavorites, SqlOutboxStore
+from stadtfest.adapters.outbound.storage.urls import ImageUrls
 from stadtfest.application.moderation.ports import VersionConflictError
 from stadtfest.application.outbox.ports import OutboxMessage
 from stadtfest.application.outbox.use_cases import HandleDomainEvent, PurgeOutbox, RelayOutbox
 from stadtfest.domain.events.event import EventStatus
 from stadtfest.domain.events.maintenance import EventContent, ManagedEvent, ProgramEntry
 from tests.integration.seed_support import load
+
+TEST_URLS = ImageUrls("https://img.test/stadtfest-images")
 
 pytestmark = pytest.mark.integration
 
@@ -196,7 +199,7 @@ async def test_relay_consumer_invalidates_the_cache_and_cleans_up_favorites(
     version = await repo.save(loaded, 1, user)
     subject = f"sub-{uuid4()}"
     await SqlUserRepository(sessions).get_or_create(subject, "", "")
-    assert await SqlFavoriteRepository(sessions).add(subject, event.id)
+    assert await SqlFavoriteRepository(sessions, TEST_URLS).add(subject, event.id)
     loaded.delete()
     await repo.save(loaded, version, user)
 
@@ -209,7 +212,11 @@ async def test_relay_consumer_invalidates_the_cache_and_cleans_up_favorites(
     outbox = SqlOutboxStore(sessions)
     assert await RelayOutbox(outbox, Queue())() == 2
     assert await RelayOutbox(outbox, Queue())() == 0
-    handle = HandleDomainEvent(cache, SqlEventFavorites(sessions))
+
+    async def ignore(*_args: object) -> None:
+        return None
+
+    handle = HandleDomainEvent(cache, SqlEventFavorites(sessions), ignore, ignore)
     for message in received:
         await handle(message)
     try:

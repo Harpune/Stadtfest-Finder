@@ -6,6 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
+from stadtfest.adapters.inbound.rest.auth import CurrentPrincipal
 from stadtfest.adapters.inbound.rest.dependencies import Deps
 from stadtfest.adapters.inbound.rest.rate_limit import RateLimit
 from stadtfest.application.geocoding.ports import Place
@@ -52,4 +53,25 @@ async def reverse_geocode(
     place = await deps.reverse_geocode(GeoPoint(lat, lon))
     return api.ReverseGeocodeResult(
         postal_code=place.postal_code, city=place.city, label=place.label
+    )
+
+
+mod_router = APIRouter(prefix="/v1/mod/geocode", tags=["moderation"])
+
+
+@mod_router.get(
+    "/reverse",
+    operation_id="reverseGeocodeEventLocation",
+    response_model=api.ReverseGeocodeResult,
+)
+async def reverse_geocode_event_location(
+    deps: Deps,
+    principal: CurrentPrincipal,
+    lat: Annotated[float, Query(ge=-90, le=90)],
+    lon: Annotated[float, Query(ge=-180, le=180)],
+) -> api.ReverseGeocodeResult:
+    """Resolve an event pin to street, postal code and place (moderators)."""
+    place = await deps.reverse_geocode_event_location(principal, GeoPoint(lat, lon))
+    return api.ReverseGeocodeResult(
+        street=place.street, postal_code=place.postal_code, city=place.city, label=place.label
     )

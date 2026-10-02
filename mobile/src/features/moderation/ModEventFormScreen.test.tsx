@@ -31,6 +31,7 @@ const PUBLISHED: ModEventDetail = {
   favoriteCount: 214,
   source: 'manual',
   version: 4,
+  images: [],
 };
 
 interface Call {
@@ -62,12 +63,17 @@ function mockApi(handler: Handler = () => undefined): Call[] {
     const custom = handler(call);
     if (custom) return json(custom.body, custom.status);
     if (url.pathname === '/v1/categories') return json(CATEGORIES);
-    if (url.pathname === '/v1/geocode/reverse') {
-      return json({
-        postalCode: '73430',
-        city: 'Aalen',
-        label: 'Festplatz, 73430 Aalen',
-      });
+    if (url.pathname === '/v1/mod/geocode/reverse') {
+      return json(
+        url.searchParams.get('lat') === '0'
+          ? {street: null, postalCode: null, city: '', label: ''}
+          : {
+              street: 'Festplatz 1',
+              postalCode: '73433',
+              city: 'Aalen',
+              label: '73433 Aalen',
+            },
+      );
     }
     if (url.pathname === '/v1/mod/events/e1' && request.method === 'GET') {
       return json(PUBLISHED);
@@ -153,14 +159,48 @@ describe('ModEventFormScreen', () => {
 
     await waitFor(() =>
       expect(screen.getByTestId('mod.form.address')).toHaveDisplayValue(
-        'Festplatz, 73430 Aalen',
+        'Festplatz 1',
       ),
     );
-    const reverse = calls.find(call => call.path === '/v1/geocode/reverse');
+    const reverse = calls.find(call => call.path === '/v1/mod/geocode/reverse');
     expect(reverse).toBeDefined();
     expect(
       screen.getByText('Tippe, um den Pin zu verschieben'),
     ).toBeOnTheScreen();
+  });
+
+  it('replaces a typed address by the pin address in pin mode', async () => {
+    mockApi();
+    await renderForm(null);
+    await fireEvent.changeText(
+      screen.getByTestId('mod.form.address'),
+      'Marktplatz 1, 73430 Aalen',
+    );
+    await fireEvent.press(screen.getByTestId('mod.form.location.pin'));
+    await fireEvent.press(screen.getByTestId('mod.form.picker.confirm'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('mod.form.address')).toHaveDisplayValue(
+        'Festplatz 1',
+      ),
+    );
+  });
+
+  it('uses the coordinates as address when no street is near the pin', async () => {
+    mockApi(call =>
+      call.path === '/v1/mod/geocode/reverse'
+        ? {status: 404, body: {error: 'not_found', message: ''}}
+        : undefined,
+    );
+    await renderForm(null);
+    await fireEvent.press(screen.getByTestId('mod.form.location.pin'));
+    await fireEvent.press(screen.getByTestId('mod.form.picker.confirm'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('mod.form.address')).toHaveDisplayValue(
+        '48.84000, 10.09000',
+      ),
+    );
   });
 
   it('suggests places while typing the address and takes the chosen one (08-03)', async () => {
@@ -192,7 +232,7 @@ describe('ModEventFormScreen', () => {
     );
 
     expect(screen.getByTestId('mod.form.address')).toHaveDisplayValue(
-      'Marktplatz 1, 73430 Aalen',
+      'Marktplatz 1',
     );
     expect(screen.getByText('48.8368, 10.0932')).toBeOnTheScreen();
     expect(

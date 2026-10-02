@@ -50,6 +50,7 @@ import {
   newProgramRow,
   publishErrors,
 } from './form';
+import {ImagesSection} from './ImagesSection';
 import {
   modApi,
   ModResult,
@@ -92,12 +93,14 @@ export function ModEventFormScreen({eventId}: {eventId: string | null}) {
 }
 
 function EventFormBody({
-  event,
+  event: initialEvent,
   onReload,
 }: {
   event: ModEventDetail | undefined;
   onReload: () => void;
 }) {
+  // A new event becomes stored once images are added (auto draft, R08-US1).
+  const [event, setEvent] = useState(initialEvent);
   const theme = useTheme();
   const c = theme.colors;
   const toast = useToast();
@@ -257,6 +260,26 @@ function EventFormBody({
     } finally {
       setBusy(null);
     }
+  };
+
+  /** The event ID for image uploads; saves a new event as draft first. */
+  const ensureEvent = async (): Promise<string | null> => {
+    if (event) return event.id;
+    const found = draftErrors(form);
+    if (Object.keys(found).length > 0) {
+      setErrors(found);
+      toast(strings.mod.images.needsName);
+      return null;
+    }
+    const result = await modApi.create(formToCreate(form));
+    if (!result.ok) {
+      handleFailure(result);
+      return null;
+    }
+    setEvent(result.event);
+    refresh(result.event);
+    toast(strings.mod.images.draftCreated);
+    return result.event.id;
   };
 
   const statusLabel = strings.mod.status[status];
@@ -447,6 +470,13 @@ function EventFormBody({
           maxLength={500}
           testID="mod.form.website"
         />
+
+        <ImagesSection
+          eventId={event?.id ?? null}
+          images={initialEvent?.images ?? []}
+          disabled={cancelled}
+          ensureEvent={ensureEvent}
+        />
       </ScrollView>
 
       <View
@@ -463,7 +493,8 @@ function EventFormBody({
             loading={busy === 'draft'}
             disabled={busy !== null && busy !== 'draft'}
             testID="mod.form.saveDraft"
-            // Keeps its full width next to the long "Änderungen veröffentlichen".
+            // Fixed share instead of the label width (see Button: Android may draw a label
+            // wider than measured).
             style={styles.secondary}
           />
         )}
@@ -689,23 +720,19 @@ function LocationSection({
     setTyped(false);
     onChange({...rounded, locationMode: 'pin'});
     const {data} = await fetchClient
-      .GET('/v1/geocode/reverse', {params: {query: rounded}})
+      .GET('/v1/mod/geocode/reverse', {params: {query: rounded}})
       .catch(() => ({data: undefined}));
+    // Pin mode: the address always follows the pin; coordinates if no street is near.
     onChange({
+      address:
+        data?.street ??
+        strings.mod.form.pinLabel(
+          rounded.lat.toFixed(5),
+          rounded.lon.toFixed(5),
+        ),
+      place: '',
       postalCode: data?.postalCode ?? null,
       city: data?.city ?? '',
-      // Keep a typed address; otherwise fill it from the pin.
-      ...(form.address.trim()
-        ? {}
-        : {
-            address:
-              data?.label ??
-              strings.mod.form.pinLabel(
-                rounded.lat.toFixed(4),
-                rounded.lon.toFixed(4),
-              ),
-            place: '',
-          }),
     });
   };
 
@@ -756,10 +783,14 @@ function LocationSection({
           failed={suggestions.isError}
           onPick={place => {
             setTyped(false);
-            const [first] = place.label.split(',');
+            const [street] = place.label.split(',');
             onChange({
-              address: place.label,
-              place: place.kind === 'address' ? (first ?? '').trim() : '',
+              // Street only: ZIP code and city have their own fields (no duplicates in 02).
+              address:
+                place.kind === 'address'
+                  ? (street ?? place.label).trim()
+                  : place.label,
+              place: '',
               city: place.city,
               postalCode: place.postalCode ?? null,
               lat: place.lat,
@@ -1031,8 +1062,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   footer: {flexDirection: 'row', gap: 10, padding: 12, borderTopWidth: 1},
-  primary: {flex: 1},
-  secondary: {flexShrink: 0},
+  primary: {flex: 1.9},
+  secondary: {flex: 1},
   menu: {gap: 10, paddingBottom: 8},
   menuButton: {minHeight: 56, justifyContent: 'center', paddingHorizontal: 18},
   menuLabel: {fontSize: 17},

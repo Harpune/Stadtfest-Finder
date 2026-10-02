@@ -103,12 +103,16 @@ class NominatimGeocoding:
         if place is None:
             return None
         label = f"{place.postal_code} {place.city}".strip() if place.postal_code else place.city
+        address: dict[str, str] = item.get("address") or {}
+        road = address.get("road") or address.get("pedestrian") or address.get("square")
+        street = " ".join(filter(None, (road, address.get("house_number")))) or None
         return Place(
             label=label,
             city=place.city,
             location=place.location,
             kind=PlaceKind.POSTCODE if place.postal_code else PlaceKind.CITY,
             postal_code=place.postal_code,
+            street=street,
         )
 
     async def _get(self, path: str, params: Mapping[str, str | int | float]) -> Any:  # noqa: ANN401  # JSON

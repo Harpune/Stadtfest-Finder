@@ -12,6 +12,7 @@ from arq import Retry
 
 from stadtfest.application.identity.ports import IdpUnavailableError
 from stadtfest.application.identity.use_cases import DeleteIdpUser
+from stadtfest.application.moderation.images import PurgeImages
 from stadtfest.application.outbox.ports import OutboxMessage
 from stadtfest.application.outbox.use_cases import (
     RELAY_BATCH,
@@ -113,9 +114,24 @@ async def purge_outbox(ctx: dict[str, Any]) -> int:
     return await use_case()
 
 
+async def purge_images(ctx: dict[str, Any]) -> int:
+    """Delete stale uploads and images of deleted events (daily, R08-US5).
+
+    Args:
+        ctx: arq job context with the container.
+
+    Returns:
+        Number of deleted uploads and images.
+    """
+    use_case: PurgeImages = ctx["container"].purge_images
+    result = await use_case()
+    return result.uploads + result.images
+
+
 JOBS: list[Callable[..., Awaitable[object]]] = [
     ping,
     delete_idp_user,
     handle_domain_event,
     purge_outbox,
+    purge_images,
 ]

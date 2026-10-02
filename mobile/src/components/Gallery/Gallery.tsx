@@ -1,10 +1,10 @@
 import React, {ReactNode, useState} from 'react';
-import {Image, Pressable, StyleSheet, View} from 'react-native';
+import {Pressable, StyleSheet, View} from 'react-native';
 
 import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
 
-import {ImagePlaceholder} from '../ImagePlaceholder/ImagePlaceholder';
+import {EventImage} from '../EventImage/EventImage';
 import {Text} from '../Text/Text';
 
 export const GALLERY_HEIGHT = 340;
@@ -36,18 +36,15 @@ export function Gallery({images, name, overlay, testID}: GalleryProps) {
 
   return (
     <View testID={testID} style={styles.container}>
-      {current ? (
-        <Image
-          source={{uri: current.url}}
-          style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-        />
-      ) : (
-        <ImagePlaceholder
-          label={strings.detail.galleryCaption(index + 1, name)}
-          style={StyleSheet.absoluteFill}
-        />
-      )}
+      <EventImage
+        uri={current?.url}
+        label={strings.detail.galleryCaption(index + 1, name)}
+        accessibilityLabel={
+          current ? strings.detail.galleryCaption(index + 1, name) : undefined
+        }
+        style={StyleSheet.absoluteFill}
+        testID={testID ? `${testID}.image` : undefined}
+      />
       {count > 1 ? (
         <View style={StyleSheet.absoluteFill}>
           <View style={styles.halves}>

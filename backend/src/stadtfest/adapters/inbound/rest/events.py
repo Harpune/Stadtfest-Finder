@@ -119,12 +119,22 @@ def _status(status: EventStatus) -> api.PublicEventStatus:
     return api.PublicEventStatus("published")
 
 
+def image_model(image: ImageView) -> api.Image:
+    """API model of a ready image (also used by the moderation routers)."""
+    # Any: URL fields are typed AnyUrl in the generated model; pydantic validates the strings.
+    fields: dict[str, Any] = {
+        "url": image.url,
+        "thumb_url": image.thumb_url,
+        "card_url": image.card_url,
+        "jpeg_url": image.jpeg_url,
+        "width": image.width,
+        "height": image.height,
+    }
+    return api.Image(**fields)
+
+
 def _image(image: ImageView | None) -> api.Image | None:
-    if image is None:
-        return None
-    return api.Image(
-        url=image.url, thumb_url=image.thumb_url, width=image.width, height=image.height
-    )
+    return None if image is None else image_model(image)
 
 
 # Any: keyword arguments for a generated pydantic model with mixed field types.

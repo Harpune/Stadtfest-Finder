@@ -387,6 +387,152 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/mod/geocode/reverse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Address of an event pin
+         * @description Resolves the pin of an event to street, ZIP code and place (moderators only). Unlike
+         *     `/v1/geocode/reverse` the coordinate is used in full precision: an event location is
+         *     public data, not a user position. `street` is missing if no address is near the pin.
+         */
+        get: operations["reverseGeocodeEventLocation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/mod/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request a signed upload URL for an image
+         * @description Returns a pre-signed `PUT` URL into the object storage, valid for 10 minutes (only the
+         *     key is signed; type and size are checked after the upload). The app uploads the file there directly with exactly the given
+         *     headers, then attaches it with
+         *     `POST /v1/mod/events/{eventId}/images`. Allowed are JPEG, PNG and WebP up to 10 MB
+         *     (`422 validation_failed` otherwise).
+         */
+        post: operations["createModUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/mod/events/{eventId}/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Attach an uploaded image to an event
+         * @description Takes the uploaded file and starts processing in the background (metadata removal,
+         *     variants). The image is appended unless `position` is given. At most 12 images per
+         *     event (`422 too_many_images`). An unknown, foreign, used or not yet uploaded
+         *     `uploadId` gives `422 invalid_upload`.
+         */
+        post: operations["attachModEventImage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/mod/events/{eventId}/images/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the order of the images
+         * @description The complete list of the event's image IDs in the new order; the first one is the
+         *     cover image. A missing, unknown or repeated ID gives `422 validation_failed`.
+         */
+        put: operations["orderModEventImages"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/mod/events/{eventId}/images/{imageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+                /** @description Image ID. */
+                imageId: components["parameters"]["ImageId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove an image
+         * @description Removes the image at once; its files are deleted in the background.
+         */
+        delete: operations["deleteModEventImage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/mod/events/{eventId}/images/{imageId}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+                /** @description Image ID. */
+                imageId: components["parameters"]["ImageId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Process a failed image again
+         * @description Only images with status `failed` whose upload still exists (`409 not_retryable` otherwise).
+         */
+        post: operations["retryModEventImage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -416,12 +562,20 @@ export interface components {
          * @enum {string}
          */
         PublicEventStatus: "published" | "cancelled";
-        /** @description Event image variants (R08). */
+        /**
+         * @description Event image variants (R08), WebP with immutable URLs: `url` (long edge 1,600 px),
+         *     `cardUrl` (600 px), `thumbUrl` (200 px). `jpegUrl` is the full size as JPEG, e.g. for
+         *     link previews.
+         */
         Image: {
             /** Format: uri */
             url: string;
             /** Format: uri */
+            cardUrl?: string;
+            /** Format: uri */
             thumbUrl: string;
+            /** Format: uri */
+            jpegUrl?: string;
             width?: number;
             height?: number;
         };
@@ -587,6 +741,50 @@ export interface components {
             favoriteCount: number;
             source: components["schemas"]["EventSource"];
             version: number;
+            /** @description All images in order, including processing and failed ones (R08). */
+            images: components["schemas"]["ModImage"][];
+        };
+        /** @enum {string} */
+        ModImageStatus: "processing" | "ready" | "failed";
+        /** @description An event image in the moderation view. Variants only when `ready`. */
+        ModImage: {
+            /** Format: uuid */
+            id: string;
+            status: components["schemas"]["ModImageStatus"];
+            /** @description 0 is the cover image. */
+            position: number;
+            /** @description Variants; `null` until the image is ready. */
+            image: components["schemas"]["Image"] | null;
+        };
+        /** @enum {string} */
+        UploadContentType: "image/jpeg" | "image/png" | "image/webp";
+        UploadRequest: {
+            contentType: components["schemas"]["UploadContentType"];
+            /** @description Exact file size; attaching the upload fails if the stored file differs. */
+            sizeBytes: number;
+        };
+        Upload: {
+            /** Format: uuid */
+            uploadId: string;
+            /** Format: uri */
+            url: string;
+            /** @enum {string} */
+            method: "PUT";
+            /** @description Headers the upload request must send unchanged. */
+            headers: {
+                [key: string]: string;
+            };
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        AttachImageRequest: {
+            /** Format: uuid */
+            uploadId: string;
+            /** @description Insert position; appended if missing. */
+            position?: number;
+        };
+        ImageOrderRequest: {
+            imageIds: string[];
         };
         /**
          * @description Editable fields. Lengths: name 120, short name 18, description 5,000, 10 opening hour
@@ -641,6 +839,8 @@ export interface components {
         };
         /** @description Place for coordinates. */
         ReverseGeocodeResult: {
+            /** @description Street and house number; only `/v1/mod/geocode/reverse` fills it. */
+            street?: string | null;
             postalCode?: string | null;
             city: string;
             label: string;
@@ -718,6 +918,8 @@ export interface components {
         };
     };
     parameters: {
+        /** @description Image ID. */
+        ImageId: string;
         /** @description Event ID. */
         ModEventId: string;
         /** @description Version from `ETag` / `version` (quoted or plain). Missing → `428`. */
@@ -1397,6 +1599,187 @@ export interface operations {
             404: components["responses"]["Error"];
             409: components["responses"]["Error"];
             422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    reverseGeocodeEventLocation: {
+        parameters: {
+            query: {
+                /** @description Latitude (WGS84). */
+                lat: number;
+                /** @description Longitude (WGS84). */
+                lon: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The place at the pin. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReverseGeocodeResult"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    createModUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadRequest"];
+            };
+        };
+        responses: {
+            /** @description The upload slot. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Upload"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    attachModEventImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachImageRequest"];
+            };
+        };
+        responses: {
+            /** @description The image, still processing. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModImage"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    orderModEventImages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImageOrderRequest"];
+            };
+        };
+        responses: {
+            /** @description The images in the new order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModImage"][];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteModEventImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+                /** @description Image ID. */
+                imageId: components["parameters"]["ImageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    retryModEventImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: components["parameters"]["ModEventId"];
+                /** @description Image ID. */
+                imageId: components["parameters"]["ImageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The image, processing again. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModImage"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

@@ -697,6 +697,201 @@ paths:
           $ref: "#/components/responses/Error"
         default:
           $ref: "#/components/responses/Error"
+  /v1/mod/geocode/reverse:
+    get:
+      operationId: reverseGeocodeEventLocation
+      tags: [moderation]
+      summary: Address of an event pin
+      description: |
+        Resolves the pin of an event to street, ZIP code and place (moderators only). Unlike
+        `/v1/geocode/reverse` the coordinate is used in full precision: an event location is
+        public data, not a user position. `street` is missing if no address is near the pin.
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          description: Latitude (WGS84).
+          schema:
+            type: number
+            minimum: -90
+            maximum: 90
+        - name: lon
+          in: query
+          required: true
+          description: Longitude (WGS84).
+          schema:
+            type: number
+            minimum: -180
+            maximum: 180
+      responses:
+        "200":
+          description: The place at the pin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReverseGeocodeResult"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/mod/uploads:
+    post:
+      operationId: createModUpload
+      tags: [moderation]
+      summary: Request a signed upload URL for an image
+      description: |
+        Returns a pre-signed `PUT` URL into the object storage, valid for 10 minutes (only the
+        key is signed; type and size are checked after the upload). The app uploads the file there directly with exactly the given
+        headers, then attaches it with
+        `POST /v1/mod/events/{eventId}/images`. Allowed are JPEG, PNG and WebP up to 10 MB
+        (`422 validation_failed` otherwise).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadRequest"
+      responses:
+        "201":
+          description: The upload slot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Upload"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/mod/events/{eventId}/images:
+    parameters:
+      - $ref: "#/components/parameters/ModEventId"
+    post:
+      operationId: attachModEventImage
+      tags: [moderation]
+      summary: Attach an uploaded image to an event
+      description: |
+        Takes the uploaded file and starts processing in the background (metadata removal,
+        variants). The image is appended unless `position` is given. At most 12 images per
+        event (`422 too_many_images`). An unknown, foreign, used or not yet uploaded
+        `uploadId` gives `422 invalid_upload`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttachImageRequest"
+      responses:
+        "201":
+          description: The image, still processing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModImage"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/mod/events/{eventId}/images/order:
+    parameters:
+      - $ref: "#/components/parameters/ModEventId"
+    put:
+      operationId: orderModEventImages
+      tags: [moderation]
+      summary: Set the order of the images
+      description: |
+        The complete list of the event's image IDs in the new order; the first one is the
+        cover image. A missing, unknown or repeated ID gives `422 validation_failed`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImageOrderRequest"
+      responses:
+        "200":
+          description: The images in the new order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ModImage"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/mod/events/{eventId}/images/{imageId}:
+    parameters:
+      - $ref: "#/components/parameters/ModEventId"
+      - $ref: "#/components/parameters/ImageId"
+    delete:
+      operationId: deleteModEventImage
+      tags: [moderation]
+      summary: Remove an image
+      description: Removes the image at once; its files are deleted in the background.
+      responses:
+        "204":
+          description: Removed.
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/mod/events/{eventId}/images/{imageId}/retry:
+    parameters:
+      - $ref: "#/components/parameters/ModEventId"
+      - $ref: "#/components/parameters/ImageId"
+    post:
+      operationId: retryModEventImage
+      tags: [moderation]
+      summary: Process a failed image again
+      description: Only images with status `failed` whose upload still exists (`409 not_retryable` otherwise).
+      responses:
+        "202":
+          description: The image, processing again.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModImage"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
 components:
   headers:
     ETag:
@@ -704,6 +899,14 @@ components:
       schema:
         type: string
   parameters:
+    ImageId:
+      name: imageId
+      in: path
+      required: true
+      description: Image ID.
+      schema:
+        type: string
+        format: uuid
     ModEventId:
       name: eventId
       in: path
@@ -865,13 +1068,22 @@ components:
       enum: [published, cancelled]
     Image:
       type: object
-      description: Event image variants (R08).
+      description: |
+        Event image variants (R08), WebP with immutable URLs: `url` (long edge 1,600 px),
+        `cardUrl` (600 px), `thumbUrl` (200 px). `jpegUrl` is the full size as JPEG, e.g. for
+        link previews.
       required: [url, thumbUrl]
       properties:
         url:
           type: string
           format: uri
+        cardUrl:
+          type: string
+          format: uri
         thumbUrl:
+          type: string
+          format: uri
+        jpegUrl:
           type: string
           format: uri
         width:
@@ -1124,7 +1336,7 @@ components:
       description: Event with all editable fields; fields of drafts may be empty.
       required:
         [id, regionId, name, shortName, status, openingHours, place, address, city, program,
-         favoriteCount, source, version]
+         favoriteCount, source, version, images]
       properties:
         id:
           type: string
@@ -1190,6 +1402,91 @@ components:
         version:
           type: integer
           minimum: 1
+        images:
+          type: array
+          description: All images in order, including processing and failed ones (R08).
+          items:
+            $ref: "#/components/schemas/ModImage"
+    ModImageStatus:
+      type: string
+      enum: [processing, ready, failed]
+    ModImage:
+      type: object
+      description: An event image in the moderation view. Variants only when `ready`.
+      required: [id, status, position, image]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/ModImageStatus"
+        position:
+          type: integer
+          minimum: 0
+          description: 0 is the cover image.
+        image:
+          description: Variants; `null` until the image is ready.
+          oneOf:
+            - $ref: "#/components/schemas/Image"
+            - type: "null"
+    UploadContentType:
+      type: string
+      enum: [image/jpeg, image/png, image/webp]
+    UploadRequest:
+      type: object
+      required: [contentType, sizeBytes]
+      properties:
+        contentType:
+          $ref: "#/components/schemas/UploadContentType"
+        sizeBytes:
+          type: integer
+          minimum: 1
+          maximum: 10485760
+          description: Exact file size; attaching the upload fails if the stored file differs.
+    Upload:
+      type: object
+      required: [uploadId, url, method, headers, expiresAt]
+      properties:
+        uploadId:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        method:
+          type: string
+          enum: [PUT]
+        headers:
+          type: object
+          description: Headers the upload request must send unchanged.
+          additionalProperties:
+            type: string
+        expiresAt:
+          type: string
+          format: date-time
+    AttachImageRequest:
+      type: object
+      required: [uploadId]
+      properties:
+        uploadId:
+          type: string
+          format: uuid
+        position:
+          type: integer
+          minimum: 0
+          maximum: 11
+          description: Insert position; appended if missing.
+    ImageOrderRequest:
+      type: object
+      required: [imageIds]
+      properties:
+        imageIds:
+          type: array
+          minItems: 1
+          maxItems: 12
+          items:
+            type: string
+            format: uuid
     ModEventFields:
       type: object
       description: |
@@ -1311,6 +1608,9 @@ components:
       description: Place for coordinates.
       required: [city, label]
       properties:
+        street:
+          type: ["string", "null"]
+          description: Street and house number; only `/v1/mod/geocode/reverse` fills it.
         postalCode:
           type: ["string", "null"]
           pattern: "^[0-9]{5}$"

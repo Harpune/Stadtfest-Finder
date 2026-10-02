@@ -1,9 +1,18 @@
 import pytest
 
 from stadtfest.application.geocoding.ports import Place, PlaceKind
-from stadtfest.application.geocoding.use_cases import Geocode, ReverseGeocode
-from stadtfest.application.shared.errors import NotFoundError, ServiceUnavailableError
+from stadtfest.application.geocoding.use_cases import (
+    Geocode,
+    ReverseGeocode,
+    ReverseGeocodeEventLocation,
+)
+from stadtfest.application.shared.errors import (
+    ForbiddenError,
+    NotFoundError,
+    ServiceUnavailableError,
+)
 from stadtfest.domain.events.geo import GeoPoint
+from stadtfest.domain.identity.principal import Principal, Role
 from tests.fakes import FakeCache, FakeGeocoding
 
 AALEN = Place("73430 Aalen", "Aalen", GeoPoint(48.8375, 10.0933), PlaceKind.POSTCODE, "73430")
@@ -41,3 +50,32 @@ async def test_reverse_uses_rounded_grid_only() -> None:
 async def test_reverse_without_result_is_not_found() -> None:
     with pytest.raises(NotFoundError):
         await ReverseGeocode(FakeGeocoding(), FakeCache())(GeoPoint(0.0, 0.0))
+
+
+MODERATOR = Principal("m", frozenset({Role.USER, Role.MODERATOR}), "ostalb")
+PIN_PLACE = Place(
+    "73430 Aalen",
+    "Aalen",
+    GeoPoint(48.8368, 10.0932),
+    PlaceKind.POSTCODE,
+    "73430",
+    street="Marktplatz 1",
+)
+
+
+async def test_event_pin_keeps_full_precision_and_street() -> None:
+    geocoding = FakeGeocoding(reverse_result=PIN_PLACE)
+    cache = FakeCache()
+    use_case = ReverseGeocodeEventLocation(geocoding, cache)
+
+    place = await use_case(MODERATOR, GeoPoint(48.8368123, 10.0932456))
+    cached = await use_case(MODERATOR, GeoPoint(48.8368123, 10.0932456))
+
+    assert geocoding.reverse_calls == [GeoPoint(48.83681, 10.09325)]
+    assert place.street == cached.street == "Marktplatz 1"
+
+
+async def test_event_pin_lookup_is_for_moderators_only() -> None:
+    user = Principal("u", frozenset({Role.USER}))
+    with pytest.raises(ForbiddenError):
+        await ReverseGeocodeEventLocation(FakeGeocoding(), FakeCache())(user, GeoPoint(48.8, 10.1))

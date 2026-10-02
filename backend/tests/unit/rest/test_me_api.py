@@ -29,6 +29,7 @@ from tests.fakes import (
     FakeTokenVerifier,
     FakeUserRepository,
 )
+from tests.settings_values import TEST_STORAGE
 
 USER_TOKEN = "user-token"
 MODERATOR_TOKEN = "moderator-token"
@@ -194,6 +195,7 @@ def test_tokens_and_names_are_never_logged(
             redis_url="redis://localhost:6379/0",
             log_format=LogFormat.JSON,
             geocoding_provider=GeocodingProvider.FAKE,
+            **TEST_STORAGE,  # type: ignore[arg-type]
         )
     )
     capsys.readouterr()

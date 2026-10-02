@@ -118,19 +118,32 @@ class ProgramItemRow(Base):
     position: Mapped[int] = mapped_column(default=0)
 
 
+class UploadRow(Base):
+    """Table `upload` (R08): signed upload slots of moderators."""
+
+    __tablename__ = "upload"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("app_user.id", ondelete="CASCADE"))
+    content_type: Mapped[str]
+    size_bytes: Mapped[int]
+    created_at: Mapped[datetime] = mapped_column(server_default="now()")
+    consumed_at: Mapped[datetime | None]
+
+
 class EventImageRow(Base):
-    """Table `event_image` (filled from R08 on)."""
+    """Table `event_image` (R08). Variant keys are derived from the ID."""
 
     __tablename__ = "event_image"
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     event_id: Mapped[UUID] = mapped_column(ForeignKey("event.id", ondelete="CASCADE"))
-    object_key: Mapped[str]
-    thumb_key: Mapped[str | None]
+    upload_id: Mapped[UUID | None] = mapped_column(ForeignKey("upload.id", ondelete="SET NULL"))
     position: Mapped[int] = mapped_column(default=0)
     width: Mapped[int | None]
     height: Mapped[int | None]
     status: Mapped[str] = mapped_column(default="processing")
+    created_at: Mapped[datetime] = mapped_column(server_default="now()")
 
 
 class FavoriteRow(Base):

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import re
 import unicodedata
 
@@ -94,6 +95,10 @@ def _words(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", plain)
 
 
+def _distance_sq(a: GeoPoint, b: GeoPoint) -> float:
+    return (a.lat - b.lat) ** 2 + (a.lon - b.lon) ** 2
+
+
 def _matches(query_words: list[str], label: str) -> bool:
     """True if every query word starts a word of the label (any order), like typing ahead."""
     label_words = _words(label)
@@ -114,7 +119,10 @@ class FakeGeocoding:
         return found[:limit]
 
     async def reverse(self, location: GeoPoint) -> Place | None:
-        """Return the nearest fixed postcode place within ~30 km."""
+        """Return the nearest fixed postcode place within ~30 km.
+
+        A fixed address within ~200 m adds its street (event pins).
+        """
         candidates = [place for place in _PLACES if place.kind is PlaceKind.POSTCODE]
         nearest = min(
             candidates,
@@ -125,4 +133,10 @@ class FakeGeocoding:
         distance_sq = (nearest.location.lat - location.lat) ** 2 + (
             nearest.location.lon - location.lon
         ) ** 2
-        return nearest if distance_sq < 0.3**2 else None
+        if distance_sq >= 0.3**2:
+            return None
+        addresses = [p for p in _PLACES if p.kind is PlaceKind.ADDRESS]
+        near = min(addresses, key=lambda p: _distance_sq(p.location, location))
+        if _distance_sq(near.location, location) < 0.002**2:
+            return dataclasses.replace(nearest, street=near.label.split(",")[0])
+        return nearest

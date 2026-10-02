@@ -23,12 +23,14 @@ class CategoryView:
 
 @dataclass(frozen=True, slots=True)
 class ImageView:
-    """Image variants (filled from R08 on)."""
+    """Public image variants (R08): `url` full size, `card_url` and `thumb_url` smaller."""
 
     url: str
     thumb_url: str
     width: int | None = None
     height: int | None = None
+    card_url: str | None = None
+    jpeg_url: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

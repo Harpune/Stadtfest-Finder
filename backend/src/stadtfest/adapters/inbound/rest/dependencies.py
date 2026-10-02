@@ -7,6 +7,7 @@ from typing import Annotated, Protocol
 from fastapi import Depends, Request
 from redis.asyncio import Redis
 
+from stadtfest.adapters.outbound.storage.urls import ImageUrls
 from stadtfest.application.collections.use_cases import (
     AddFavorite,
     IsFavorite,
@@ -19,9 +20,20 @@ from stadtfest.application.events.use_cases import (
     ListActiveCategories,
     SearchEvents,
 )
-from stadtfest.application.geocoding.use_cases import Geocode, ReverseGeocode
+from stadtfest.application.geocoding.use_cases import (
+    Geocode,
+    ReverseGeocode,
+    ReverseGeocodeEventLocation,
+)
 from stadtfest.application.health.check_readiness import CheckReadiness
 from stadtfest.application.identity.use_cases import Authenticate, DeleteAccount, GetMe, UpdateMe
+from stadtfest.application.moderation.images import (
+    AttachImage,
+    CreateUpload,
+    OrderImages,
+    RemoveImage,
+    RetryImage,
+)
 from stadtfest.application.moderation.use_cases import (
     CancelModEvent,
     CreateModEvent,
@@ -45,6 +57,7 @@ class RestDependencies(Protocol):
     list_active_categories: ListActiveCategories
     geocode: Geocode
     reverse_geocode: ReverseGeocode
+    reverse_geocode_event_location: ReverseGeocodeEventLocation
     authenticate: Authenticate
     get_me: GetMe
     update_me: UpdateMe
@@ -61,6 +74,12 @@ class RestDependencies(Protocol):
     unpublish_mod_event: UnpublishModEvent
     cancel_mod_event: CancelModEvent
     delete_mod_event: DeleteModEvent
+    image_urls: ImageUrls
+    create_upload: CreateUpload
+    attach_image: AttachImage
+    order_images: OrderImages
+    remove_image: RemoveImage
+    retry_image: RetryImage
 
 
 def container(request: Request) -> RestDependencies:

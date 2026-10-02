@@ -21,7 +21,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from stadtfest.adapters.outbound.persistence.models import CategoryRow, EventRow, ProgramItemRow
+from stadtfest.adapters.outbound.persistence.covers import cover_lateral, cover_view
+from stadtfest.adapters.outbound.persistence.models import (
+    CategoryRow,
+    EventImageRow,
+    EventRow,
+    ProgramItemRow,
+)
+from stadtfest.adapters.outbound.storage.urls import ImageUrls
 from stadtfest.application.events.criteria import PageCursor, SearchCriteria, SearchFilter
 from stadtfest.application.events.views import (
     CategoryView,
@@ -32,6 +39,7 @@ from stadtfest.application.events.views import (
 )
 from stadtfest.domain.events.event import PUBLIC_STATUSES, EventStatus
 from stadtfest.domain.events.geo import GeoPoint
+from stadtfest.domain.events.images import ImageStatus
 
 # Minimum pg_trgm word similarity for typo-tolerant text search.
 WORD_SIMILARITY_THRESHOLD = 0.4
@@ -64,13 +72,15 @@ def _distance_km(reference: GeoPoint | None) -> ColumnElement[float | None]:
 class SqlCatalog:
     """Implements `EventCatalog` and `CategoryCatalog` with PostGIS queries."""
 
-    def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(self, sessions: async_sessionmaker[AsyncSession], image_urls: ImageUrls) -> None:
         """Create the adapter.
 
         Args:
             sessions: Session factory of the process.
+            image_urls: Builds the public URLs of image variants.
         """
         self._sessions = sessions
+        self._urls = image_urls
 
     # ---- CategoryCatalog -------------------------------------------------------------
 
@@ -93,6 +103,7 @@ class SqlCatalog:
         """Return listed events in public order (running first, start date, name, id)."""
         upcoming = case((EventRow.start_date > criteria.today, 1), else_=0)
         reference = criteria.filter.distance_reference
+        cover = cover_lateral()
         query = select(
             EventRow.id,
             EventRow.name,
@@ -106,7 +117,10 @@ class SqlCatalog:
             _lat().label("lat"),
             _lon().label("lon"),
             _distance_km(reference).label("distance_km"),
-        )
+            cover.c.id.label("cover_id"),
+            cover.c.width.label("cover_width"),
+            cover.c.height.label("cover_height"),
+        ).outerjoin(cover, true())
         async with self._sessions() as session:
             query = query.where(*await self._conditions(session, criteria, criteria.filter))
             if after is not None:
@@ -129,6 +143,7 @@ class SqlCatalog:
                 location=GeoPoint(row.lat, row.lon),
                 category_id=row.category_id,
                 distance_km=float(row.distance_km) if row.distance_km is not None else None,
+                cover_image=cover_view(row, self._urls),
             )
             for row in rows
         ]
@@ -181,11 +196,20 @@ class SqlCatalog:
             .where(ProgramItemRow.event_id == event_id)
             .order_by(ProgramItemRow.date, ProgramItemRow.position)
         )
+        images_query = (
+            select(EventImageRow)
+            .where(
+                EventImageRow.event_id == event_id,
+                EventImageRow.status == ImageStatus.READY.value,
+            )
+            .order_by(EventImageRow.position)
+        )
         async with self._sessions() as session:
             row = (await session.execute(query)).one_or_none()
             if row is None:
                 return None
             program = (await session.scalars(program_query)).all()
+            images = (await session.scalars(images_query)).all()
         event: EventRow = row[0]
         if event.start_date is None or event.end_date is None:
             return None  # unreachable: the DB check requires dates for public events
@@ -214,6 +238,7 @@ class SqlCatalog:
             parking=event.parking,
             website_url=event.website_url,
             distance_km=float(row.distance_km) if row.distance_km is not None else None,
+            images=tuple(self._urls.view(image.id, image.width, image.height) for image in images),
         )
 
     # ---- query building ----------------------------------------------------------------

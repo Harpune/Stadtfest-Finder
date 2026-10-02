@@ -72,7 +72,7 @@ flowchart TD
 | 3 | 08-05 | „+ Neues Fest“ | Leeres Formular mit Status „Entwurf“. | – | lokal |
 | 4 | 08-02 | Fest öffnen | Formular mit allen Feldern, ⋯-Menü. | `GET /v1/mod/events/{id}` | sync |
 | 5 | 08-03 | Ort: Adresse eingeben | Ab 3 Zeichen erscheinen bis zu 5 Vorschläge unter dem Feld („Suche Orte …“, „Kein Ort gefunden“). Ein Vorschlag setzt Adresse, PLZ, Ort und Pin; die Karte springt zum Ergebnis. | `GET /v1/geocode?q=&limit=5` | sync, debounced (300 ms) |
-| 6 | 08-07 | Ort: „Pin auf Karte“ oder Tipp auf die Kartenvorschau | Vollbildkarte: verschieben und zoomen (+/−), der Pin bleibt in der Mitte, „Pin übernehmen“ setzt ihn. ✕ oder Android-Zurück verwerfen. Ohne Adresse wird die Adresse per Reverse-Geocoding gefüllt. | `GET /v1/geocode/reverse?lat=&lon=` | sync |
+| 6 | 08-07 | Ort: „Pin auf Karte“ oder Tipp auf die Kartenvorschau | Vollbildkarte: verschieben und zoomen (+/−), der Pin bleibt in der Mitte, „Pin übernehmen“ setzt ihn. ✕ oder Android-Zurück verwerfen. Im Pin-Modus wird die Adresse **immer** aus dem Pin ermittelt (Straße, PLZ, Ort); ohne Straße in der Nähe stehen die Koordinaten als Adresse. | `GET /v1/mod/geocode/reverse?lat=&lon=` (nur Moderatoren, volle Genauigkeit) | sync |
 | 7 | 08-04 | Programmpunkt hinzufügen/entfernen | Zeilen „Tag, Zeit“ und „Programmpunkt“. | – (wird mit dem Fest gespeichert) | lokal |
 | 8 | 08-04 | „+ Hochladen“ | Auswahl aus der Mediathek. Die Kachel zeigt „Lädt hoch“, das erste Bild ist das Titelbild. | `POST /v1/mod/uploads` → signierte URL. Danach `PUT` der Datei direkt in den Speicher, dann `POST /v1/mod/events/{id}/images {uploadId}`. Thumbnails werden im Hintergrund erzeugt. | sync (Upload) + async (Thumbnails) |
 | 9 | 08-04 | Bild entfernen (✕) | Entfernt die Kachel sofort. | `DELETE /v1/mod/events/{id}/images/{imageId}` | sync |
@@ -107,12 +107,14 @@ flowchart TD
 
 ## Stand der Umsetzung (R07)
 
-- Bilder (08-04 unten) folgen in R08, die KI-Suche („Suchen“) in R10, der Tab „Kategorien“ in R09; bis dahin zeigt der Tab einen Hinweis.
+- Die KI-Suche („Suchen“) folgt in R10, der Tab „Kategorien“ in R09; bis dahin zeigt der Tab einen Hinweis.
 - Datumsfelder nutzen die Systemauswahl (`@react-native-community/datetimepicker`, Entscheidung 01.10.2026).
 - Die Status-Chips der Übersicht zeigen die Anzahl je Status und filtern auf dem Gerät.
 - „Als Entwurf“ bei einem veröffentlichten Fest speichert die Änderungen und zieht das Fest danach zurück (`PATCH` + `POST …/unpublish`).
 - Abgesagte Feste lassen sich nur noch in Textfeldern ändern; der Button „Als Entwurf“ entfällt dort.
 - Die Kartenvorschau im Formular nimmt keine Gesten an, damit sie nicht mit dem Scrollen kollidiert. Den Pin setzt die Vollbildkarte (`LocationPicker`, Entscheidung 01.10.2026 nach Gerätetest).
+- Ein Adressvorschlag speichert nur Straße und Hausnummer als Adresse; PLZ und Ort stehen in eigenen Feldern. Die Detailseite (02) lässt doppelte Teile weg.
+- Fest-Pins sind öffentliche Daten. Deshalb nutzt die Moderation einen eigenen Reverse-Endpunkt mit voller Genauigkeit und Straße; der öffentliche Endpunkt rundet weiter auf ~100 m (Nutzerpositionen, VVT Nr. 2).
 - Android-Zurück schließt zuerst offene Ebenen (Tastatur, Dialog, ⋯-Menü, Vollbildkarte) und erst danach das Formular.
 - Lokal liefert der Fake-Geocoder (`GEOCODING_PROVIDER=fake`) nur feste Orte rund um Aalen; er findet Wortanfänge in beliebiger Reihenfolge („Marktpl Aalen“, „Wasseralf“). Echte Adressen gibt es lokal nur mit Nominatim (`--profile geo`).
 - Die Benachrichtigungen aus der Tabelle „Asynchrone Folgen“ kommen mit R11; die Events werden schon jetzt über die Outbox erzeugt.
@@ -123,3 +125,13 @@ flowchart TD
 - Jede Zeile zeigt Status-Pill, ggf. „Automatisch gefunden“ ([09](09-moderation-ki-suche.md)) und „♥ Anzahl Favoriten“.
 - **Region:** Liegt der Pin außerhalb der eigenen Region, lehnt das Backend das Veröffentlichen mit `422 region_mismatch` ab (Annahme).
 - **Gleichzeitiges Bearbeiten:** Optimistische Sperre über `version`. Bei `409` erscheint „Dieses Fest wurde inzwischen geändert“ mit der Möglichkeit, neu zu laden (Annahme).
+
+## Stand der Umsetzung (R08)
+
+- Bilder stehen im Formular unter „Website“ (08-04): Raster mit 3 Spalten, „Titelbild“ am ersten Bild, ✕ entfernt sofort, gestrichelte Kachel „+ Hochladen“ (bis 12 Bilder).
+- Die Mediathek erlaubt Mehrfachauswahl. Die App verkleinert auf höchstens 2.560 px und speichert JPEG mit Qualität 0,85. Die Kacheln zeigen „Lädt hoch“, danach „Wird verarbeitet“. Die App fragt alle 2 s nach, bis das Bild fertig ist.
+- **Titelbild ändern:** lange drücken → Menü „Als Titelbild“ / „Bild entfernen“ (Entscheidung 02.10.2026 statt Ziehen, das im Design fehlt).
+- Fehlgeschlagene Bilder zeigen „Fehlgeschlagen · Erneut versuchen“.
+- Bei einem neuen Fest speichert der erste Upload automatisch einen Entwurf. Ohne Namen erscheint der Hinweis, zuerst einen Namen einzugeben.
+- Bildänderungen erhöhen nicht die `version` des Fests. Gleichzeitiges Bearbeiten der Felder bleibt davon unberührt.
+- Die Katalog-Generation wird bei jeder Bildänderung erhöht, nicht nur beim Titelbild veröffentlichter Feste. Das ist einfacher und kostet nur einen zusätzlichen Cache-Neuaufbau.

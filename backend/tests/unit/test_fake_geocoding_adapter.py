@@ -47,3 +47,10 @@ async def test_reverse_returns_the_nearest_postcode() -> None:
     assert place is not None
     assert place.kind is PlaceKind.POSTCODE
     assert place.postal_code == "73433"
+
+
+async def test_reverse_near_a_known_address_adds_the_street() -> None:
+    place = await FakeGeocoding().reverse(GeoPoint(48.8369, 10.0933))
+
+    assert place is not None
+    assert place.street == "Marktplatz 1"

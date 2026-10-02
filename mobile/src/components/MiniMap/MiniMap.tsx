@@ -66,7 +66,8 @@ export function MiniMap({
           compass={false}
           attribution={false}
         >
-          <Camera initialViewState={{center: [lon, lat], zoom: 14}} />
+          {/* Controlled: follows new coordinates (e.g. cached detail, then a moved pin). */}
+          <Camera center={[lon, lat]} zoom={14} duration={0} />
           <Marker id="event" lngLat={[lon, lat]}>
             <View
               style={[
