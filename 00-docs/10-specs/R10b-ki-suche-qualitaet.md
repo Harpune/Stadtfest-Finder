@@ -27,7 +27,7 @@
 ### R10b-US3 · Prompt-Versionen
 - Prompts sind Dateien im Code: `backend/src/stadtfest/application/ai_ingestion/prompts/v1.md`, `v2.md` usw. Teile: `<!-- system -->` und `<!-- user -->`.
 - Platzhalter nur aus der Erlaubnisliste: `postal_code`, `place_name`, `radius_km`, `date_from`, `date_to`, `years`, `categories`, `nearby_places`, `max_searches`. Andere Platzhalter beenden den Start (Schutz vor personenbezogenen Daten im Prompt).
-- Auswahl: `AI_SEARCH_PROMPT_VERSION` (Standard `v2`). Für Experimente lokal `AI_SEARCH_PROMPT_FILE` (in `prod` abgelehnt).
+- Auswahl: `AI_SEARCH_PROMPT_VERSION` (Standard `v3`). Für Experimente lokal `AI_SEARCH_PROMPT_FILE` (in `prod` abgelehnt).
 - `v1` bleibt unverändert (Snapshot-Test), damit Vergleiche möglich sind.
 - Das Job-Protokoll speichert die Version (`prompt`); sie bleibt auch nach dem Kürzen erhalten.
 
@@ -48,6 +48,29 @@
 - **Budget:** `AI_SEARCH_MAX_PAGE_READS` (Standard 6, 0 schaltet aus), weich wie bei den Suchen. Gelesene Seiten stehen im Job-Protokoll (`pages`) und werden nach 90 Tagen gekürzt.
 - Prompt v3 = v2 plus Anleitung zum Lesen.
 
+### R10b-US6 · Funde aus der Auswertung
+Weitere Fehler, die `make ai-eval` gezeigt hat:
+- **Ungenaue Adressen** wie „Innenstadt, 73441 Bopfingen“ fand das Geocoding nicht, der Fund zählte als „außerhalb“. Jetzt werden der Reihe nach versucht: Adresse → „Ort, PLZ Stadt“ → „PLZ Stadt“ → PLZ. Der Pin ist dann ungefähr; Moderatoren prüfen ihn.
+- **Mehrere Feste aus einem Veranstaltungskalender** galten als Duplikate, weil sie dieselbe Quelle hatten.
+  - Duplikat ist jetzt nur noch dieselbe Quelle mit demselben Namen (normalisiert). Die bisherige Prüfung auf ähnlichen Namen, Zeitraum und Abstand bleibt.
+  - Verworfene Quellen merken sich den Namen (Migration 0009). Alte Einträge ohne Namen sperren weiter die ganze Seite.
+- **SearXNG:** Standardmäßig sind nur DuckDuckGo und Google CSE aktiv. Nach etwa 60 Anfragen in einer Stunde blockierten beide (CAPTCHA, „too many requests“). Lokal sind zusätzlich Bing, Google, Qwant, Yahoo und GMX aktiv.
+- **Fehlertoleranz:**
+  - Einzelne fehlgeschlagene Suchen liefern dem Modell nur „keine Treffer“. Der Job scheitert nur, wenn alle Suchen scheitern.
+  - Der SearXNG-Adapter stellt höchstens 2 Anfragen gleichzeitig.
+- `make ai-eval` listet übersprungene Funde mit Grund (nur im Bericht, nie im Job-Protokoll).
+
+### Ergebnis der Auswertung (05.10.2026)
+
+Mistral `mistral-large-latest`, SearXNG, lokales Nominatim (Regierungsbezirk Stuttgart), neue Entwürfe je Lauf:
+
+| PLZ | v1 (R10) | v2 | v3 |
+|---|---|---|---|
+| 73430 Aalen | 0–1 | 2–3 | 1–3 |
+| 73525 Schwäbisch Gmünd | 1 | 0–3 | 1 |
+
+v2 und v3 liegen innerhalb der Streuung. Beide lesen Seiten, weil das Werkzeug auch ohne Anleitung genutzt wird. v3 ist Standard, weil der Prompt das Lesen ausdrücklich anleitet. Weitere Vergleiche mit mehr PLZ sind sinnvoll, sobald echte Moderationsdaten vorliegen.
+
 ## Datenschutz
 
 Im Prompt kommen nur öffentliche Ortsnamen aus dem Geocoding hinzu. Weiterhin keine Nutzer- oder Moderatordaten. Die Erlaubnisliste der Platzhalter erzwingt das technisch.
@@ -66,5 +89,5 @@ Im Prompt kommen nur öffentliche Ortsnamen aus dem Geocoding hinzu. Weiterhin k
 
 ## Definition of Done
 
-- [ ] `make check` grün
-- [ ] `make ai-eval` mit echten Anbietern lokal ausgeführt, Ergebnis im PR
+- [x] `make check` grün
+- [x] `make ai-eval` mit echten Anbietern lokal ausgeführt, Ergebnis im PR

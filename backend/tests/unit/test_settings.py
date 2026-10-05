@@ -226,13 +226,13 @@ def test_fake_ai_providers_are_rejected_in_prod(monkeypatch: pytest.MonkeyPatch)
         load_settings()
 
 
-def test_prompt_version_defaults_to_v2_and_must_be_bundled(
+def test_prompt_version_defaults_to_v3_and_must_be_bundled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _base(monkeypatch)
     monkeypatch.delenv("AI_SEARCH_PROMPT_FILE", raising=False)
     monkeypatch.delenv("AI_SEARCH_PROMPT_VERSION", raising=False)
-    assert ai_search_prompt(load_settings()).version == "v2"
+    assert ai_search_prompt(load_settings()).version == "v3"
     monkeypatch.setenv("AI_SEARCH_PROMPT_VERSION", "v1")
     assert ai_search_prompt(load_settings()).version == "v1"
     monkeypatch.setenv("AI_SEARCH_PROMPT_VERSION", "v99")

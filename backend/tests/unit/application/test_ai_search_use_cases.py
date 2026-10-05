@@ -315,6 +315,22 @@ async def test_vague_addresses_fall_back_to_postal_code_and_town(s: Setup) -> No
     ]
 
 
+async def test_several_events_from_one_calendar_page_are_kept(s: Setup) -> None:
+    """Seen in make ai-eval: Weinfest and Heimattage from one calendar page."""
+    s.finder.finds = [
+        _find(name="Heimattage Bopfingen"),
+        _find(name="Weinfest Bopfingen", date_from=date(2026, 10, 24), date_to=date(2026, 10, 24)),
+        _find(name="Heimattage  Bopfingen!"),  # the same event again
+    ]
+    job = await s.start(MODERATOR, "73430")
+
+    done = await s.run(job.id)
+
+    assert done is not None
+    assert len(done.new_event_ids) == 2
+    assert done.skipped.duplicate == 1
+
+
 async def test_prompt_version_comes_from_the_settings() -> None:
     s = Setup(prompt="v1")
     job = await s.start(MODERATOR, "73430")

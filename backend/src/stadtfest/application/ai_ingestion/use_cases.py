@@ -47,6 +47,7 @@ from stadtfest.domain.ai_ingestion.finds import (
     DRAFT_SCHEMA_VERSION,
     FoundEvent,
     geocoding_queries,
+    normalize_name,
     normalize_url,
 )
 from stadtfest.domain.ai_ingestion.job import (
@@ -381,11 +382,13 @@ class RunAiSearch:
             raise WebSearchUnavailableError
         skipped = SkipCounts(invalid=result.invalid)
         candidates: list[DraftCandidate] = []
-        seen_urls: set[str] = set()
+        # A calendar page is the source of several events: same page *and* same name only.
+        seen: set[tuple[str, str]] = set()
         for find in result.finds:
             reason, candidate = await self._check(find, today, tool, center, active)
             normalized = normalize_url(find.source_url)
-            if candidate is not None and normalized in seen_urls:
+            key = (normalized, normalize_name(find.name))
+            if candidate is not None and key in seen:
                 reason, candidate = SkipReason.DUPLICATE, None
             if candidate is not None and await self._drafts.is_duplicate(candidate, normalized):
                 reason, candidate = SkipReason.DUPLICATE, None
@@ -394,7 +397,7 @@ class RunAiSearch:
                 if self._on_skip is not None:
                     self._on_skip(find, reason or SkipReason.INVALID)
                 continue
-            seen_urls.add(normalized)
+            seen.add(key)
             candidates.append(candidate)
         new_ids = await self._drafts.add_drafts(job.id, self._now(), candidates)
         return tuple(new_ids), skipped

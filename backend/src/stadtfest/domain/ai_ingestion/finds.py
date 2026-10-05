@@ -102,3 +102,8 @@ def geocoding_queries(find: FoundEvent) -> list[str]:
         if query and query not in queries:
             queries.append(query)
     return queries
+
+
+def normalize_name(name: str) -> str:
+    """Event name for comparisons: case-folded, punctuation and extra spaces removed."""
+    return " ".join(re.sub(r"[^\w\s]", " ", name.casefold()).split())

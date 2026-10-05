@@ -191,4 +191,6 @@ class RejectedSourceRow(Base):
     __tablename__ = "rejected_source"
 
     url_normalized: Mapped[str] = mapped_column(primary_key=True)
+    # Normalized event name; "" (rows before R10b) rejects every event of the page.
+    name_normalized: Mapped[str] = mapped_column(primary_key=True, default="")
     rejected_at: Mapped[datetime] = mapped_column(server_default="now()")

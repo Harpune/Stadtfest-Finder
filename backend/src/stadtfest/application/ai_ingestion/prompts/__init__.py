@@ -9,7 +9,7 @@ from importlib import resources
 
 from stadtfest.domain.ai_ingestion.prompt import InvalidPromptError, PromptTemplate, parse_prompt
 
-DEFAULT_VERSION = "v2"
+DEFAULT_VERSION = "v3"
 
 
 def bundled_versions() -> tuple[str, ...]:

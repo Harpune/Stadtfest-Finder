@@ -155,10 +155,12 @@ class DraftStore(Protocol):
     """Events for duplicate checks and new drafts (moderation context)."""
 
     async def is_duplicate(self, candidate: DraftCandidate, normalized_url: str) -> bool:
-        """True if the find already exists or its source was rejected (nationwide).
+        """True if the find already exists or was rejected (nationwide).
 
         An event (not deleted) matches with a similar name (trgm >= 0.5), overlapping dates
-        and a distance below 2 km, or with the same source.
+        and a distance below 2 km, or with the same source *and* the same name (a calendar
+        page is the source of many events). Rejections count per source and name; older
+        rejections without a name block the whole page.
         """
         ...
 

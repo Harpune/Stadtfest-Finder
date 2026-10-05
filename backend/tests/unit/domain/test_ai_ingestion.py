@@ -9,6 +9,7 @@ from stadtfest.domain.ai_ingestion.finds import (
     FoundEvent,
     domain_of,
     geocoding_queries,
+    normalize_name,
     normalize_url,
 )
 from stadtfest.domain.ai_ingestion.job import (
@@ -214,3 +215,10 @@ def test_geocoding_queries_go_from_exact_to_coarse() -> None:
         "73441",
     ]
     assert geocoding_queries(_vague("", "Marktplatz Aalen")) == ["Marktplatz Aalen"]
+
+
+def test_names_are_normalized_for_comparisons() -> None:
+    assert normalize_name("  Ipfmess  Bopfingen! ") == normalize_name("ipfmess bopfingen")
+    assert normalize_name('Bopfinger Kneipentour "City Sounds"') == (
+        "bopfinger kneipentour city sounds"
+    )

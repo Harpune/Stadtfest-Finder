@@ -52,7 +52,7 @@ Das Sprachmodell der KI-Suche per PLZ (R10, Flow C). Ein generischer Adapter (Py
 
 ## Prompt-Versionen und Auswertung
 
-- Der Prompt der KI-Suche ist versioniert (`backend/src/stadtfest/application/ai_ingestion/prompts/`, [R10b](../10-specs/R10b-ki-suche-qualitaet.md)). Auswahl per `AI_SEARCH_PROMPT_VERSION` (Standard `v2`), lokal zum Ausprobieren auch `AI_SEARCH_PROMPT_FILE`.
+- Der Prompt der KI-Suche ist versioniert (`backend/src/stadtfest/application/ai_ingestion/prompts/`, [R10b](../10-specs/R10b-ki-suche-qualitaet.md)). Auswahl per `AI_SEARCH_PROMPT_VERSION` (Standard `v3`), lokal zum Ausprobieren auch `AI_SEARCH_PROMPT_FILE`.
 - Vergleich mit dem eingestellten Anbieter, ohne etwas zu speichern:
   ```bash
   make ai-eval ZIPS="73430 89073" PROMPTS=v1,v2 OUT=ai-eval.md

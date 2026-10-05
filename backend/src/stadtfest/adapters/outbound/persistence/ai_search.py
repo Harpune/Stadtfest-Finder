@@ -19,7 +19,7 @@ from stadtfest.adapters.outbound.persistence.models import (
 )
 from stadtfest.adapters.outbound.persistence.moderation import event_columns
 from stadtfest.application.ai_ingestion.ports import DraftCandidate
-from stadtfest.domain.ai_ingestion.finds import normalize_url
+from stadtfest.domain.ai_ingestion.finds import normalize_name, normalize_url
 from stadtfest.domain.ai_ingestion.job import (
     AiSearchError,
     AiSearchEventType,
@@ -186,8 +186,9 @@ class SqlDraftStore:
         self._sessions = sessions
 
     async def is_duplicate(self, candidate: DraftCandidate, normalized_url: str) -> bool:
-        """Same source (also rejected ones) or similar name, overlapping dates, < 2 km."""
+        """Same source and name (also rejected ones), or similar name, dates and place."""
         find = candidate.find
+        name = normalize_name(find.name)
         point = cast(
             func.ST_SetSRID(
                 func.ST_MakePoint(candidate.location.lon, candidate.location.lat), 4326
@@ -197,18 +198,22 @@ class SqlDraftStore:
         async with self._sessions() as session:
             rejected = await session.scalar(
                 select(RejectedSourceRow.url_normalized).where(
-                    RejectedSourceRow.url_normalized == normalized_url
+                    RejectedSourceRow.url_normalized == normalized_url,
+                    RejectedSourceRow.name_normalized.in_(("", name)),
                 )
             )
             if rejected is not None:
                 return True
-            sources = await session.scalars(
-                select(EventRow.source_url).where(
+            sources = await session.execute(
+                select(EventRow.source_url, EventRow.name).where(
                     EventRow.source_url.is_not(None),
                     EventRow.deleted_at.is_(None),
                 )
             )
-            if any(normalize_url(url) == normalized_url for url in sources if url):
+            if any(
+                url and normalize_url(url) == normalized_url and normalize_name(other) == name
+                for url, other in sources
+            ):
                 return True
             similar = await session.scalar(
                 select(EventRow.id)
