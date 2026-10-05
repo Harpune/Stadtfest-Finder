@@ -92,6 +92,33 @@ async def test_parallel_searches_beyond_the_budget_do_not_fail_the_run() -> None
     assert len(result.finds) == 1
 
 
+async def test_the_model_can_read_result_pages() -> None:
+    def reading(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        parts = [part for message in messages for part in getattr(message, "parts", [])]
+        if not any(isinstance(p, ToolReturnPart) and p.tool_name == "read_page" for p in parts):
+            return ModelResponse(
+                parts=[ToolCallPart("read_page", {"url": "https://www.aalen.de/stadtfest"})]
+            )
+        output_tool = info.output_tools[0].name
+        return ModelResponse(parts=[ToolCallPart(output_tool, {"events": FIXTURE["events"]})])
+
+    read_urls: list[str] = []
+
+    async def search(query: str) -> list[SearchHit]:
+        return []
+
+    async def read(url: str) -> str:
+        read_urls.append(url)
+        return "Aalener Stadtfest, 17.-18. Oktober"
+
+    finder = PydanticAiEventFinder(FunctionModel(reading))
+    result = await finder.find(
+        "System", "Prompt", search, FinderLimits(max_tool_calls=2, max_page_reads=2), read=read
+    )
+    assert read_urls == ["https://www.aalen.de/stadtfest"]
+    assert len(result.finds) == 1
+
+
 async def test_model_failures_mean_unavailable() -> None:
     def broken(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         return ModelResponse(parts=[ToolCallPart("web_search", {"query": "x"})])

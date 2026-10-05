@@ -167,7 +167,7 @@ class SqlAiSearchRepository:
                 await session.scalars(
                     select(AiSearchJobRow).where(
                         AiSearchJobRow.finished_at < finished_before,
-                        AiSearchJobRow.log.has_any(["queries", "urls"]),
+                        AiSearchJobRow.log.has_any(["queries", "urls", "pages"]),
                     )
                 )
             ).all()

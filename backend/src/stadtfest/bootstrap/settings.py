@@ -142,6 +142,7 @@ class Settings(BaseSettings):
     # 0 stops the AI search: every start is answered with `429 daily_limit`.
     ai_search_daily_limit: int = Field(default=10, ge=0, le=1000)
     ai_search_max_tool_calls: int = Field(default=8, ge=1, le=50)
+    ai_search_max_page_reads: int = Field(default=6, ge=0, le=20)
     ai_search_timeout_s: int = Field(default=300, ge=10, le=1800)
     ai_search_prompt_version: str = Field(default=DEFAULT_VERSION, min_length=1)
     ai_search_prompt_file: Path | None = Field(

@@ -42,8 +42,18 @@ class WebSearchPort(Protocol):
         ...
 
 
-# The tool the LLM calls; the application wraps the web search to record queries and URLs.
+class PageReader(Protocol):
+    """Reads the text of a web page for the LLM (R10b-US5), with SSRF protection."""
+
+    async def read(self, url: str, max_chars: int) -> str | None:
+        """Visible text of an HTML or text page, at most `max_chars`; None if unreadable."""
+        ...
+
+
+# The tools the LLM calls; the application wraps them to record queries, URLs and pages.
 SearchTool = Callable[[str], Awaitable[list[SearchHit]]]
+# Returns the page text, or a short reason for the model why the page cannot be read.
+PageTool = Callable[[str], Awaitable[str]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +62,8 @@ class FinderLimits:
 
     max_tool_calls: int
     max_output_tokens: int = 8000
+    # Pages the model may read with `read_page` (0: tool answers "not available").
+    max_page_reads: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,9 +80,14 @@ class EventFinder(Protocol):
     """LLM port: one generic adapter for all providers (CLAUDE.md "AI ingestion")."""
 
     async def find(
-        self, system: str, prompt: str, search: SearchTool, limits: FinderLimits
+        self,
+        system: str,
+        prompt: str,
+        search: SearchTool,
+        limits: FinderLimits,
+        read: PageTool | None = None,
     ) -> FinderResult:
-        """Let the LLM search with the tool and return finds in the fixed schema.
+        """Let the LLM search (and read pages) with the tools; finds in the fixed schema.
 
         Each find is validated on its own: invalid ones are only counted.
 

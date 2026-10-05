@@ -29,6 +29,7 @@ from stadtfest.application.ai_ingestion.ports import (
     FinderLimits,
     FinderResult,
     LlmUnavailableError,
+    PageTool,
     SearchTool,
 )
 from stadtfest.domain.ai_ingestion.finds import FoundEvent
@@ -179,11 +180,15 @@ BUDGET_EXHAUSTED = (
 )
 
 
+READ_UNAVAILABLE = "Seiten lesen ist in dieser Suche nicht verfügbar."
+
+
 @dataclass
 class _Run:
-    """Per-run state: the search tool and the searches left."""
+    """Per-run state: the tools and the searches left (the page budget is the tool's)."""
 
     search: SearchTool
+    read: PageTool | None
     remaining: int
 
 
@@ -207,20 +212,33 @@ class PydanticAiEventFinder:
             hits = await ctx.deps.search(query)
             return [{"title": h.title, "url": h.url, "snippet": h.snippet} for h in hits]
 
+        @self._agent.tool
+        async def read_page(ctx: RunContext[_Run], url: str) -> str:
+            """Liest den Text einer Seite aus den Suchergebnissen (Termine, Ort, Adresse)."""
+            if ctx.deps.read is None:
+                return READ_UNAVAILABLE
+            return await ctx.deps.read(url)
+
     async def find(
-        self, system: str, prompt: str, search: SearchTool, limits: FinderLimits
+        self,
+        system: str,
+        prompt: str,
+        search: SearchTool,
+        limits: FinderLimits,
+        read: PageTool | None = None,
     ) -> FinderResult:
-        """Run the agent with the search tool and validate each find."""
+        """Run the agent with the tools and validate each find."""
+        calls = limits.max_tool_calls + limits.max_page_reads
         try:
             result = await self._agent.run(
                 prompt,
-                deps=_Run(search, limits.max_tool_calls),
+                deps=_Run(search, read, limits.max_tool_calls),
                 instructions=system,
-                # Only a guard against runaway loops; the budget itself is soft (see above).
+                # Only a guard against runaway loops; the budgets themselves are soft.
                 usage_limits=UsageLimits(
-                    tool_calls_limit=limits.max_tool_calls * 4,
+                    tool_calls_limit=calls * 4,
                     output_tokens_limit=limits.max_output_tokens,
-                    request_limit=limits.max_tool_calls + 6,
+                    request_limit=calls + 6,
                 ),
             )
         except (

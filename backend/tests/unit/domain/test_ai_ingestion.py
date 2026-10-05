@@ -5,7 +5,12 @@ import pytest
 
 from stadtfest.application.ai_ingestion.prompts import bundled_versions, load_bundled
 from stadtfest.domain.ai_ingestion.categories import map_category
-from stadtfest.domain.ai_ingestion.finds import FoundEvent, domain_of, normalize_url
+from stadtfest.domain.ai_ingestion.finds import (
+    FoundEvent,
+    domain_of,
+    geocoding_queries,
+    normalize_url,
+)
 from stadtfest.domain.ai_ingestion.job import (
     AiSearchError,
     AiSearchJob,
@@ -124,7 +129,7 @@ def test_prompt_v2_names_the_towns_and_years_but_no_iso_dates_in_rules() -> None
 
 
 def test_bundled_versions_are_valid() -> None:
-    assert {"v1", "v2"} <= set(bundled_versions())
+    assert {"v1", "v2", "v3"} <= set(bundled_versions())
     for version in bundled_versions():
         assert load_bundled(version).version == version
     with pytest.raises(InvalidPromptError):
@@ -186,3 +191,26 @@ ACTIVE = {
 def test_categories_map_by_name_or_synonym(named: str | None, expected: str | None) -> None:
     result = map_category(named, ACTIVE)
     assert result == (ACTIVE[expected] if expected else None)
+
+
+def _vague(address: str, place: str) -> FoundEvent:
+    return FoundEvent(
+        name="Bopfinger Heimattage",
+        date_from=date(2026, 10, 9),
+        date_to=date(2026, 10, 11),
+        place=place,
+        address=address,
+        source_url="https://www.bopfingen.de/stadtfeste.html",
+    )
+
+
+def test_geocoding_queries_go_from_exact_to_coarse() -> None:
+    """Seen in make ai-eval: "Innenstadt, 73441 Bopfingen" was not found and counted as outside."""
+    queries = geocoding_queries(_vague("Innenstadt, 73441 Bopfingen", "Innenstadt Bopfingen"))
+    assert queries == [
+        "Innenstadt, 73441 Bopfingen",
+        "Innenstadt Bopfingen, 73441 Bopfingen",
+        "73441 Bopfingen",
+        "73441",
+    ]
+    assert geocoding_queries(_vague("", "Marktplatz Aalen")) == ["Marktplatz Aalen"]

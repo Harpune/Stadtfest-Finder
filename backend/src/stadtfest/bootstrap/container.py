@@ -58,9 +58,15 @@ from stadtfest.adapters.outbound.sources.http import (
     HttpSourceChecker,
     create_source_client,
 )
+from stadtfest.adapters.outbound.sources.pages import HttpPageReader
 from stadtfest.adapters.outbound.storage.s3 import S3Config, S3ObjectStorage
 from stadtfest.adapters.outbound.storage.urls import ImageUrls
-from stadtfest.application.ai_ingestion.ports import EventFinder, SourceChecker, WebSearchPort
+from stadtfest.application.ai_ingestion.ports import (
+    EventFinder,
+    PageReader,
+    SourceChecker,
+    WebSearchPort,
+)
 from stadtfest.application.ai_ingestion.use_cases import (
     AiSearchSettings,
     CompactAiSearchLogs,
@@ -165,6 +171,7 @@ class AiSearchParts:
     finder: EventFinder
     search: WebSearchPort
     sources: SourceChecker
+    pages: PageReader | None
     geocoding: GeocodingPort
     catalog: SqlCatalog
     clock: BerlinClock
@@ -298,21 +305,25 @@ class Container:
         outbox = SqlOutboxStore(sessions)
         process_image = ProcessImage(images, storage, PillowImageProcessor(), cache)
         ai_http: list[httpx.AsyncClient] = []
-        finder, search, sources = _ai_adapters(settings, ai_http)
+        finder, search, sources, pages = _ai_adapters(settings, ai_http)
         ai_settings = AiSearchSettings(
             radius_km=settings.ai_search_radius_km,
             daily_limit=settings.ai_search_daily_limit,
             max_tool_calls=settings.ai_search_max_tool_calls,
             timeout_seconds=settings.ai_search_timeout_s,
+            max_page_reads=settings.ai_search_max_page_reads,
             prompt=ai_search_prompt(settings),
         )
         ai_jobs = SqlAiSearchRepository(sessions)
-        ai_parts = AiSearchParts(finder, search, sources, geocoding, catalog, clock, ai_settings)
+        ai_parts = AiSearchParts(
+            finder, search, sources, pages, geocoding, catalog, clock, ai_settings
+        )
         run_ai_search = RunAiSearch(
             ai_jobs,
             finder,
             search,
             sources,
+            pages,
             geocoding,
             catalog,
             SqlDraftStore(sessions),
@@ -408,8 +419,8 @@ class Container:
 
 def _ai_adapters(
     settings: Settings, clients: list[httpx.AsyncClient]
-) -> tuple[EventFinder, WebSearchPort, SourceChecker]:
-    """LLM, web search and source check as configured (fail fast is in `Settings`)."""
+) -> tuple[EventFinder, WebSearchPort, SourceChecker, PageReader | None]:
+    """LLM, web search, source check and page reader as configured (fail fast: `Settings`)."""
     finder: EventFinder
     if settings.llm_provider is LlmProvider.FAKE:
         finder = FakeEventFinder()
@@ -428,6 +439,7 @@ def _ai_adapters(
         )
     search: WebSearchPort
     sources: SourceChecker
+    pages: PageReader | None
     if settings.web_search_provider is WebSearchProvider.SEARXNG and settings.web_search_base_url:
         # SearXNG asks several engines per query; it answers slower than an API.
         search_client = httpx.AsyncClient(timeout=20.0)
@@ -435,14 +447,17 @@ def _ai_adapters(
         clients.extend([search_client, source_client])
         search = SearxngWebSearch(search_client, str(settings.web_search_base_url))
         sources = HttpSourceChecker(source_client)
+        pages = HttpPageReader(source_client)
     elif settings.web_search_provider is WebSearchProvider.BRAVE and settings.web_search_api_key:
         search_client = httpx.AsyncClient(timeout=10.0)
         source_client = create_source_client()
         clients.extend([search_client, source_client])
         search = BraveWebSearch(search_client, settings.web_search_api_key.get_secret_value())
         sources = HttpSourceChecker(source_client)
+        pages = HttpPageReader(source_client)
     else:
         # The fake search returns example pages that do not exist (dev/test only).
         search = FakeWebSearch()
         sources = AllowAllSourceChecker()
-    return finder, search, sources
+        pages = None
+    return finder, search, sources, pages

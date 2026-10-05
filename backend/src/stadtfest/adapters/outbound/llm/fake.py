@@ -8,7 +8,12 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from stadtfest.application.ai_ingestion.ports import FinderLimits, FinderResult, SearchTool
+from stadtfest.application.ai_ingestion.ports import (
+    FinderLimits,
+    FinderResult,
+    PageTool,
+    SearchTool,
+)
 from stadtfest.domain.ai_ingestion.finds import FoundEvent
 
 
@@ -16,7 +21,12 @@ class FakeEventFinder:
     """Implements `EventFinder` without a provider."""
 
     async def find(
-        self, system: str, prompt: str, search: SearchTool, limits: FinderLimits
+        self,
+        system: str,
+        prompt: str,
+        search: SearchTool,
+        limits: FinderLimits,
+        read: PageTool | None = None,
     ) -> FinderResult:
         """Search once and turn the three fake pages into finds."""
         hits = await search("Feste Ostalb Herbst")

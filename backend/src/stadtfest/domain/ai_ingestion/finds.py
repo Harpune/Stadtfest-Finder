@@ -14,6 +14,7 @@ DRAFT_SCHEMA_VERSION = "EventDraftV1"
 _LAT = (47.2, 55.1)
 _LON = (5.8, 15.1)
 
+_POSTAL_CITY = re.compile(r"\b(\d{5})\s+([^,\n]+)")
 _TRACKING = re.compile(r"^(utm_.*|fbclid|gclid|mc_cid|mc_eid|ref|ref_src)$", re.IGNORECASE)
 
 
@@ -78,3 +79,26 @@ def normalize_url(url: str) -> str:
 def domain_of(url: str) -> str:
     """Host without `www.` (shown as "Gefunden auf …")."""
     return urlsplit(url.strip()).netloc.lower().removeprefix("www.")
+
+
+def geocoding_queries(find: FoundEvent) -> list[str]:
+    """Queries to locate a find, from exact to coarse.
+
+    Addresses from event pages are often vague ("Innenstadt, 73441 Bopfingen"), which the
+    geocoder cannot resolve; then the place within the town, the town and finally the postal
+    code are tried. Coarse results only place the pin roughly; moderators check it.
+    """
+    match = _POSTAL_CITY.search(find.address)
+    postal_city = f"{match.group(1)} {match.group(2).strip()}" if match else ""
+    candidates = [
+        find.address,
+        f"{find.place}, {postal_city}" if find.place and postal_city else "",
+        postal_city,
+        match.group(1) if match else "",
+        "" if find.address else find.place,
+    ]
+    queries: list[str] = []
+    for query in (c.strip() for c in candidates):
+        if query and query not in queries:
+            queries.append(query)
+    return queries

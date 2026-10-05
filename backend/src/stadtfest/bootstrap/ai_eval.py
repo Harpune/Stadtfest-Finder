@@ -24,7 +24,8 @@ from stadtfest.application.ai_ingestion.prompts import load_bundled
 from stadtfest.application.ai_ingestion.use_cases import RunAiSearch
 from stadtfest.bootstrap.container import AiSearchParts, Container
 from stadtfest.bootstrap.settings import ai_search_prompt, load_settings
-from stadtfest.domain.ai_ingestion.job import AiSearchJob
+from stadtfest.domain.ai_ingestion.finds import FoundEvent
+from stadtfest.domain.ai_ingestion.job import AiSearchJob, SkipReason
 from stadtfest.domain.ai_ingestion.prompt import PromptTemplate
 
 
@@ -83,6 +84,7 @@ class _Run:
     drafts: list[DraftCandidate]
     seconds: float
     note: str = ""
+    skipped: list[tuple[FoundEvent, SkipReason]] = field(default_factory=list)
 
 
 async def _run_one(
@@ -94,21 +96,25 @@ async def _run_one(
     if place is None:
         return _Run(code, prompt.version, None, [], 0.0, "postal code unknown")
     jobs, drafts = _MemoryJobs(), _DryDrafts(sql)
+    skipped: list[tuple[FoundEvent, SkipReason]] = []
     runner = RunAiSearch(
         jobs,
         parts.finder,
         parts.search,
         parts.sources,
+        parts.pages,
         parts.geocoding,
         parts.catalog,
         drafts,
         parts.clock,
         replace(parts.settings, prompt=prompt),
+        on_skip=lambda find, reason: skipped.append((find, reason)),
     )
     job = AiSearchJob(uuid4(), None, code, place.city, datetime.now(UTC))
     await jobs.add(job)
     done = await runner(job.id)
-    return _Run(code, prompt.version, done, drafts.collected, time.monotonic() - started)
+    seconds = time.monotonic() - started
+    return _Run(code, prompt.version, done, drafts.collected, seconds, skipped=skipped)
 
 
 def _report(runs: list[_Run]) -> str:
@@ -116,13 +122,13 @@ def _report(runs: list[_Run]) -> str:
         "# KI-Suche: Vergleich der Prompt-Versionen",
         "",
         "| PLZ | Prompt | Status | Neu | Duplikat | Außerhalb | Ungültig | Ohne Quelle "
-        "| Suchen | Tokens | Sekunden |",
-        "|---|---|---|---|---|---|---|---|---|---|---|",
+        "| Suchen | Seiten | Tokens | Sekunden |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for run in runs:
         job = run.job
         if job is None:
-            lines.append(f"| {run.postal_code} | {run.prompt} | {run.note} |" + " - |" * 8)
+            lines.append(f"| {run.postal_code} | {run.prompt} | {run.note} |" + " - |" * 9)
             continue
         tokens = job.log.get("tokens") or {}
         queries = _strings(job.log.get("queries"))
@@ -131,6 +137,7 @@ def _report(runs: list[_Run]) -> str:
             f"| {run.postal_code} | {run.prompt} | {status} | {len(run.drafts)} "
             f"| {job.skipped.duplicate} | {job.skipped.out_of_area} | {job.skipped.invalid} "
             f"| {job.skipped.unverified_source} | {len(queries)} "
+            f"| {len(_strings(job.log.get('pages')))} "
             f"| {_tokens(tokens)} | {run.seconds:.0f} |"
         )
     for run in runs:
@@ -149,7 +156,19 @@ def _report(runs: list[_Run]) -> str:
             f"{d.city} · {d.find.source_url}"
             for d in run.drafts
         ] or ["- keine"]
+        lines += ["", "Übersprungen:"]
+        lines += [
+            f"- {reason.value}: {f.name} · {f.date_from or '?'} · Ort: {f.place or '?'} · "
+            f"Adresse: {f.address or '?'} · Koordinaten: {_coordinates(f)} · {f.source_url}"
+            for f, reason in run.skipped
+        ] or ["- keine"]
     return "\n".join(lines) + "\n"
+
+
+def _coordinates(find: FoundEvent) -> str:
+    if find.lat is None or find.lon is None:
+        return "-"
+    return f"{find.lat:.4f}, {find.lon:.4f}"
 
 
 def _tokens(tokens: object) -> str:

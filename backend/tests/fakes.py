@@ -16,6 +16,7 @@ from stadtfest.application.ai_ingestion.ports import (
     FinderLimits,
     FinderResult,
     LlmUnavailableError,
+    PageTool,
     SearchHit,
     SearchTool,
     WebSearchUnavailableError,
@@ -141,6 +142,8 @@ class FakeGeocoding:
     places: list[Place] = field(default_factory=list)
     reverse_result: Place | None = None
     unavailable: bool = False
+    # Answers per query; if set, other queries find nothing.
+    by_query: dict[str, list[Place]] | None = None
     search_calls: list[str] = field(default_factory=list)
     reverse_calls: list[GeoPoint] = field(default_factory=list)
 
@@ -148,6 +151,8 @@ class FakeGeocoding:
         self.search_calls.append(query)
         if self.unavailable:
             raise GeocodingUnavailableError
+        if self.by_query is not None:
+            return self.by_query.get(query, [])[:limit]
         return self.places[:limit]
 
     async def reverse(self, location: GeoPoint) -> Place | None:
@@ -642,9 +647,17 @@ class FakeEventFinder:
     unavailable: bool = False
     delay_seconds: float = 0.0
     prompts: list[tuple[str, str]] = field(default_factory=list)
+    # Pages to read after searching, and what the tool answered.
+    reads: list[str] = field(default_factory=list)
+    read_results: list[str] = field(default_factory=list)
 
     async def find(
-        self, system: str, prompt: str, search: SearchTool, limits: FinderLimits
+        self,
+        system: str,
+        prompt: str,
+        search: SearchTool,
+        limits: FinderLimits,
+        read: PageTool | None = None,
     ) -> FinderResult:
         self.prompts.append((system, prompt))
         if self.unavailable:
@@ -653,7 +666,22 @@ class FakeEventFinder:
             await asyncio.sleep(self.delay_seconds)
         for query in self.queries:
             await search(query)
+        if read is not None:
+            for url in self.reads:
+                self.read_results.append(await read(url))
         return FinderResult(list(self.finds), self.invalid, input_tokens=100, output_tokens=50)
+
+
+@dataclass
+class FakePageReader:
+    """Page texts by URL; unknown URLs cannot be read."""
+
+    texts: dict[str, str] = field(default_factory=dict)
+    calls: list[tuple[str, int]] = field(default_factory=list)
+
+    async def read(self, url: str, max_chars: int) -> str | None:
+        self.calls.append((url, max_chars))
+        return self.texts.get(url)
 
 
 @dataclass

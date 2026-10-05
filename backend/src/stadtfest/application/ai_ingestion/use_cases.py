@@ -23,6 +23,7 @@ from stadtfest.application.ai_ingestion.ports import (
     EventFinder,
     FinderLimits,
     LlmUnavailableError,
+    PageReader,
     SearchHit,
     SourceChecker,
     WebSearchPort,
@@ -42,7 +43,12 @@ from stadtfest.application.shared.errors import (
 )
 from stadtfest.application.shared.ports import Clock
 from stadtfest.domain.ai_ingestion.categories import map_category
-from stadtfest.domain.ai_ingestion.finds import DRAFT_SCHEMA_VERSION, FoundEvent, normalize_url
+from stadtfest.domain.ai_ingestion.finds import (
+    DRAFT_SCHEMA_VERSION,
+    FoundEvent,
+    geocoding_queries,
+    normalize_url,
+)
 from stadtfest.domain.ai_ingestion.job import (
     AiSearchError,
     AiSearchJob,
@@ -79,10 +85,23 @@ class AiSearchSettings:
     daily_limit: int = 10
     max_tool_calls: int = 8
     timeout_seconds: int = 300
+    # Pages the LLM may read with `read_page` (R10b-US5); 0 switches reading off.
+    max_page_reads: int = 6
     # `AI_SEARCH_PROMPT_VERSION` or a local file (`AI_SEARCH_PROMPT_FILE`, dev only).
     prompt: PromptTemplate = field(default_factory=lambda: load_bundled(DEFAULT_VERSION))
 
 
+# Observer for skipped finds (evaluation only).
+SkipObserver = Callable[[FoundEvent, SkipReason], None]
+
+# Page reading (R10b-US5): length of a page for the model and the answers instead of text.
+PAGE_MAX_CHARS = 12_000
+READ_BUDGET_EXHAUSTED = (
+    "Du kannst keine weiteren Seiten lesen. Gib dein Ergebnis mit den bisherigen Funden zurück."
+)
+READ_NOT_A_RESULT = "Diese Seite stammt nicht aus deinen Suchergebnissen. Lies nur Treffer-URLs."
+READ_FAILED = "Die Seite konnte nicht gelesen werden."
+READ_UNAVAILABLE = "Seiten lesen ist in dieser Suche nicht verfügbar."
 # Finds may lie a little outside the search radius (venue at the edge of a town).
 AREA_TOLERANCE = 1.1
 # Sample points for the towns within the radius: (fraction of the radius, points, offset °).
@@ -200,17 +219,27 @@ class ListAiSearches:
 
 
 class _RecordingSearch:
-    """The LLM's tool: counts calls and remembers queries and result URLs.
+    """The LLM's tools: counts calls and remembers queries, result URLs and read pages.
 
     A failed search only returns no hits, so one blocked query does not end the run; the
-    job fails with `search_unavailable` only if every search failed (`all_failed`).
+    job fails with `search_unavailable` only if every search failed (`all_failed`). Pages
+    may only be read if this job's search returned them (no invented or internal URLs).
     """
 
-    def __init__(self, search: WebSearchPort, max_calls: int) -> None:
+    def __init__(
+        self,
+        search: WebSearchPort,
+        max_calls: int,
+        pages: PageReader | None = None,
+        max_reads: int = 0,
+    ) -> None:
         self._search = search
         self._max_calls = max_calls
+        self._pages = pages
+        self._max_reads = max_reads
         self.queries: list[str] = []
         self.urls: list[str] = []
+        self.read_urls: list[str] = []
         self.failed = 0
 
     async def __call__(self, query: str) -> list[SearchHit]:
@@ -224,6 +253,18 @@ class _RecordingSearch:
             return []
         self.urls.extend(hit.url for hit in hits)
         return hits
+
+    async def read(self, url: str) -> str:
+        """Text of a result page, or a short reason for the model (German, like the prompt)."""
+        if self._pages is None or self._max_reads == 0:
+            return READ_UNAVAILABLE
+        if len(self.read_urls) >= self._max_reads:
+            return READ_BUDGET_EXHAUSTED
+        if normalize_url(url) not in self.normalized_urls:
+            return READ_NOT_A_RESULT
+        self.read_urls.append(url)
+        text = await self._pages.read(url, PAGE_MAX_CHARS)
+        return text if text else READ_FAILED
 
     @property
     def all_failed(self) -> bool:
@@ -243,18 +284,24 @@ class RunAiSearch:
         finder: EventFinder,
         search: WebSearchPort,
         sources: SourceChecker,
+        pages: PageReader | None,
         geocoding: GeocodingPort,
         categories: CategoryCatalog,
         drafts: DraftStore,
         clock: Clock,
         settings: AiSearchSettings,
         now: Now = _utc_now,
+        on_skip: SkipObserver | None = None,
     ) -> None:
         """Create the use case."""
+        # `on_skip` sees every skipped find with its reason; only `make ai-eval` uses it.
+        # The job log itself never contains finds.
+        self._on_skip = on_skip
         self._jobs = jobs
         self._finder = finder
         self._search = search
         self._sources = sources
+        self._pages = pages
         self._geocoding = geocoding
         self._categories = categories
         self._drafts = drafts
@@ -273,7 +320,12 @@ class RunAiSearch:
             return None  # delivered twice or already finished
         await self._jobs.save(job)
         started = time.monotonic()
-        tool = _RecordingSearch(self._search, self._settings.max_tool_calls)
+        tool = _RecordingSearch(
+            self._search,
+            self._settings.max_tool_calls,
+            self._pages,
+            self._settings.max_page_reads,
+        )
         log: dict[str, object] = {"schema": DRAFT_SCHEMA_VERSION}
         try:
             async with asyncio.timeout(self._settings.timeout_seconds):
@@ -316,7 +368,11 @@ class RunAiSearch:
             prompt.system,
             prompt.user,
             tool,
-            FinderLimits(max_tool_calls=self._settings.max_tool_calls),
+            FinderLimits(
+                max_tool_calls=self._settings.max_tool_calls,
+                max_page_reads=self._settings.max_page_reads,
+            ),
+            read=tool.read,
         )
         log["tokens"] = {"input": result.input_tokens, "output": result.output_tokens}
         if tool.failed:
@@ -335,6 +391,8 @@ class RunAiSearch:
                 reason, candidate = SkipReason.DUPLICATE, None
             if candidate is None:
                 skipped = skipped.add(reason or SkipReason.INVALID)
+                if self._on_skip is not None:
+                    self._on_skip(find, reason or SkipReason.INVALID)
                 continue
             seen_urls.add(normalized)
             candidates.append(candidate)
@@ -371,16 +429,23 @@ class RunAiSearch:
             if find.plausible_location and find.lat is not None and find.lon is not None:
                 location = GeoPoint(find.lat, find.lon)
             else:
-                places = await self._geocoding.search(find.address or find.place, 1)
-                if not places:
+                found = await self._geocode_first(geocoding_queries(find))
+                if found is None:
                     return None
-                location = places[0].location
+                location = found
             place = await self._geocoding.reverse(location)
         except GeocodingUnavailableError:
             return None
         if place is None or not place.postal_code:
             return None
         return location, place.postal_code, place.city
+
+    async def _geocode_first(self, queries: list[str]) -> GeoPoint | None:
+        for query in queries:
+            places = await self._geocoding.search(query, 1)
+            if places:
+                return places[0].location
+        return None
 
     async def _nearby(self, center: GeoPoint, place_name: str) -> tuple[str, ...]:
         """Towns within the radius: reverse geocoding on two rings around the center.
@@ -424,6 +489,7 @@ class RunAiSearch:
         return log | {
             "queries": tool.queries,
             "urls": tool.urls,
+            "pages": tool.read_urls,
             "durationSeconds": round(time.monotonic() - started, 1),
         }
 

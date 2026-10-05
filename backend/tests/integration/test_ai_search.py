@@ -73,6 +73,7 @@ def _use_cases(
         FakeEventFinder(),
         FakeWebSearch(),
         AllowAllSourceChecker(),
+        None,
         geocoding,
         SqlCatalog(sessions, ImageUrls("https://img.test/b")),
         SqlDraftStore(sessions),

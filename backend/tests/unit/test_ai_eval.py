@@ -34,6 +34,7 @@ def _parts() -> AiSearchParts:
         finder=FakeEventFinder(finds=[_find()]),
         search=FakeWebSearch(hits=[SearchHit(SOURCE, "Stadtfest Aalen")]),
         sources=FakeSourceChecker(),
+        pages=None,
         geocoding=FakeGeocoding(places=[AALEN], reverse_result=AALEN),
         catalog=cast("SqlCatalog", _Catalog()),
         clock=cast("BerlinClock", FixedClock(TODAY)),

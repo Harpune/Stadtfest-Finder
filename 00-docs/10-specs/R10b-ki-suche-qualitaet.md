@@ -37,8 +37,16 @@
   - Der Bericht in Markdown enthält je PLZ und Version: Status, neue Funde, Übersprungene je Grund, Anzahl Suchen, Tokens, Dauer, Orte im Umkreis, Suchanfragen und Funde mit Quelle.
 - Nie in der CI: Jeder Lauf kostet Anfragen bei LLM und Suchmaschinen.
 
-### R10b-US5 · Seiten lesen (folgt)
-- Zweites Werkzeug `read_page(url)`: Das Modell liest den Text eines Suchtreffers. Erlaubt sind nur URLs aus den Suchergebnissen desselben Jobs, mit SSRF-Schutz und Längenbegrenzung.
+### R10b-US5 · Seiten lesen
+- Zweites Werkzeug `read_page(url)`: Das Modell liest den Text eines Suchtreffers (Port `PageReader`, Adapter `HttpPageReader`).
+- **Erlaubte URLs:** nur URLs aus den Suchergebnissen desselben Jobs (normalisiert). Andere URLs beantwortet das Werkzeug mit einem Hinweis an das Modell, ohne sie abzurufen.
+- **Abruf und SSRF-Schutz** wie bei der Quellenprüfung:
+  - nur öffentliche IP-Adressen;
+  - Weiterleitungen werden selbst verfolgt (höchstens 3), jeder Host wird geprüft;
+  - keine Cookies.
+- **Inhalt:** nur HTML und Text, höchstens 1,5 MB. Text per Standardbibliothek ohne Skripte, Styles und Navigation, auf 12.000 Zeichen gekürzt. PDFs werden nicht gelesen.
+- **Budget:** `AI_SEARCH_MAX_PAGE_READS` (Standard 6, 0 schaltet aus), weich wie bei den Suchen. Gelesene Seiten stehen im Job-Protokoll (`pages`) und werden nach 90 Tagen gekürzt.
+- Prompt v3 = v2 plus Anleitung zum Lesen.
 
 ## Datenschutz
 
