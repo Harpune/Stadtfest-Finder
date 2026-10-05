@@ -1,5 +1,6 @@
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {fireEvent, screen, waitFor} from '@testing-library/react-native';
+import * as Location from 'expo-location';
 import {router} from 'expo-router';
 import React from 'react';
 
@@ -82,6 +83,11 @@ function mockApi(handler: Handler = () => undefined): Call[] {
   return calls;
 }
 
+function camera(): {easeTo: jest.Mock} {
+  return (globalThis as unknown as {mockCameraApi: {easeTo: jest.Mock}})
+    .mockCameraApi;
+}
+
 async function renderForm(eventId: string | null) {
   const client = new QueryClient({defaultOptions: {queries: {retry: false}}});
   await renderWithProviders(
@@ -145,6 +151,34 @@ describe('ModEventFormScreen', () => {
       name: 'Herbstfest',
     });
     expect(router.back).toHaveBeenCalled();
+  });
+
+  it('starts the map on all of Germany without location access', async () => {
+    mockApi();
+    await renderForm(null);
+
+    expect(camera().easeTo).toHaveBeenCalledWith(
+      expect.objectContaining({center: [10.45, 51.16], zoom: 4.3}),
+    );
+  });
+
+  it('starts the map at the own location if access was granted', async () => {
+    jest
+      .mocked(Location.getForegroundPermissionsAsync)
+      .mockResolvedValueOnce({granted: true} as Awaited<
+        ReturnType<typeof Location.getForegroundPermissionsAsync>
+      >);
+    jest.mocked(Location.getLastKnownPositionAsync).mockResolvedValueOnce({
+      coords: {latitude: 52.52, longitude: 13.405},
+    } as Awaited<ReturnType<typeof Location.getLastKnownPositionAsync>>);
+    mockApi();
+    await renderForm(null);
+
+    await waitFor(() =>
+      expect(camera().easeTo).toHaveBeenCalledWith(
+        expect.objectContaining({center: [13.405, 52.52], zoom: 11}),
+      ),
+    );
   });
 
   it('sets the location on the full-screen map and fills the address (08-07)', async () => {

@@ -34,6 +34,7 @@ import {offlineStyle} from '@/features/discover/mapStyle';
 import {useDebouncedValue} from '@/features/discover/useDebouncedValue';
 import {type Place, useCategories} from '@/features/discover/useDiscoverData';
 import {useTileStyle} from '@/features/discover/useTileStyle';
+import {useDevicePosition} from '@/features/events/useDevicePosition';
 import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
 
@@ -59,8 +60,14 @@ import {
   useRefreshModeration,
 } from './useModeration';
 
-/** Center of the map before a location is set (Aalen; there are no regions, ADR 0015). */
-const FALLBACK_CENTER = {lat: 48.84, lon: 10.09};
+/** Middle of Germany: the map start without pin and without location access. */
+const GERMANY = {lat: 51.16, lon: 10.45};
+/** Zoom levels of the map start: preview (small) and full-screen picker. */
+const START_ZOOM = {
+  pin: 16,
+  own: {preview: 11, picker: 13},
+  germany: {preview: 4.3, picker: 5},
+} as const;
 
 type Busy = 'draft' | 'publish' | 'cancel' | 'delete' | null;
 
@@ -711,6 +718,11 @@ function LocationSection({
   );
   const hasPin = form.lat !== null && form.lon !== null;
   const pending = query !== text || suggestions.isFetching;
+  // Without a pin: the own location if access was already granted (never asks), otherwise
+  // all of Germany. There are no regions to start from (ADR 0015).
+  const own = useDevicePosition();
+  const start = own ?? GERMANY;
+  const zoom = own ? START_ZOOM.own : START_ZOOM.germany;
 
   const pickPin = async (lat: number, lon: number) => {
     const rounded = {
@@ -802,7 +814,7 @@ function LocationSection({
       <PinMap
         lat={form.lat}
         lon={form.lon}
-        fallback={FALLBACK_CENTER}
+        fallback={{...start, zoom: zoom.preview}}
         mapStyle={mapStyle}
         active={pinMode && !disabled}
         onPress={disabled ? undefined : () => setPickerOpen(true)}
@@ -824,9 +836,9 @@ function LocationSection({
         start={
           form.lat !== null && form.lon !== null
             ? {lat: form.lat, lon: form.lon}
-            : FALLBACK_CENTER
+            : start
         }
-        exact={hasPin}
+        startZoom={hasPin ? START_ZOOM.pin : zoom.picker}
         mapStyle={mapStyle}
         onConfirm={(lat, lon) => {
           setPickerOpen(false);

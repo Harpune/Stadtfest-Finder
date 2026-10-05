@@ -17,18 +17,16 @@ import {IconButton} from '../IconButton/IconButton';
 import {MapControls} from '../MapControls/MapControls';
 import {Text} from '../Text/Text';
 
-const MIN_ZOOM = 5;
+// Low enough to show all of Germany as the start view without location.
+const MIN_ZOOM = 4;
 const MAX_ZOOM = 19;
-/** Zoom for an existing pin: close enough to see streets and squares. */
-const PIN_ZOOM = 16;
-const START_ZOOM = 12;
 
 export interface LocationPickerProps {
   visible: boolean;
-  /** Start position: the current pin, the geocoded address or a default center. */
+  /** Start position: the current pin, the own location or the middle of Germany. */
   start: {lat: number; lon: number};
-  /** True if `start` is an exact location (zooms in further). */
-  exact: boolean;
+  /** Start zoom: 16 for a pin, about 13 for the own location, 5 for Germany. */
+  startZoom: number;
   mapStyle: string | StyleSpecification;
   onConfirm: (lat: number, lon: number) => void;
   onCancel: () => void;
@@ -43,7 +41,7 @@ export interface LocationPickerProps {
 export function LocationPicker({
   visible,
   start,
-  exact,
+  startZoom,
   mapStyle,
   onConfirm,
   onCancel,
@@ -54,7 +52,7 @@ export function LocationPicker({
   const insets = useSafeAreaInsets();
   const camera = useRef<CameraRef>(null);
   const [center, setCenter] = useState(start);
-  const [zoom, setZoom] = useState(exact ? PIN_ZOOM : START_ZOOM);
+  const [zoom, setZoom] = useState(startZoom);
 
   const zoomBy = (delta: number) =>
     camera.current?.zoomTo(
@@ -69,7 +67,7 @@ export function LocationPicker({
       onRequestClose={onCancel}
       onShow={() => {
         setCenter(start);
-        setZoom(exact ? PIN_ZOOM : START_ZOOM);
+        setZoom(startZoom);
       }}
       statusBarTranslucent
       navigationBarTranslucent
@@ -101,7 +99,7 @@ export function LocationPicker({
             ref={camera}
             initialViewState={{
               center: [start.lon, start.lat],
-              zoom: exact ? PIN_ZOOM : START_ZOOM,
+              zoom: startZoom,
             }}
           />
         </Map>
