@@ -44,7 +44,8 @@
   - nur öffentliche IP-Adressen;
   - Weiterleitungen werden selbst verfolgt (höchstens 3), jeder Host wird geprüft;
   - keine Cookies.
-- **Inhalt:** nur HTML und Text, höchstens 1,5 MB. Text per Standardbibliothek ohne Skripte, Styles und Navigation, auf 12.000 Zeichen gekürzt. PDFs werden nicht gelesen.
+- **Inhalt:** HTML und Text höchstens 1,5 MB, Text per Standardbibliothek ohne Skripte, Styles und Navigation. Alles auf 12.000 Zeichen gekürzt.
+- **PDF** (nachgereicht, Veranstaltungskalender der Gemeinden sind oft PDFs): höchstens 8 MB und 40 Seiten, Text mit `pypdf` (reines Python, ohne nativen Code) in einem eigenen Thread. Größere PDFs werden übersprungen, weil ein abgeschnittenes PDF nicht lesbar ist. Verschlüsselte PDFs nur, wenn sie ohne Passwort aufgehen; kaputte Dateien gelten als nicht lesbar.
 - **Budget:** `AI_SEARCH_MAX_PAGE_READS` (Standard 6, 0 schaltet aus), weich wie bei den Suchen. Gelesene Seiten stehen im Job-Protokoll (`pages`) und werden nach 90 Tagen gekürzt.
 - Prompt v3 = v2 plus Anleitung zum Lesen.
 

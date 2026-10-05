@@ -1,23 +1,31 @@
 """Reading result pages for the LLM (R10b-US5) with the SSRF protection of the source check.
 
-Only HTML and plain text are read, at most `MAX_BYTES`; scripts, styles and navigation are
-dropped and the visible text is shortened to the requested length. No cookies, redirects
-are followed manually so every host is checked.
+Only HTML, plain text and PDF are read. HTML and text are cut at `MAX_BYTES`; scripts,
+styles and navigation are dropped. PDFs (town event calendars are often PDFs) are read up to
+`MAX_PDF_BYTES` and `MAX_PDF_PAGES` pages, larger ones are skipped because a cut PDF cannot
+be parsed. The visible text is shortened to the requested length. No cookies, redirects are
+followed manually so every host is checked.
 """
 
 from __future__ import annotations
 
+import asyncio
 import re
 from html.parser import HTMLParser
+from io import BytesIO
 from urllib.parse import urlsplit
 
 import httpx
+from pypdf import PasswordType, PdfReader
 
 from stadtfest.adapters.outbound.sources.http import is_public_host
 
 MAX_BYTES = 1_500_000
+MAX_PDF_BYTES = 8_000_000
+MAX_PDF_PAGES = 40
 MAX_REDIRECTS = 3
 _TEXT_TYPES = ("text/html", "application/xhtml+xml", "text/plain")
+_PDF_TYPE = "application/pdf"
 _SKIPPED = frozenset({"script", "style", "noscript", "svg", "template", "iframe", "nav"})
 _BLOCKS = frozenset(
     {
@@ -68,6 +76,32 @@ def html_to_text(html: str) -> str:
     return parser.text()
 
 
+def pdf_to_text(data: bytes, max_chars: int) -> str | None:
+    """Text of a PDF, page by page until `max_chars` or `MAX_PDF_PAGES`; None if unreadable.
+
+    Encrypted PDFs are read only if they open with an empty password (permission locks).
+    """
+    try:
+        reader = PdfReader(BytesIO(data))
+        if reader.is_encrypted and reader.decrypt("") == PasswordType.NOT_DECRYPTED:
+            return None
+        lines: list[str] = []
+        size = 0
+        for index in range(min(len(reader.pages), MAX_PDF_PAGES)):
+            for line in reader.pages[index].extract_text().splitlines():
+                line = re.sub(r"\s+", " ", line).strip()
+                if line:
+                    lines.append(line)
+                    size += len(line) + 1
+            if size >= max_chars:
+                break
+    # The PDF comes from an arbitrary web page and pypdf raises many different exception
+    # types for broken files; any of them only means "cannot be read".
+    except Exception:  # noqa: BLE001
+        return None
+    return "\n".join(lines)[:max_chars] or None
+
+
 class HttpPageReader:
     """Implements `PageReader` with GET, public hosts only, size and type limits."""
 
@@ -96,24 +130,33 @@ class HttpPageReader:
                     if response.status_code >= 400:
                         return None
                     content_type = response.headers.get("content-type", "").lower()
-                    if not content_type.startswith(_TEXT_TYPES):
+                    if content_type.startswith(_PDF_TYPE):
+                        pdf = await _limited_body(response, MAX_PDF_BYTES + 1)
+                    elif content_type.startswith(_TEXT_TYPES):
+                        pdf = None
+                        body = await _limited_body(response, MAX_BYTES)
+                        text = body.decode(response.encoding or "utf-8", errors="replace")
+                    else:
                         return None
-                    body = await _limited_body(response)
-                    text = body.decode(response.encoding or "utf-8", errors="replace")
             except httpx.HTTPError:
                 return None
+            if pdf is not None:
+                if len(pdf) > MAX_PDF_BYTES:
+                    return None
+                # Parsing is CPU-bound; keep the event loop free for the other requests.
+                return await asyncio.to_thread(pdf_to_text, pdf, max_chars)
             if not content_type.startswith("text/plain"):
                 text = html_to_text(text)
             return text[:max_chars] or None
         return None
 
 
-async def _limited_body(response: httpx.Response) -> bytes:
+async def _limited_body(response: httpx.Response, limit: int) -> bytes:
     chunks: list[bytes] = []
     size = 0
     async for chunk in response.aiter_bytes():
         chunks.append(chunk)
         size += len(chunk)
-        if size >= MAX_BYTES:
+        if size >= limit:
             break
-    return b"".join(chunks)[:MAX_BYTES]
+    return b"".join(chunks)[:limit]
