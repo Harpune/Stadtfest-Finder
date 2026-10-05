@@ -14,6 +14,13 @@ from stadtfest.application.ai_ingestion.use_cases import CompactAiSearchLogs, Fa
 from stadtfest.application.identity.ports import IdpUnavailableError
 from stadtfest.application.identity.use_cases import DeleteIdpUser
 from stadtfest.application.moderation.images import PurgeImages
+from stadtfest.application.notifications.ports import PushUnavailableError
+from stadtfest.application.notifications.use_cases import (
+    CheckPushReceipts,
+    PurgeNotifications,
+    PushNotifications,
+    SendReminders,
+)
 from stadtfest.application.outbox.ports import OutboxMessage
 from stadtfest.application.outbox.use_cases import (
     RELAY_BATCH,
@@ -155,6 +162,92 @@ async def compact_ai_search_logs(ctx: dict[str, Any]) -> int:
     return await use_case()
 
 
+# Retries of a push batch while the push service is unavailable: 30 s, 1, 2, 4 min.
+PUSH_MAX_TRIES = 5
+
+
+def _push_retry(ctx: dict[str, Any]) -> Retry | None:
+    """The retry for a push job, or None (logged) once the tries are used up."""
+    job_try: int = ctx.get("job_try", 1)
+    if job_try >= PUSH_MAX_TRIES:
+        logger.error("push_failed", extra={"job_id": ctx.get("job_id")})
+        return None
+    return Retry(defer=30 * 2 ** (job_try - 1))
+
+
+async def push_notifications(ctx: dict[str, Any], notification_ids: list[str]) -> int:
+    """Push one fan-out batch of notifications (R11-US3).
+
+    Args:
+        ctx: arq job context with the container.
+        notification_ids: IDs of the notifications of the batch.
+
+    Returns:
+        Number of messages sent.
+
+    Raises:
+        Retry: While the push service is unavailable and tries are left.
+    """
+    use_case: PushNotifications = ctx["container"].push_notifications
+    try:
+        return await use_case([UUID(value) for value in notification_ids])
+    except PushUnavailableError:
+        retry = _push_retry(ctx)
+        if retry is None:
+            return 0
+        raise retry from None
+
+
+async def check_push_receipts(ctx: dict[str, Any], receipts: dict[str, str]) -> int:
+    """Remove tokens that Expo reports as invalid in the receipts (R11-US5).
+
+    Args:
+        ctx: arq job context with the container.
+        receipts: Ticket ID -> push token.
+
+    Returns:
+        Number of removed tokens.
+
+    Raises:
+        Retry: While the push service is unavailable and tries are left.
+    """
+    use_case: CheckPushReceipts = ctx["container"].check_push_receipts
+    try:
+        return await use_case(receipts)
+    except PushUnavailableError:
+        retry = _push_retry(ctx)
+        if retry is None:
+            return 0
+        raise retry from None
+
+
+async def send_reminders(ctx: dict[str, Any]) -> int:
+    """Daily 09:00 Europe/Berlin: reminders for favorites that start soon (R11-US4).
+
+    Args:
+        ctx: arq job context with the container.
+
+    Returns:
+        Number of new notifications.
+    """
+    use_case: SendReminders = ctx["container"].send_reminders
+    return await use_case()
+
+
+async def purge_notifications(ctx: dict[str, Any]) -> int:
+    """Daily: notifications after 12 months, devices after 90 idle days (Löschkonzept).
+
+    Args:
+        ctx: arq job context with the container.
+
+    Returns:
+        Number of deleted notifications and devices.
+    """
+    use_case: PurgeNotifications = ctx["container"].purge_notifications
+    result = await use_case()
+    return result.notifications + result.devices
+
+
 JOBS: list[Callable[..., Awaitable[object]]] = [
     ping,
     delete_idp_user,
@@ -163,4 +256,8 @@ JOBS: list[Callable[..., Awaitable[object]]] = [
     purge_images,
     fail_stuck_searches,
     compact_ai_search_logs,
+    push_notifications,
+    check_push_receipts,
+    send_reminders,
+    purge_notifications,
 ]

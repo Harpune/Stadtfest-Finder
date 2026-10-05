@@ -259,3 +259,39 @@ def test_prompt_file_is_validated_and_only_allowed_outside_prod(
     monkeypatch.setenv("AI_SEARCH_PROMPT_FILE", str(good))
     with pytest.raises(SettingsError, match="AI_SEARCH_PROMPT_FILE is not allowed in prod"):
         load_settings()
+
+
+def test_push_is_disabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    _base(monkeypatch)
+    monkeypatch.delenv("PUSH_PROVIDER", raising=False)
+    assert load_settings().push_provider.value == "disabled"
+
+
+def test_expo_needs_an_access_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    _base(monkeypatch)
+    monkeypatch.setenv("PUSH_PROVIDER", "expo")
+    monkeypatch.delenv("EXPO_ACCESS_TOKEN", raising=False)
+    with pytest.raises(SettingsError, match="EXPO_ACCESS_TOKEN"):
+        load_settings()
+    monkeypatch.setenv("EXPO_ACCESS_TOKEN", "token")
+    assert load_settings().push_provider.value == "expo"
+
+
+def test_direct_needs_apns_and_fcm_credentials(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _base(monkeypatch)
+    monkeypatch.setenv("PUSH_PROVIDER", "direct")
+    with pytest.raises(SettingsError, match=r"APNS_KEY_ID.*FCM_CREDENTIALS_PATH"):
+        load_settings()
+    key, credentials = tmp_path / "apns.p8", tmp_path / "fcm.json"
+    key.write_text("key")
+    monkeypatch.setenv("APNS_KEY_ID", "KEY")
+    monkeypatch.setenv("APNS_TEAM_ID", "TEAM")
+    monkeypatch.setenv("APNS_KEY_PATH", str(key))
+    monkeypatch.setenv("FCM_PROJECT_ID", "stadtfest")
+    monkeypatch.setenv("FCM_CREDENTIALS_PATH", str(credentials))
+    with pytest.raises(SettingsError, match="FCM_CREDENTIALS_PATH is not a readable file"):
+        load_settings()
+    credentials.write_text("{}")
+    assert load_settings().push_provider.value == "direct"

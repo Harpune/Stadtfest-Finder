@@ -104,6 +104,9 @@ def test_publishing_again_keeps_the_first_publication_time() -> None:
     event.unpublish()
     event.publish(frozenset({CATEGORY}), datetime(2026, 11, 1, tzinfo=UTC))
     assert event.published_at == NOW
+    # Only the first publication announces the event near users' homes (R11).
+    published = [e for e in event.pending_events if e.type is DomainEventType.PUBLISHED]
+    assert [e.first_publication for e in published] == [True, False]
 
 
 def test_publish_reports_missing_fields() -> None:

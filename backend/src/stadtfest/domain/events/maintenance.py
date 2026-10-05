@@ -56,6 +56,8 @@ class DomainEvent:
     type: DomainEventType
     event_id: UUID
     changed_fields: tuple[str, ...] = ()
+    # `event.published` only: the event becomes public for the first time ("near", R11).
+    first_publication: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,9 +233,12 @@ class ManagedEvent:
         if problems:
             raise PublicationError(problems)
         self.status = EventStatus.PUBLISHED
-        if self.published_at is None:
+        first = self.published_at is None
+        if first:
             self.published_at = now
-        self._record(DomainEventType.PUBLISHED)
+        self.pending_events.append(
+            DomainEvent(DomainEventType.PUBLISHED, self.id, first_publication=first)
+        )
 
     def unpublish(self) -> None:
         """Published → draft (hidden from users, no notification).

@@ -7,7 +7,7 @@ lead to the same state, so at-least-once delivery is safe.
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -49,10 +49,11 @@ class RelayOutbox:
 ProcessImageHandler = Callable[[UUID], Awaitable[object]]
 RunAiSearchHandler = Callable[[UUID], Awaitable[object]]
 DeleteImageFilesHandler = Callable[[UUID, UUID | None], Awaitable[None]]
+NotifyHandler = Callable[[str, Mapping[str, object]], Awaitable[object]]
 
 
 class HandleDomainEvent:
-    """Consumers: caches and deleted events (R07), images (R08), categories (R09), AI (R10)."""
+    """Consumers: caches (R07), images (R08), categories (R09), AI (R10), notifications (R11)."""
 
     def __init__(
         self,
@@ -61,6 +62,7 @@ class HandleDomainEvent:
         process_image: ProcessImageHandler,
         delete_image_files: DeleteImageFilesHandler,
         run_ai_search: RunAiSearchHandler | None = None,
+        notify: NotifyHandler | None = None,
     ) -> None:
         """Create the use case."""
         self._cache = cache
@@ -68,6 +70,7 @@ class HandleDomainEvent:
         self._process_image = process_image
         self._delete_image_files = delete_image_files
         self._run_ai_search = run_ai_search
+        self._notify = notify
 
     async def __call__(self, message: OutboxMessage) -> None:
         """React to one domain event."""
@@ -76,7 +79,10 @@ class HandleDomainEvent:
                 await self._run_ai_search(UUID(str(message.payload["jobId"])))
             return
         if message.type in {AiSearchEventType.COMPLETED.value, AiSearchEventType.FAILED.value}:
-            return  # push to the moderator follows in R11 (E-12)
+            # Push to the moderator who started the search (E-12, R11).
+            if self._notify is not None:
+                await self._notify(message.type, message.payload)
+            return
         if message.type == CATEGORY_CHANGED:
             # Chips (public list, ETag) and catalog counts/filters follow (R09-US5).
             await self._cache.bump_generation(CATEGORIES_NAMESPACE)
@@ -95,6 +101,9 @@ class HandleDomainEvent:
         if event_type is DomainEventType.DELETED:
             # `favorite_count` stays as historical value (R07-US7).
             await self._favorites.remove_for_event(UUID(str(message.payload["eventId"])))
+        elif self._notify is not None:
+            # "near", "change" and "cancel" (R11-US4); the consumer ignores other types.
+            await self._notify(message.type, message.payload)
 
     async def _handle_image(self, event_type: ImageEventType, payload: dict[str, object]) -> None:
         image_id = UUID(str(payload["imageId"]))

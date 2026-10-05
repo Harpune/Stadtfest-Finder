@@ -38,6 +38,13 @@ tags:
     description: |
       Profile of the signed-in user (flow B). The user is created on the first call; the
       email address is never stored (E-08), the app reads it from the ID token.
+  - name: notifications
+    description: |
+      Notification list, settings and push devices of the signed-in user (R11, context
+      `notifications`). Texts are rendered when reading (E-09); push payloads carry IDs and
+      generic texts only (E-04).
+  - name: config
+    description: Public app configuration.
 paths:
   /v1/health/live:
     get:
@@ -310,6 +317,24 @@ paths:
           $ref: "#/components/responses/Error"
         default:
           $ref: "#/components/responses/Error"
+  /v1/config:
+    get:
+      operationId: getConfig
+      tags: [config]
+      summary: Public app configuration
+      description: |
+        Settings the app needs before sign-in, e.g. which push token type to register
+        (`expo`: Expo push token, `direct`: native APNs/FCM token, `disabled`: none).
+      security: []
+      responses:
+        "200":
+          description: The configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppConfig"
+        default:
+          $ref: "#/components/responses/Error"
   /v1/me:
     get:
       operationId: getMe
@@ -431,6 +456,180 @@ paths:
       responses:
         "204":
           description: The event is no favorite.
+        "401":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/me/notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: Own notifications
+      description: |
+        Newest first. The text is rendered from the type and the referenced data (E-09);
+        entries whose event was deleted are left out. The header `X-Unread-Count` carries
+        the number of unread entries (badge on the avatar and in the drawer).
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          description: >-
+            Opaque cursor from `nextCursor` of the previous page. Cursors not issued by the
+            server are rejected with `422`.
+          schema:
+            type: string
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          description: Page size.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: One page of notifications.
+          headers:
+            X-Unread-Count:
+              description: Number of unread notifications of the caller.
+              schema:
+                type: integer
+                minimum: 0
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPage"
+        "401":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/me/notifications/{notificationId}/read:
+    parameters:
+      - name: notificationId
+        in: path
+        required: true
+        description: Notification ID.
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark a notification as read
+      description: Idempotent. Notifications of other users are `404`.
+      responses:
+        "204":
+          description: The notification is read.
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/me/notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      description: The unread count drops to zero.
+      responses:
+        "204":
+          description: All notifications are read.
+        "401":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/me/notification-settings:
+    get:
+      operationId: getNotificationSettings
+      tags: [notifications]
+      summary: Own notification settings
+      description: Defaults until the first change (all types on, 1 day before, 25 km, no home).
+      responses:
+        "200":
+          description: The settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationSettings"
+        "401":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+    put:
+      operationId: updateNotificationSettings
+      tags: [notifications]
+      summary: Replace own notification settings
+      description: |
+        Replaces the whole object. The home is given as ZIP code and place name; the server
+        stores the ZIP code center from geocoding, never a GPS position (E-10). An unknown
+        ZIP code is `422` (`postal_code_unknown`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationSettingsUpdate"
+      responses:
+        "200":
+          description: The stored settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationSettings"
+        "401":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/me/devices:
+    post:
+      operationId: registerDevice
+      tags: [notifications]
+      summary: Register a push token
+      description: |
+        Called after the notification permission and after every sign-in. Idempotent; a
+        token registered by another user moves to the caller.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceRegistration"
+      responses:
+        "204":
+          description: The device is registered.
+        "401":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/me/devices/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: The push token (URL-encoded).
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 4096
+    delete:
+      operationId: removeDevice
+      tags: [notifications]
+      summary: Remove a push token
+      description: Called on sign-out. Idempotent; tokens of other users are left alone.
+      responses:
+        "204":
+          description: The token is no longer registered for the caller.
         "401":
           $ref: "#/components/responses/Error"
         default:
@@ -667,7 +866,7 @@ paths:
       operationId: cancelModEvent
       tags: [moderation]
       summary: Cancel a published event
-      description: Only published events. Users with this favorite are notified from R11 on.
+      description: Only published events. Users with this favorite get a notification (R11).
       requestBody:
         required: false
         content:
@@ -2058,6 +2257,166 @@ components:
           type: string
           minLength: 1
           maxLength: 50
+    AppConfig:
+      type: object
+      description: Public app configuration.
+      required: [pushProvider]
+      properties:
+        pushProvider:
+          $ref: "#/components/schemas/PushProvider"
+    PushProvider:
+      type: string
+      description: Push delivery (`PUSH_PROVIDER`); decides the token type the app registers.
+      enum: [expo, direct, disabled]
+    NotificationType:
+      type: string
+      description: |
+        `remind`: a favorite starts soon; `near`: new event near the home; `change`: date,
+        times or place of a favorite changed; `cancel`: a favorite was cancelled.
+      enum: [remind, near, change, cancel]
+    NotificationTarget:
+      type: object
+      description: What a tap opens.
+      required: [type, id]
+      properties:
+        type:
+          type: string
+          enum: [event]
+        id:
+          type: string
+          format: uuid
+    Notification:
+      type: object
+      required: [id, type, text, target, read, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          $ref: "#/components/schemas/NotificationType"
+        text:
+          type: string
+          description: German text, rendered when reading.
+        target:
+          $ref: "#/components/schemas/NotificationTarget"
+        read:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    NotificationPage:
+      type: object
+      description: One page of notifications, newest first.
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notification"
+        nextCursor:
+          type: ["string", "null"]
+          description: Cursor for the next page, `null` on the last page.
+    RemindDaysBefore:
+      type: integer
+      enum: [1, 3, 7]
+    NearRadiusKm:
+      type: integer
+      minimum: 5
+      maximum: 150
+      multipleOf: 5
+    HomeUpdate:
+      type: object
+      required: [postalCode, placeName]
+      additionalProperties: false
+      properties:
+        postalCode:
+          type: string
+          pattern: "^[0-9]{5}$"
+        placeName:
+          type: string
+          minLength: 1
+          maxLength: 100
+    Home:
+      type: object
+      description: Home for "new near your home"; the location is the ZIP code center.
+      required: [postalCode, placeName, lat, lon]
+      properties:
+        postalCode:
+          type: string
+          pattern: "^[0-9]{5}$"
+        placeName:
+          type: string
+        lat:
+          type: number
+          description: Latitude of the ZIP code center (for the radius preview).
+        lon:
+          type: number
+    NotificationSettingsUpdate:
+      type: object
+      required: [remind, remindDaysBefore, near, home, nearRadiusKm, change, invite, rsvp]
+      additionalProperties: false
+      properties:
+        remind:
+          type: boolean
+        remindDaysBefore:
+          $ref: "#/components/schemas/RemindDaysBefore"
+        near:
+          type: boolean
+        home:
+          oneOf:
+            - $ref: "#/components/schemas/HomeUpdate"
+            - type: "null"
+        nearRadiusKm:
+          $ref: "#/components/schemas/NearRadiusKm"
+        change:
+          type: boolean
+        invite:
+          type: boolean
+        rsvp:
+          type: boolean
+    NotificationSettings:
+      type: object
+      description: |
+        Which types are pushed. Muted types still appear in the list. `invite` and `rsvp`
+        take effect with invitations (R14).
+      required: [remind, remindDaysBefore, near, home, nearRadiusKm, change, invite, rsvp]
+      properties:
+        remind:
+          type: boolean
+        remindDaysBefore:
+          $ref: "#/components/schemas/RemindDaysBefore"
+        near:
+          type: boolean
+        home:
+          oneOf:
+            - $ref: "#/components/schemas/Home"
+            - type: "null"
+        nearRadiusKm:
+          $ref: "#/components/schemas/NearRadiusKm"
+        change:
+          type: boolean
+        invite:
+          type: boolean
+        rsvp:
+          type: boolean
+    DevicePlatform:
+      type: string
+      enum: [ios, android]
+    DeviceRegistration:
+      type: object
+      required: [token, platform, provider]
+      additionalProperties: false
+      properties:
+        token:
+          type: string
+          minLength: 1
+          maxLength: 4096
+          description: Expo push token (`expo`) or native APNs/FCM token (`direct`).
+        platform:
+          $ref: "#/components/schemas/DevicePlatform"
+        provider:
+          type: string
+          enum: [expo, direct]
     Error:
       type: object
       description: Common error format for all non-2xx responses.

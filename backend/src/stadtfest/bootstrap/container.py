@@ -44,10 +44,21 @@ from stadtfest.adapters.outbound.persistence.moderation import (
     SqlActiveCategories,
     SqlManagedEventRepository,
 )
+from stadtfest.adapters.outbound.persistence.notifications import (
+    SqlAiSearchOwners,
+    SqlDeviceStore,
+    SqlNotificationStore,
+    SqlRecipients,
+    SqlSettingsStore,
+)
 from stadtfest.adapters.outbound.persistence.outbox import SqlEventFavorites, SqlOutboxStore
+from stadtfest.adapters.outbound.push.direct import ApnsConfig, DirectPushSender, FcmConfig
+from stadtfest.adapters.outbound.push.disabled import DisabledPushSender
+from stadtfest.adapters.outbound.push.expo import ExpoPushSender
 from stadtfest.adapters.outbound.queue.arq_jobs import (
     ArqAccountJobs,
     ArqEventQueue,
+    ArqPushJobs,
     create_arq_redis,
 )
 from stadtfest.adapters.outbound.search.brave import BraveWebSearch
@@ -131,6 +142,23 @@ from stadtfest.application.moderation.use_cases import (
     PublishModEvent,
     UnpublishModEvent,
     UpdateModEvent,
+)
+from stadtfest.application.notifications.ports import PushProvider, PushSender
+from stadtfest.application.notifications.use_cases import (
+    CheckPushReceipts,
+    GetNotificationSettings,
+    ListNotifications,
+    MarkAllNotificationsRead,
+    MarkNotificationRead,
+    Notify,
+    NotifyForDomainEvent,
+    PurgeNotifications,
+    PushNotifications,
+    PushToModerator,
+    RegisterDevice,
+    RemoveDevice,
+    SendReminders,
+    UpdateNotificationSettings,
 )
 from stadtfest.application.outbox.use_cases import HandleDomainEvent, PurgeOutbox, RelayOutbox
 from stadtfest.bootstrap.settings import (
@@ -239,6 +267,19 @@ class Container:
     fail_stuck_searches: FailStuckSearches
     compact_ai_search_logs: CompactAiSearchLogs
     ai_parts: AiSearchParts
+    push_http: list[httpx.AsyncClient]
+    push_provider: PushProvider
+    list_notifications: ListNotifications
+    mark_notification_read: MarkNotificationRead
+    mark_all_notifications_read: MarkAllNotificationsRead
+    get_notification_settings: GetNotificationSettings
+    update_notification_settings: UpdateNotificationSettings
+    register_device: RegisterDevice
+    remove_device: RemoveDevice
+    push_notifications: PushNotifications
+    check_push_receipts: CheckPushReceipts
+    send_reminders: SendReminders
+    purge_notifications: PurgeNotifications
 
     @classmethod
     def build(cls, settings: Settings) -> Container:
@@ -331,6 +372,19 @@ class Container:
             ai_settings,
         )
         delete_image_files = DeleteImageFiles(storage)
+        push_http: list[httpx.AsyncClient] = []
+        sender = _push_sender(settings, push_http)
+        notifications = SqlNotificationStore(sessions)
+        notification_settings = SqlSettingsStore(sessions)
+        devices = SqlDeviceStore(sessions)
+        recipients = SqlRecipients(sessions)
+        push_jobs = ArqPushJobs(arq_redis)
+        notify = Notify(notifications, push_jobs)
+        notify_for_domain_event = NotifyForDomainEvent(
+            recipients,
+            notify,
+            PushToModerator(SqlAiSearchOwners(sessions), devices, sender, push_jobs),
+        )
 
         return cls(
             settings=settings,
@@ -378,6 +432,7 @@ class Container:
                 process_image,
                 delete_image_files,
                 run_ai_search,
+                notify_for_domain_event,
             ),
             purge_outbox=PurgeOutbox(outbox),
             storage=storage,
@@ -402,6 +457,25 @@ class Container:
             fail_stuck_searches=FailStuckSearches(ai_jobs, ai_settings),
             compact_ai_search_logs=CompactAiSearchLogs(ai_jobs),
             ai_parts=ai_parts,
+            push_http=push_http,
+            push_provider=sender.provider,
+            list_notifications=ListNotifications(notifications, ensure_account),
+            mark_notification_read=MarkNotificationRead(notifications, ensure_account),
+            mark_all_notifications_read=MarkAllNotificationsRead(notifications, ensure_account),
+            get_notification_settings=GetNotificationSettings(
+                notification_settings, ensure_account
+            ),
+            update_notification_settings=UpdateNotificationSettings(
+                notification_settings, ensure_account, geocoding
+            ),
+            register_device=RegisterDevice(devices, ensure_account),
+            remove_device=RemoveDevice(devices, ensure_account),
+            push_notifications=PushNotifications(
+                notifications, notification_settings, devices, sender, push_jobs
+            ),
+            check_push_receipts=CheckPushReceipts(sender, devices),
+            send_reminders=SendReminders(recipients, notify, clock),
+            purge_notifications=PurgeNotifications(notifications, devices),
         )
 
     async def aclose(self) -> None:
@@ -410,7 +484,7 @@ class Container:
             await self.http.aclose()
         await self.auth_http.aclose()
         await self.storage.aclose()
-        for client in self.ai_http:
+        for client in [*self.ai_http, *self.push_http]:
             await client.aclose()
         await self.arq_redis.aclose()
         await self.redis.aclose()
@@ -461,3 +535,31 @@ def _ai_adapters(
         sources = AllowAllSourceChecker()
         pages = None
     return finder, search, sources, pages
+
+
+def _push_sender(settings: Settings, clients: list[httpx.AsyncClient]) -> PushSender:
+    """Push adapter for `PUSH_PROVIDER` (credentials checked by `Settings`)."""
+    match settings.push_provider:
+        case PushProvider.EXPO:
+            client = httpx.AsyncClient(timeout=10.0)
+            clients.append(client)
+            return ExpoPushSender(client, _secret(settings.expo_access_token))
+        case PushProvider.DIRECT:
+            assert settings.apns_key_path is not None  # noqa: S101
+            assert settings.fcm_credentials_path is not None  # noqa: S101
+            # APNs only accepts HTTP/2.
+            client = httpx.AsyncClient(timeout=10.0, http2=True)
+            clients.append(client)
+            return DirectPushSender(
+                client,
+                ApnsConfig.from_file(
+                    settings.apns_key_id or "",
+                    settings.apns_team_id or "",
+                    settings.apns_key_path,
+                    settings.apns_topic,
+                    sandbox=settings.apns_sandbox,
+                ),
+                FcmConfig.from_file(settings.fcm_project_id or "", settings.fcm_credentials_path),
+            )
+        case PushProvider.DISABLED:
+            return DisabledPushSender()

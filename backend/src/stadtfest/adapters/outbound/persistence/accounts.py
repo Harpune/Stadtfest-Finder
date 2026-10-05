@@ -63,7 +63,8 @@ class SqlUserRepository:
         """Delete the user and its personal data in one transaction (Löschkonzept).
 
         Favorites (R06) are removed by `ON DELETE CASCADE`; their events' counters are
-        decremented here first. Extended by later increments: devices (R11), friends (R12),
+        decremented here first. Notifications, notification settings and devices (R11) go the
+        same way. Extended by later increments: friends (R12),
         lists (R13), invitations (R14).
         """
         async with self._sessions.begin() as session:

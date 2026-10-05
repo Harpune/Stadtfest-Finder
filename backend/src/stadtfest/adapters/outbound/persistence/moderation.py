@@ -82,7 +82,8 @@ def outbox_values(events: Sequence[DomainEvent]) -> list[dict[str, object]]:
             "payload": {
                 "eventId": str(event.event_id),
                 "changedFields": list(event.changed_fields),
-            },
+            }
+            | ({"firstPublication": True} if event.first_publication else {}),
         }
         for event in events
     ]

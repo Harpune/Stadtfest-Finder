@@ -22,6 +22,7 @@ from stadtfest.application.ai_ingestion.prompts import (
     bundled_versions,
     load_bundled,
 )
+from stadtfest.application.notifications.ports import PushProvider
 from stadtfest.domain.ai_ingestion.prompt import PromptTemplate, parse_prompt
 
 
@@ -148,6 +149,17 @@ class Settings(BaseSettings):
     ai_search_prompt_file: Path | None = Field(
         default=None, description="Prompt file for local experiments (dev/test only)"
     )
+    push_provider: PushProvider = PushProvider.DISABLED
+    expo_access_token: SecretStr | None = None
+    apns_key_id: str | None = None
+    apns_team_id: str | None = None
+    apns_key_path: Path | None = Field(default=None, description="APNs auth key (.p8)")
+    apns_topic: str = Field(default="de.stadtfestfinder.app", min_length=1)
+    apns_sandbox: bool = Field(default=False, description="Development builds use the sandbox")
+    fcm_project_id: str | None = None
+    fcm_credentials_path: Path | None = Field(
+        default=None, description="Firebase service account key (JSON)"
+    )
 
     @model_validator(mode="after")
     def _check_adapters(self) -> Settings:
@@ -157,6 +169,7 @@ class Settings(BaseSettings):
             raise ValueError("NOMINATIM_URL is required for GEOCODING_PROVIDER=nominatim")
         self._check_auth()
         self._check_ai()
+        self._check_push()
         if self.env is Environment.PROD and self.s3_public_base_url.scheme != "https":
             raise ValueError("S3_PUBLIC_BASE_URL must use https in prod")
         return self
@@ -181,6 +194,28 @@ class Settings(BaseSettings):
             raise ValueError("WEB_SEARCH_BASE_URL is required for WEB_SEARCH_PROVIDER=searxng")
         if self.web_search_provider is WebSearchProvider.BRAVE and not self.web_search_api_key:
             raise ValueError("WEB_SEARCH_API_KEY is required for WEB_SEARCH_PROVIDER=brave")
+
+    def _check_push(self) -> None:
+        if self.push_provider is PushProvider.EXPO and not self.expo_access_token:
+            raise ValueError("EXPO_ACCESS_TOKEN is required for PUSH_PROVIDER=expo")
+        if self.push_provider is not PushProvider.DIRECT:
+            return
+        required = {
+            "APNS_KEY_ID": self.apns_key_id,
+            "APNS_TEAM_ID": self.apns_team_id,
+            "APNS_KEY_PATH": self.apns_key_path,
+            "FCM_PROJECT_ID": self.fcm_project_id,
+            "FCM_CREDENTIALS_PATH": self.fcm_credentials_path,
+        }
+        missing = [name for name, value in required.items() if not value]
+        if missing:
+            raise ValueError(f"{', '.join(missing)} required for PUSH_PROVIDER=direct")
+        for name, path in (
+            ("APNS_KEY_PATH", self.apns_key_path),
+            ("FCM_CREDENTIALS_PATH", self.fcm_credentials_path),
+        ):
+            if path is not None and not path.is_file():
+                raise ValueError(f"{name} is not a readable file")
 
     def _check_auth(self) -> None:
         if self.env is Environment.PROD:

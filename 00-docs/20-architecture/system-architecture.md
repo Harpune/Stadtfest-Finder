@@ -80,7 +80,7 @@ flowchart LR
   H -->|event.deleted| F[Favoriten des Fests entfernen]
   H -->|image.uploaded| I[Bild prüfen, Metadaten entfernen,<br/>Varianten in den Objektspeicher]
   H -->|image.removed| R[Bilddateien löschen]
-  H -.->|ab R11| N[Benachrichtigungen]
+  H -->|event.published (erstes Mal), event.updated, event.cancelled, ai_search.*| N[Benachrichtigungen: Einträge, Push-Jobs je 500 Empfänger]
 ```
 
 - Jede Änderung eines Fests in der Moderation schreibt ihr Domain-Event (`event.published`, `event.updated` mit `changedFields`, `event.unpublished`, `event.cancelled`, `event.deleted`) **in derselben Transaktion** in die Tabelle `outbox`. Der Payload enthält nur IDs und Feldnamen.
@@ -95,7 +95,7 @@ flowchart LR
 | Backend-API | `uvicorn stadtfest.bootstrap.app:create_app --factory` | `adapters/inbound/rest` |
 | Worker | `python -m stadtfest.bootstrap.worker` | `adapters/inbound/worker` |
 | FastMCP-Server | ab R15 | `adapters/inbound/mcp` |
-| Service-Schicht | – | `application/<context>` + `domain/<context>` |
+| Service-Schicht | – | `application/<context>` + `domain/<context>`; Kontexte `events`, `collections`, `ai_ingestion`, `moderation`, `notifications` (ADR 0016) |
 | Datenbank, Objektspeicher, Redis, KI-Modul, Geocoding, Push | – | `adapters/outbound/<tech>` (hinter Ports) |
 
 Lokal ersetzt Keycloak Zitadel (ADR 0003) und SeaweedFS den Objektspeicher (ADR 0007).

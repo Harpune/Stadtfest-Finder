@@ -22,3 +22,6 @@
 | Integrität | KI-Funde nie direkt öffentlich | Funde werden nur Entwürfe; Schema-Validierung je Fund, Quellenpflicht (URL aus den Suchergebnissen des Jobs, erreichbar), Umkreis- und Duplikatprüfung; Moderierende prüfen und veröffentlichen | R10 |
 | Vertraulichkeit | SSRF-Schutz bei Quellenprüfung und Seitenlesen | Nur `http`/`https`, nur öffentliche IP-Adressen (auch nach jeder Umleitung, höchstens drei), keine Cookies, 5 s Timeout; gelesen werden nur URLs aus den Suchergebnissen des Jobs, höchstens 1,5 MB HTML/Text bzw. 8 MB PDF (R10b) | R10 |
 | Belastbarkeit | Kosten- und Lastgrenzen der KI-Suche | eine laufende Suche je Moderator, Tageslimit (`AI_SEARCH_DAILY_LIMIT`), begrenzte Tool-Aufrufe und Laufzeit, Wächter für hängende Jobs | R10 |
+| Vertraulichkeit | Push ohne Personenbezug | Push-Titel und -Texte generisch je Art, Payload nur IDs und Badge-Zahl (E-04); Texte mit Namen und Festdaten entstehen erst beim Lesen der Liste in der API; Test `test_push_texts_are_generic` | R11 |
+| Vertraulichkeit | Wohnort ohne GPS-Position | gespeichert werden nur PLZ, Ortsname und PLZ-Mittelpunkt (E-10); die App schickt keine Koordinaten an die Einstellungen | R11 |
+| Belastbarkeit | Fan-out in Blöcken | Benachrichtigungen in Blöcken zu 500 Empfängern, je Block ein Push-Job; Idempotenz je Nutzer über `dedupe_key` (Erinnerung je Tag, Änderung je Stunde) | R11 |
