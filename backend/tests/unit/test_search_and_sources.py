@@ -13,8 +13,9 @@ import pytest
 from stadtfest.adapters.outbound.search.brave import BraveWebSearch
 from stadtfest.adapters.outbound.search.searxng import SearxngWebSearch
 from stadtfest.adapters.outbound.sources import http as sources
+from stadtfest.adapters.outbound.sources import pages
 from stadtfest.adapters.outbound.sources.http import HttpSourceChecker
-from stadtfest.adapters.outbound.sources.pages import HttpPageReader, html_to_text
+from stadtfest.adapters.outbound.sources.pages import HttpPageReader, html_to_text, pdf_to_text
 from stadtfest.application.ai_ingestion.ports import WebSearchUnavailableError
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
@@ -204,13 +205,69 @@ async def test_page_reader_reads_html_and_refuses_other_types(
             return httpx.Response(200, html=html)
         if request.url.path == "/plan.pdf":
             return httpx.Response(200, content=b"%PDF", headers={"content-type": "application/pdf"})
+        if request.url.path == "/bild.png":
+            return httpx.Response(200, content=b"png", headers={"content-type": "image/png"})
         return httpx.Response(404)
 
     reader = HttpPageReader(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
     assert await reader.read("https://www.aalen.de/fest", 100) == "Stadtfest\n17. Oktober"
     assert await reader.read("https://www.aalen.de/fest", 9) == "Stadtfest"
-    assert await reader.read("https://www.aalen.de/plan.pdf", 100) is None
+    assert await reader.read("https://www.aalen.de/plan.pdf", 100) is None  # broken PDF
+    assert await reader.read("https://www.aalen.de/bild.png", 100) is None
     assert await reader.read("https://www.aalen.de/weg", 100) is None
+
+
+def _pdf(*lines: str) -> bytes:
+    """A minimal one-page PDF with one text line per argument (ASCII only)."""
+    content = "BT /F1 12 Tf 72 720 Td " + " ".join(f"({line}) Tj 0 -14 Td" for line in lines)
+    content += " ET"
+    objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R "
+        "/Resources << /Font << /F1 5 0 R >> >> >>",
+        f"<< /Length {len(content)} >>\nstream\n{content}\nendstream",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    out = b"%PDF-1.4\n"
+    offsets = []
+    for number, body in enumerate(objects, 1):
+        offsets.append(len(out))
+        out += f"{number} 0 obj\n{body}\nendobj\n".encode()
+    xref = len(out)
+    out += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode()
+    out += b"".join(f"{offset:010d} 00000 n \n".encode() for offset in offsets)
+    out += (
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
+    )
+    return out
+
+
+def test_pdf_to_text_reads_lines_and_rejects_garbage() -> None:
+    pdf = _pdf("Veranstaltungskalender 2027", "12. Juni   Weinfest  Kirchberg")
+    assert pdf_to_text(pdf, 1000) == "Veranstaltungskalender 2027\n12. Juni Weinfest Kirchberg"
+    assert pdf_to_text(pdf, 10) == "Veranstalt"
+    assert pdf_to_text(b"%PDF-1.4 kaputt", 100) is None
+    assert pdf_to_text(_pdf(), 100) is None
+
+
+async def test_page_reader_reads_pdfs_up_to_a_size_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _resolve(monkeypatch, {"www.kirchberg.de": "93.184.216.34"})
+    monkeypatch.setattr(pages, "MAX_PDF_BYTES", 2_000)
+    pdf = _pdf("Kirmes Kirchberg", "3. bis 5. September")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = pdf if request.url.path == "/kalender.pdf" else pdf + b" " * 2_000
+        return httpx.Response(200, content=body, headers={"content-type": "application/pdf"})
+
+    reader = HttpPageReader(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    assert await reader.read("https://www.kirchberg.de/kalender.pdf", 100) == (
+        "Kirmes Kirchberg\n3. bis 5. September"
+    )
+    # A cut PDF cannot be parsed, so larger files are skipped.
+    assert await reader.read("https://www.kirchberg.de/broschuere.pdf", 100) is None
 
 
 async def test_page_reader_blocks_redirects_to_internal_hosts(
