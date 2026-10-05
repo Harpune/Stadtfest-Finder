@@ -10,6 +10,7 @@ from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart, Tool
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from stadtfest.adapters.outbound.llm.pydantic_ai import (
+    BUDGET_EXHAUSTED,
     LlmConfig,
     LlmKind,
     PydanticAiEventFinder,
@@ -55,6 +56,40 @@ async def test_finds_are_validated_one_by_one() -> None:
     find = result.finds[0]
     assert (find.name, find.lat, find.category) == ("Aalener Stadtfest", 48.8368, "Stadtfest")
     assert result.input_tokens > 0
+
+
+async def test_parallel_searches_beyond_the_budget_do_not_fail_the_run() -> None:
+    """Seen with Mistral and prompt v2: several searches per turn exceeded the hard limit."""
+    returned: list[object] = []
+
+    def parallel(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        returns = [
+            part
+            for message in messages
+            for part in getattr(message, "parts", [])
+            if isinstance(part, ToolReturnPart) and part.tool_name == "web_search"
+        ]
+        if not returns:
+            towns = ("Aalen", "Ellwangen", "Oberkochen")
+            return ModelResponse(
+                parts=[ToolCallPart("web_search", {"query": f"Stadtfest {t}"}) for t in towns]
+            )
+        returned.extend(part.content for part in returns)
+        output_tool = info.output_tools[0].name
+        return ModelResponse(parts=[ToolCallPart(output_tool, {"events": FIXTURE["events"]})])
+
+    queries: list[str] = []
+
+    async def search(query: str) -> list[SearchHit]:
+        queries.append(query)
+        return [SearchHit("https://www.aalen.de/stadtfest", "Stadtfest Aalen")]
+
+    finder = PydanticAiEventFinder(FunctionModel(parallel))
+    result = await finder.find("System", "Prompt", search, FinderLimits(max_tool_calls=2))
+
+    assert len(queries) == 2  # the third search was not run
+    assert BUDGET_EXHAUSTED in returned
+    assert len(result.finds) == 1
 
 
 async def test_model_failures_mean_unavailable() -> None:

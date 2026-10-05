@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import socket
 from pathlib import Path
@@ -158,3 +159,22 @@ async def test_redirects_to_private_addresses_are_blocked(monkeypatch: pytest.Mo
     checker = HttpSourceChecker(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
 
     assert not await checker.reachable("https://www.aalen.de/fest")
+
+
+async def test_searxng_limits_parallel_requests() -> None:
+    """Many parallel queries made the upstream engines block; at most two run at once."""
+    running = 0
+    peak = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal running, peak
+        running += 1
+        peak = max(peak, running)
+        await asyncio.sleep(0.01)
+        running -= 1
+        return httpx.Response(200, json=SEARXNG)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    search = SearxngWebSearch(client, "http://searxng:8080")
+    await asyncio.gather(*(search.search(f"q{i}", 5) for i in range(8)))
+    assert peak == 2

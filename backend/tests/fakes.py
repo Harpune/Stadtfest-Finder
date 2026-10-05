@@ -622,9 +622,11 @@ class FakeWebSearch:
     hits: list[SearchHit] = field(default_factory=list)
     unavailable: bool = False
     queries: list[str] = field(default_factory=list)
+    # Single queries that fail (e.g. upstream engines blocking).
+    failing: set[str] = field(default_factory=set)
 
     async def search(self, query: str, count: int) -> list[SearchHit]:
-        if self.unavailable:
+        if self.unavailable or query in self.failing:
             raise WebSearchUnavailableError
         self.queries.append(query)
         return self.hits[:count]

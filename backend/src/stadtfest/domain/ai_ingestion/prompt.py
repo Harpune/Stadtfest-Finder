@@ -22,6 +22,7 @@ PLACEHOLDERS = frozenset(
         "years",
         "categories",
         "nearby_places",
+        "max_searches",
     }
 )
 
@@ -42,6 +43,8 @@ class SearchParameters:
     categories: tuple[str, ...]
     # Towns within the radius (public place names from the geocoder, nearest first).
     nearby_places: tuple[str, ...] = ()
+    # Search budget of the run (`AI_SEARCH_MAX_TOOL_CALLS`).
+    max_searches: int = 8
 
     def values(self) -> dict[str, str]:
         """Placeholder values; dates in ISO format, lists comma-separated."""
@@ -55,6 +58,7 @@ class SearchParameters:
             "years": "/".join(str(year) for year in years),
             "categories": ", ".join(self.categories) or "alle",
             "nearby_places": ", ".join(self.nearby_places) or self.place_name,
+            "max_searches": str(self.max_searches),
         }
 
 

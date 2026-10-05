@@ -200,21 +200,34 @@ class ListAiSearches:
 
 
 class _RecordingSearch:
-    """The LLM's tool: counts calls and remembers queries and result URLs."""
+    """The LLM's tool: counts calls and remembers queries and result URLs.
+
+    A failed search only returns no hits, so one blocked query does not end the run; the
+    job fails with `search_unavailable` only if every search failed (`all_failed`).
+    """
 
     def __init__(self, search: WebSearchPort, max_calls: int) -> None:
         self._search = search
         self._max_calls = max_calls
         self.queries: list[str] = []
         self.urls: list[str] = []
+        self.failed = 0
 
     async def __call__(self, query: str) -> list[SearchHit]:
         if len(self.queries) >= self._max_calls:
             return []
         self.queries.append(query)
-        hits = await self._search.search(query, HITS_PER_QUERY)
+        try:
+            hits = await self._search.search(query, HITS_PER_QUERY)
+        except WebSearchUnavailableError:
+            self.failed += 1
+            return []
         self.urls.extend(hit.url for hit in hits)
         return hits
+
+    @property
+    def all_failed(self) -> bool:
+        return self.failed > 0 and self.failed == len(self.queries)
 
     @property
     def normalized_urls(self) -> frozenset[str]:
@@ -294,6 +307,7 @@ class RunAiSearch:
             date_to=today + timedelta(days=SEARCH_HORIZON_DAYS),
             categories=tuple(active),
             nearby_places=nearby,
+            max_searches=self._settings.max_tool_calls,
         )
         prompt = self._settings.prompt.render(parameters)
         log["prompt"] = self._settings.prompt.version
@@ -305,6 +319,10 @@ class RunAiSearch:
             FinderLimits(max_tool_calls=self._settings.max_tool_calls),
         )
         log["tokens"] = {"input": result.input_tokens, "output": result.output_tokens}
+        if tool.failed:
+            log["failedSearches"] = tool.failed
+        if tool.all_failed:
+            raise WebSearchUnavailableError
         skipped = SkipCounts(invalid=result.invalid)
         candidates: list[DraftCandidate] = []
         seen_urls: set[str] = set()

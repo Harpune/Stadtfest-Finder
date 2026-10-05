@@ -172,19 +172,39 @@ def _to_find(loose: _LooseDraft) -> FoundEvent | None:
     )
 
 
+# Told to the model once the search budget is used up, instead of failing the run.
+BUDGET_EXHAUSTED = (
+    "Das Suchbudget ist aufgebraucht. Suche nicht weiter und gib jetzt dein Ergebnis "
+    "mit den bisher gefundenen Veranstaltungen zurück."
+)
+
+
+@dataclass
+class _Run:
+    """Per-run state: the search tool and the searches left."""
+
+    search: SearchTool
+    remaining: int
+
+
 class PydanticAiEventFinder:
-    """Implements `EventFinder` for Mistral, OpenAI, Anthropic and Ollama alike."""
+    """Implements `EventFinder` for all providers alike (one generic adapter)."""
 
     def __init__(self, model: Model) -> None:
         """Create the adapter for an already configured model (see `build_model`)."""
-        self._agent: Agent[SearchTool, _Finds] = Agent(
-            model, output_type=_Finds, deps_type=SearchTool, retries=1
+        self._agent: Agent[_Run, _Finds] = Agent(
+            model, output_type=_Finds, deps_type=_Run, retries=1
         )
 
         @self._agent.tool
-        async def web_search(ctx: RunContext[SearchTool], query: str) -> list[dict[str, str]]:
+        async def web_search(ctx: RunContext[_Run], query: str) -> list[dict[str, str]] | str:
             """Websuche (Deutschland). Liefert Titel, URL und Kurztext der Treffer."""
-            hits = await ctx.deps(query)
+            # Soft budget: models may call the tool several times in parallel (v2 searches
+            # town by town); a hard limit would discard every find of the run.
+            if ctx.deps.remaining <= 0:
+                return BUDGET_EXHAUSTED
+            ctx.deps.remaining -= 1
+            hits = await ctx.deps.search(query)
             return [{"title": h.title, "url": h.url, "snippet": h.snippet} for h in hits]
 
     async def find(
@@ -194,12 +214,13 @@ class PydanticAiEventFinder:
         try:
             result = await self._agent.run(
                 prompt,
-                deps=search,
+                deps=_Run(search, limits.max_tool_calls),
                 instructions=system,
+                # Only a guard against runaway loops; the budget itself is soft (see above).
                 usage_limits=UsageLimits(
-                    tool_calls_limit=limits.max_tool_calls + 1,
+                    tool_calls_limit=limits.max_tool_calls * 4,
                     output_tokens_limit=limits.max_output_tokens,
-                    request_limit=limits.max_tool_calls + 4,
+                    request_limit=limits.max_tool_calls + 6,
                 ),
             )
         except (

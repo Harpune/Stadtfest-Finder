@@ -211,7 +211,7 @@ async def test_prompt_names_the_towns_around_and_is_logged(s: Setup) -> None:
 
     system, prompt = s.finder.prompts[0]
     assert "Orte im Umkreis: Aalen." in prompt  # Wasseralfingen is a district of Aalen
-    assert "Ort für Ort" in system
+    assert "Du hast höchstens 8 Suchen." in system
     assert done is not None
     assert done.log["prompt"] == "v2"
     assert done.log["nearbyPlaces"] == ["Aalen"]
@@ -223,6 +223,28 @@ async def test_other_towns_are_added_and_geocoding_failures_ignored(s: Setup) ->
     job = await s.start(MODERATOR, "73430")
     await s.run(job.id)
     assert "Orte im Umkreis: Aalen, Ulm." in s.finder.prompts[0][1]
+
+
+async def test_one_failed_search_does_not_end_the_run(s: Setup) -> None:
+    """Seen with SearXNG: parallel queries made single engines block."""
+    s.finder.queries = ["Feste 73430", "Veranstaltungskalender Aalen"]
+    s.search.failing = {"Veranstaltungskalender Aalen"}
+    job = await s.start(MODERATOR, "73430")
+
+    done = await s.run(job.id)
+
+    assert done is not None
+    assert done.status is AiSearchStatus.COMPLETED
+    assert len(done.new_event_ids) == 1
+    assert done.log["failedSearches"] == 1
+
+
+async def test_all_searches_failed_means_search_unavailable(s: Setup) -> None:
+    s.search.failing = {"Feste 73430"}
+    job = await s.start(MODERATOR, "73430")
+    done = await s.run(job.id)
+    assert done is not None
+    assert done.error_code is AiSearchError.SEARCH_UNAVAILABLE
 
 
 async def test_prompt_version_comes_from_the_settings() -> None:

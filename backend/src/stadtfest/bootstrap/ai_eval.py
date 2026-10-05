@@ -170,6 +170,12 @@ async def main(argv: Sequence[str] | None = None) -> None:
         "--prompts", default="", help="comma-separated versions, default: configured prompt"
     )
     parser.add_argument("--out", type=Path, help="write the Markdown report to this file")
+    parser.add_argument(
+        "--pause",
+        type=float,
+        default=30.0,
+        help="seconds between runs, for per-minute rate limits (default 30)",
+    )
     args = parser.parse_args(argv)
 
     settings = load_settings()
@@ -181,11 +187,12 @@ async def main(argv: Sequence[str] | None = None) -> None:
     container = Container.build(settings)
     try:
         sql = SqlDraftStore(container.sessions)
-        runs = [
-            await _run_one(container.ai_parts, sql, code, prompt)
-            for code in args.postal_codes
-            for prompt in prompts
-        ]
+        runs: list[_Run] = []
+        for code in args.postal_codes:
+            for prompt in prompts:
+                if runs:
+                    await asyncio.sleep(args.pause)
+                runs.append(await _run_one(container.ai_parts, sql, code, prompt))
     finally:
         await container.aclose()
     report = _report(runs)

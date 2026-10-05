@@ -51,7 +51,7 @@ seed: migrate ## Load synthetic seed data into the local DB (idempotent, never i
 
 .PHONY: ai-eval
 ai-eval: ## Compare AI search prompts with the configured providers, e.g. ZIPS="73430 89073" PROMPTS=v1,v2 (costs requests, never in CI)
-	$(BACKEND) uv run python -m stadtfest.bootstrap.ai_eval $(ZIPS) $(if $(PROMPTS),--prompts $(PROMPTS)) $(if $(OUT),--out $(abspath $(OUT)))
+	$(BACKEND) uv run python -m stadtfest.bootstrap.ai_eval $(ZIPS) $(if $(PROMPTS),--prompts $(PROMPTS)) $(if $(OUT),--out $(abspath $(OUT))) $(if $(PAUSE),--pause $(PAUSE))
 
 .PHONY: gen
 gen: ## Regenerate code from api/openapi.yaml (backend models + mobile client) and design tokens

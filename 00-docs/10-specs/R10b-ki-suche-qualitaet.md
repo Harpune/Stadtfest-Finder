@@ -16,6 +16,8 @@
 - Kalender- und Übersichtsseiten: jedes passende Fest einzeln zurückgeben.
 - Ausschluss: Dauerausstellungen, Kurse, Einzelkonzerte, Sport, private Feiern.
 
+- **Suchbudget weich statt hart** (Fund aus dem ersten Vergleich): Mit v2 ruft Mistral mehrere Suchen parallel auf. Die harte Grenze von Pydantic AI brach den ganzen Lauf ab, alle Funde gingen verloren. Jetzt zählt das Werkzeug selbst mit und antwortet nach `AI_SEARCH_MAX_TOOL_CALLS` Suchen mit „Suchbudget aufgebraucht, gib jetzt dein Ergebnis zurück“. Die harten Grenzen bleiben nur als Schutz vor Endlosschleifen (4-faches Budget an Werkzeugaufrufen, Budget + 6 Modellanfragen). v2 nennt das Budget im Prompt (`{max_searches}`).
+
 ### R10b-US2 · Orte im Umkreis
 - Der Worker bestimmt die Orte im Suchumkreis per Reverse-Geocoding: Mittelpunkt der PLZ, 6 Punkte bei 45 % und 10 Punkte bei 85 % des Radius.
 - Die Ortsnamen werden ohne Dubletten und nach Nähe sortiert (der gesuchte Ort zuerst, höchstens 12) als `{nearby_places}` in den Prompt gegeben.
@@ -24,7 +26,7 @@
 
 ### R10b-US3 · Prompt-Versionen
 - Prompts sind Dateien im Code: `backend/src/stadtfest/application/ai_ingestion/prompts/v1.md`, `v2.md` usw. Teile: `<!-- system -->` und `<!-- user -->`.
-- Platzhalter nur aus der Erlaubnisliste: `postal_code`, `place_name`, `radius_km`, `date_from`, `date_to`, `years`, `categories`, `nearby_places`. Andere Platzhalter beenden den Start (Schutz vor personenbezogenen Daten im Prompt).
+- Platzhalter nur aus der Erlaubnisliste: `postal_code`, `place_name`, `radius_km`, `date_from`, `date_to`, `years`, `categories`, `nearby_places`, `max_searches`. Andere Platzhalter beenden den Start (Schutz vor personenbezogenen Daten im Prompt).
 - Auswahl: `AI_SEARCH_PROMPT_VERSION` (Standard `v2`). Für Experimente lokal `AI_SEARCH_PROMPT_FILE` (in `prod` abgelehnt).
 - `v1` bleibt unverändert (Snapshot-Test), damit Vergleiche möglich sind.
 - Das Job-Protokoll speichert die Version (`prompt`); sie bleibt auch nach dem Kürzen erhalten.
