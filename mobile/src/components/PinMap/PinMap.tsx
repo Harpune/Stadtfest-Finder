@@ -16,8 +16,8 @@ import {Text} from '../Text/Text';
 export interface PinMapProps {
   lat: number | null;
   lon: number | null;
-  /** Map center when no pin is set yet (default center). */
-  fallback: {lat: number; lon: number};
+  /** Map view when no pin is set yet, e.g. the own location or all of Germany. */
+  fallback: {lat: number; lon: number; zoom: number};
   mapStyle: string | StyleSpecification;
   /** Pin mode (08-07): the frame turns turquoise. */
   active: boolean;
@@ -53,12 +53,19 @@ export function PinMap({
   const camera = useRef<CameraRef>(null);
   const hasPin = lat !== null && lon !== null;
 
-  // Follow a new pin from the address search or the picker.
+  // Follow a new pin from the address search or the picker; without a pin follow the
+  // fallback view, which may arrive later (the own location is read asynchronously).
   useEffect(() => {
     if (hasPin) {
       camera.current?.easeTo({center: [lon, lat], zoom: 15, duration: 400});
+    } else {
+      camera.current?.easeTo({
+        center: [fallback.lon, fallback.lat],
+        zoom: fallback.zoom,
+        duration: 400,
+      });
     }
-  }, [hasPin, lat, lon]);
+  }, [hasPin, lat, lon, fallback.lat, fallback.lon, fallback.zoom]);
 
   return (
     <View
@@ -88,7 +95,7 @@ export function PinMap({
           ref={camera}
           initialViewState={{
             center: hasPin ? [lon, lat] : [fallback.lon, fallback.lat],
-            zoom: hasPin ? 15 : 9,
+            zoom: hasPin ? 15 : fallback.zoom,
           }}
         />
         {hasPin ? (

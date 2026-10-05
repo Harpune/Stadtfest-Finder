@@ -119,6 +119,10 @@ flowchart TD
 - Lokal liefert der Fake-Geocoder (`GEOCODING_PROVIDER=fake`) nur feste Orte rund um Aalen; er findet Wortanfänge in beliebiger Reihenfolge („Marktpl Aalen“, „Wasseralf“). Echte Adressen gibt es lokal nur mit Nominatim (`--profile geo`).
 - Die Benachrichtigungen aus der Tabelle „Asynchrone Folgen“ kommen mit R11; die Events werden schon jetzt über die Outbox erzeugt.
 
+## Stand der Umsetzung (05.10.2026, Kartenstart)
+
+- Ohne Pin startet die Karte im Formular (Vorschau und Vollbildkarte) am eigenen Standort, wenn die Standortfreigabe schon erteilt ist; das Formular fragt nie selbst danach. Ohne Freigabe zeigt sie ganz Deutschland herausgezoomt. Mit Pin bzw. geocodierter Adresse startet sie wie bisher dort.
+
 ## Regeln
 
 - Die Übersicht ist sortiert: anstehende Feste aufsteigend, danach vergangene absteigend.

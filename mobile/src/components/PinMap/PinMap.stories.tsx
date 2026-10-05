@@ -11,7 +11,7 @@ const meta = {
   args: {
     lat: 48.7996,
     lon: 9.7986,
-    fallback: {lat: 48.84, lon: 10.09},
+    fallback: {lat: 51.16, lon: 10.45, zoom: 4.3},
     mapStyle: offlineStyle('#15111C'),
     active: false,
     onPress: fn(),
