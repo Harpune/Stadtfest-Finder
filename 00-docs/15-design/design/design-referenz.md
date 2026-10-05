@@ -6,7 +6,7 @@
 Mobile App zum Entdecken von Stadtfesten, Volksfesten & Kirmes, Weihnachtsmärkten und Märkten in Deutschland. App-Sprache Deutsch, plattformneutral (iOS und Android). Drei Rollen:
 - **Gast:** Karte, Liste, Suche, Filter, Detailseite, ohne Account voll nutzbar.
 - **Angemeldeter Nutzer:** Favoriten, Teilen, Einladungen mit Zu-/Absage, gemeinsame Favoritenlisten, Benachrichtigungen und Einstellungen.
-- **Moderator:** gleicher Account, eigene Moderator-Ansicht zum Pflegen von Festen (nur eigene Region) und app-weiten Kategorien sowie zum Anstoßen einer automatischen Fest-Suche per PLZ.
+- **Moderator:** gleicher Account, eigene Moderator-Ansicht zum Pflegen aller Feste und app-weiten Kategorien sowie zum Anstoßen einer automatischen Fest-Suche per PLZ.
 
 ## About the Design Files
 Die Dateien in diesem Paket sind **Design-Referenzen in HTML**. Es sind Prototypen, die Aussehen und Verhalten zeigen, kein Produktionscode zum Übernehmen. Aufgabe ist, diese Designs **in der Zielumgebung neu umzusetzen** (z. B. React Native/Expo, Flutter oder nativ SwiftUI + Jetpack Compose) mit deren Mustern und Bibliotheken. Gibt es noch keine Codebasis, empfiehlt sich wegen der Plattformneutralität **React Native (Expo)** oder **Flutter** mit einer Kartenbibliothek auf OpenStreetMap-Basis (MapLibre).
@@ -233,9 +233,9 @@ Die Klammer nennt jeweils den `start`-Wert im Prototyp.
   - Änderungen und Absagen, Einladungen, Zu- und Absagen.
 
 ### 11. Moderator: Übersicht der Feste (`mod-feste`)
-- **Klar abgegrenzt:** Türkis statt Amber. Festes Banner oben in `modBanner` mit Schild-Icon, „MODERATOR-ANSICHT“ (11 / 700, Laufweite .1em), „Region Ostalb · {Name}“ und dem umrandeten Button „Beenden“. Unten eine eigene Tab-Leiste „📅 Feste | 🏷️ Kategorien“ (aktiver Tab: Pille in `modSoft`).
+- **Klar abgegrenzt:** Türkis statt Amber. Festes Banner oben in `modBanner` mit Schild-Icon, „MODERATOR-ANSICHT“ (11 / 700, Laufweite .1em), „{Name}“ und dem umrandeten Button „Beenden“ (bis 05.10.2026 mit Region, [ADR 0015](../../25-adr/0015-regionen-abgeschafft.md)). Unten eine eigene Tab-Leiste „📅 Feste | 🏷️ Kategorien“ (aktiver Tab: Pille in `modSoft`).
 - Titel „Feste“, Buttons „Suchen“ (umrandet, öffnet die PLZ-Suche, siehe 11a) und „+ Neues Fest“.
-- Suchfeld „Fest oder Ort in deiner Region“.
+- Suchfeld „Fest oder Ort suchen“.
 - Status-Chips mit Anzahl: Alle / Entwurf / Veröffentlicht / Vergangen / Abgesagt.
 - Zeilen: Datumsblock, Name (abgesagte durchgestrichen), „{Emoji} {Ort} · {Zeitraum}“, Status-Pill, ggf. „Automatisch gefunden“ und „♥ {Favoriten}“. Vergangene haben Deckkraft .6.
 - Sortierung: anstehende aufsteigend, danach vergangene absteigend.
@@ -321,11 +321,11 @@ Die Suche selbst ist ein **Backend-Dienst**. Er bekommt nur eine PLZ, ein KI-Die
 
 ## State Management (Vorschlag)
 - **Entdecken:** `view` (map|list), `query`, `filter {time: alle|heute|wochenende|zeitraum, months[], cats[], radius}`, `mapCamera {center, zoom}`, `selectedEventId`, `loading`.
-- **Auth:** `user {first, last, email, roles[], region}` oder `null`, dazu `pendingAction` (wird nach dem Login nachgeholt).
+- **Auth:** `user {first, last, email, roles[]}` oder `null`, dazu `pendingAction` (wird nach dem Login nachgeholt).
 - **Nutzerdaten:** `favorites[]`, `sharedLists[] {id, name, members[], events[]}`, `invitations {eventId: {members[{userId, status: ja|offen|nein}], message}}`, `receivedInvites[]`, `notifications[] {type, text, time, unread, target}`.
 - **Einstellungen:** `notificationSettings {remind, remindDaysBefore: 1|3|7, near, home {name, plz, lat, lon}, nearRadiusKm, change, invite, rsvp}`, `theme`.
 - **Moderation:** `modEvents[] {…Fest, status: draft|pub|cancel, favCount, source?, autoFound?}` (Status „Vergangen“ wird abgeleitet), `categories[] {id, name, emoji, color, active, order}`, `aiSearchJob {plz, state: running|done, newIds[]}`, `reviewQueue {ids[], index, results}`.
-- **API (Annahme):** `GET /events?bbox&from&to&cats&radius&q`, `GET /events/:id`, `POST/DELETE /favorites/:id`, `GET/POST/PATCH /lists`, `POST /events/:id/invitations`, `PATCH /invitations/:id {status}`, `GET /notifications`, `PATCH /me/notification-settings`. Moderation: `GET/POST/PATCH/DELETE /mod/events` (auf die Region beschränkt), `POST /mod/events/:id/cancel {reason}`, `GET/POST/PATCH/DELETE /categories` (Löschen mit `replacementId`), `PATCH /categories/order`, `POST /mod/ai-search {plz}` → Job-ID, Status per Polling oder Push.
+- **API (Annahme):** `GET /events?bbox&from&to&cats&radius&q`, `GET /events/:id`, `POST/DELETE /favorites/:id`, `GET/POST/PATCH /lists`, `POST /events/:id/invitations`, `PATCH /invitations/:id {status}`, `GET /notifications`, `PATCH /me/notification-settings`. Moderation: `GET/POST/PATCH/DELETE /mod/events` (alle Feste), `POST /mod/events/:id/cancel {reason}`, `GET/POST/PATCH/DELETE /categories` (Löschen mit `replacementId`), `PATCH /categories/order`, `POST /mod/ai-search {plz}` → Job-ID, Status per Polling oder Push.
 
 ## Assets
 - **Schriften:** Young Serif, Outfit (Google Fonts, OFL).

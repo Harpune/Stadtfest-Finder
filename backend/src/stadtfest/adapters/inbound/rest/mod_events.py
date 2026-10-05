@@ -76,7 +76,6 @@ def _detail(view: ModEventView, urls: ImageUrls) -> api.ModEventDetail:
     event, c = view.event, view.event.content
     return api.ModEventDetail(
         id=event.id,
-        region_id=event.region_id,
         name=c.name,
         short_name=c.short_name,
         status=api.ModEventStatus(view.status.value),
@@ -108,6 +107,9 @@ def _detail(view: ModEventView, urls: ImageUrls) -> api.ModEventDetail:
         published_at=event.published_at,
         favorite_count=event.favorite_count,
         source=_source(event.source),
+        source_url=event.source_url,
+        found_at=event.found_at,
+        ai_job_id=event.ai_job_id,
         version=event.version,
         images=[mod_image(image, urls) for image in view.images],
     )
@@ -142,11 +144,12 @@ def _parse_version(if_match: str | None) -> int | None:
 async def list_mod_events(
     deps: Deps,
     principal: CurrentPrincipal,
-    status: api.ModEventStatus | None = None,
+    # Not the generated RootModel: FastAPI does not read it from the query string.
+    status: Annotated[ModStatus | None, Query()] = None,
     q: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
     ids: Annotated[str | None, Query(max_length=3700)] = None,
 ) -> api.ModEventList:
-    """Events of the caller's region."""
+    """All events (there are no regions, ADR 0015)."""
     id_set: frozenset[UUID] | None = None
     if ids is not None:
         try:
@@ -157,7 +160,7 @@ async def list_mod_events(
             raise InvalidInputError({"ids": "too_many"})
     rows = await deps.list_mod_events(
         principal,
-        status=ModStatus(status.root) if status else None,
+        status=status,
         query=q,
         ids=id_set,
     )
@@ -173,7 +176,7 @@ async def list_mod_events(
 async def create_mod_event(
     deps: Deps, principal: CurrentPrincipal, body: api.ModEventCreate, response: Response
 ) -> api.ModEventDetail:
-    """Create a draft in the caller's region."""
+    """Create a draft."""
     content = EventContent(name=body.name)
     changes = _changes(body)
     changes.pop("name", None)

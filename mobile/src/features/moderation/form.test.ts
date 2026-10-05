@@ -96,7 +96,6 @@ describe('conversion', () => {
   it('round-trips an event', () => {
     const event: ModEventDetail = {
       id: 'e1',
-      regionId: 'r1',
       name: 'Stadtfest',
       shortName: 'Stadtfest',
       status: 'published',
@@ -138,11 +137,6 @@ describe('errorsFromServer', () => {
     ).toEqual({
       startDate: 'Bitte wähle den Beginn.',
       endDate: 'Das Ende liegt vor dem Beginn.',
-    });
-    expect(
-      errorsFromServer({location: 'region_mismatch'}, 'region_mismatch'),
-    ).toEqual({
-      location: 'Der Ort liegt außerhalb deiner Region.',
     });
   });
 });

@@ -1,5 +1,7 @@
 # R01 · Fundament
 
+> **Hinweis (05.10.2026):** Die Moderationsregionen wurden abgeschafft ([ADR 0015](../25-adr/0015-regionen-abgeschafft.md)). Angaben zu Regionen in diesem Inkrement sind überholt.
+
 | | |
 |---|---|
 | **Ziel** | Ein leeres, aber vollständig verdrahtetes Projekt: lokaler Stack startet mit einem Befehl, Backend und App laufen, CI prüft alles, was später geprüft werden muss. |

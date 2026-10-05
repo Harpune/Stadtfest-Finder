@@ -1,0 +1,12 @@
+# Breaking changes to API v1 that were accepted on purpose (read by the oasdiff CI check).
+# Format: METHOD /path plus the text of the oasdiff error. Only add lines together with an
+# ADR; after the first public release, breaking changes need a new API version.
+#
+# 05.10.2026, ADR 0015 (regions abolished): ModEventDetail.regionId was removed. No released
+# clients existed; the app was changed in the same PR.
+POST /v1/mod/events removed the required property `regionId` from the response with the `201` status
+GET /v1/mod/events/{eventId} removed the required property `regionId` from the response with the `200` status
+PATCH /v1/mod/events/{eventId} removed the required property `regionId` from the response with the `200` status
+POST /v1/mod/events/{eventId}/cancel removed the required property `regionId` from the response with the `200` status
+POST /v1/mod/events/{eventId}/publish removed the required property `regionId` from the response with the `200` status
+POST /v1/mod/events/{eventId}/unpublish removed the required property `regionId` from the response with the `200` status

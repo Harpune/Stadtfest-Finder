@@ -32,7 +32,7 @@ sequenceDiagram
   App->>API: POST /v1/mod/ai-searches {plz: "73430"}
   API-->>App: 202 Accepted {jobId, status: "running"}
   App-->>Mod: Leiste „Suche läuft für 73430 Aalen …“
-  API->>Job: Job einreihen (Region, PLZ, Moderator)
+  API->>Job: Job einreihen (PLZ, Moderator)
   Job->>Web: Veranstaltungen rund um die PLZ suchen
   Job->>Job: Daten extrahieren, normalisieren, Duplikate abgleichen
   Job->>API: Entwürfe anlegen (status=draft, source=ai, sourceUrl)
@@ -74,8 +74,8 @@ sequenceDiagram
 
 | Punkt | Festlegung |
 |---|---|
-| Eingabe | `plz` (5 Ziffern). Region und Moderator ergeben sich aus dem Token. |
-| Suchraum | Umkreis um die PLZ, begrenzt auf die Region des Moderators. Funde außerhalb werden übersprungen. |
+| Eingabe | `plz` (5 Ziffern, jede in Deutschland bekannte PLZ). Der Moderator ergibt sich aus dem Token. |
+| Suchraum | Umkreis um die PLZ (`AI_SEARCH_RADIUS_KM` plus 10 %). Funde außerhalb werden übersprungen (`outOfArea`). Keine Regionen ([ADR 0015](../../25-adr/0015-regionen-abgeschafft.md)). |
 | Ausgabe | Neue Feste immer als **Entwurf** mit `source = "ai"`, `sourceUrl`, `foundAt`, `aiJobId`. Nie direkt veröffentlicht. |
 | Duplikate | Abgleich über Name, Zeitraum und Entfernung. Treffer werden übersprungen, **bestehende Feste werden nicht überschrieben** (Annahme). |
 | Kategorie | Wird aus den aktiven Kategorien vorgeschlagen. Ohne sichere Zuordnung bleibt sie leer und muss beim Prüfen gesetzt werden. |
@@ -84,8 +84,20 @@ sequenceDiagram
 | Fehler | `failed` erzeugt die Leiste „Suche fehlgeschlagen · Erneut versuchen“ (Annahme, nicht gestaltet). |
 | Protokoll | Suchanfragen, Quellen und Ergebnis pro Job speichern (Nachvollziehbarkeit). |
 
+## Stand der Umsetzung (R10)
+
+- Der Abschluss wird per Polling erkannt (alle 10 s, E-12); Push an den Moderator folgt mit R11. Beim Öffnen der Moderation stellt die App eine laufende Suche über `GET /v1/mod/ai-searches?status=running` wieder her.
+- `updatedEventIds` entfällt: Bestehende Feste werden nie geändert, Treffer zählen als `skipped.duplicate`.
+- Duplikat: ähnlicher Name (Trigramm ≥ 0,5), überlappender Zeitraum und < 2 km Abstand, oder dieselbe normalisierte Quelle, oder eine verworfene Quelle (`rejected_source`, bundesweit).
+- Quellen: nur URLs aus den Suchergebnissen desselben Jobs, die erreichbar sind ([ADR 0013](../../25-adr/0013-web-suche-searxng.md)). Bilder werden nicht übernommen („Kein Bild gefunden“).
+- Limits: eine laufende Suche je Moderator (`409 search_running`), `AI_SEARCH_DAILY_LIMIT` Suchen je Tag (`429 daily_limit`), unbekannte PLZ `422 postal_code_unknown`.
+- Fehlerleiste „Suche fehlgeschlagen“ mit „Erneut versuchen“ (startet dieselbe PLZ neu).
+- „Veröffentlichen“ öffnet bei fehlender Pflichtangabe (Kategorie, Zeitraum, Ort) das Formular. Nach dem Speichern bzw. Zurück zählt der Fund als „bearbeitet“.
+- Die Aktionen stehen in zwei Zeilen: „Veröffentlichen“ über die volle Breite, darunter „Verwerfen“ und „Bearbeiten“. In einer Zeile brachen die Beschriftungen auf 393 dp breiten Geräten mitten im Wort um (Gerätetest 02.10.2026).
+- Lokal liefern `LLM_PROVIDER=fake` und `WEB_SEARCH_PROVIDER=fake` drei feste Funde rund um Aalen (Lichterfest Wasseralfingen, Herbstmarkt im Stadtgarten, Ellwanger Brunnenfest).
+
 ## Offene Punkte
 
 - Sollen Updates an bestehenden Festen, z. B. geänderte Öffnungszeiten, als Änderungsvorschlag erscheinen? Aktuell werden sie übersprungen.
-- Kosten und Rate-Limit für KI-Aufrufe pro Moderator bzw. Region.
+- Kosten beobachten; bisher begrenzt nur das Tageslimit je Moderator.
 - Bildrechte bei übernommenen Bildern aus Quellen: Vorerst werden nur Links gespeichert, keine Bilder übernommen (Empfehlung).

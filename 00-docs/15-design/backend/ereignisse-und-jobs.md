@@ -17,7 +17,7 @@ Alles, was nicht unmittelbar für die Antwort an den Aufrufer nötig ist, läuft
 | `invitation.responded` | `PUT /invitations/{id}/response` | Notifier, Favoriten | Zusage: Favorit setzen. „Zusage“ bzw. „Absage“ an den Einladenden (`rsvp`). |
 | `list.member_added` | `POST /lists`, `POST /lists/{id}/members` (05) | Notifier | Hinweis „X hat dich zur Liste … hinzugefügt“ (Annahme). |
 | `ai_search.requested` | `POST /mod/ai-searches` (09) | KI-Such-Worker | Suche, Extraktion, Duplikatabgleich, Entwürfe anlegen. |
-| `ai_search.completed` / `.failed` | KI-Such-Worker | Notifier (nur Moderator) | Push/SSE an den Moderator, Leiste in der Übersicht. |
+| `ai_search.completed` / `.failed` | KI-Such-Worker, Wächter (`timeout`) | Notifier (nur Moderator, ab R11) | R10: die App fragt alle 10 s nach (E-12) und zeigt die Leiste in der Übersicht; Push folgt mit R11. |
 | `image.uploaded` | `POST /mod/events/{id}/images`, `…/retry` | Bild-Worker | Typ prüfen, Metadaten entfernen, Varianten `full`/`card`/`thumb` als WebP und JPEG erzeugen, Original löschen ([ADR 0011](../../25-adr/0011-bildauslieferung.md)). |
 | `image.removed` | `DELETE /mod/events/{id}/images/{imageId}` | Bild-Worker | Varianten und Original löschen. |
 
@@ -27,7 +27,8 @@ Alles, was nicht unmittelbar für die Antwort an den Aufrufer nötig ist, läuft
 |---|---|---|
 | Favoriten-Erinnerung | täglich 09:00 Europe/Berlin | Für jeden Nutzer mit `remind = true`: Favoriten mit `startDate = heute + remindDaysBefore` → „Erinnerung“. |
 | Status „Vergangen“ | keiner nötig | Wird bei Abfragen aus `endDate < heute` abgeleitet. |
-| Aufräumen KI-Jobs | wöchentlich | Protokolle von Jobs älter als 90 Tage kürzen (Annahme). |
+| Aufräumen KI-Jobs (`compact_ai_search_logs`) | sonntags 04:15 | Protokolle von Jobs, die vor mehr als 90 Tagen endeten, auf die Zähler kürzen (R10). |
+| Wächter KI-Jobs (`fail_stuck_searches`) | alle 10 Minuten | Jobs, die länger als die doppelte `AI_SEARCH_TIMEOUT_S` `queued`/`running` sind, als `failed` (`timeout`) markieren (Worker-Absturz). |
 | Push-Token-Pflege | täglich | Tokens entfernen, die APNs/FCM als ungültig melden. |
 
 ## Zustellung von Benachrichtigungen

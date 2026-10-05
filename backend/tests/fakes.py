@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import dataclasses
 import json
@@ -10,6 +11,15 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
+from stadtfest.application.ai_ingestion.ports import (
+    DraftCandidate,
+    FinderLimits,
+    FinderResult,
+    LlmUnavailableError,
+    SearchHit,
+    SearchTool,
+    WebSearchUnavailableError,
+)
 from stadtfest.application.collections.ports import FavoriteView
 from stadtfest.application.events.criteria import PageCursor, SearchCriteria
 from stadtfest.application.events.views import (
@@ -25,7 +35,6 @@ from stadtfest.application.identity.ports import (
     IdpUnavailableError,
     InvalidTokenError,
     JobQueueUnavailableError,
-    RegionRecord,
     UserRecord,
 )
 from stadtfest.application.moderation.categories import (
@@ -42,11 +51,12 @@ from stadtfest.application.moderation.image_ports import (
 )
 from stadtfest.application.moderation.ports import (
     ModEventSummary,
-    ModRegion,
     VersionConflictError,
 )
 from stadtfest.application.outbox.ports import OutboxMessage
 from stadtfest.application.shared.ports import JsonValue
+from stadtfest.domain.ai_ingestion.finds import FoundEvent
+from stadtfest.domain.ai_ingestion.job import AiSearchEventType, AiSearchJob, AiSearchStatus
 from stadtfest.domain.events.category import CATEGORY_CHANGED, CategoryDraft
 from stadtfest.domain.events.geo import GeoPoint
 from stadtfest.domain.events.images import (
@@ -170,14 +180,6 @@ class FakeUserRepository:
 
 
 @dataclass
-class FakeRegionDirectory:
-    regions: dict[str, RegionRecord] = field(default_factory=dict)
-
-    async def get_by_key(self, key: str) -> RegionRecord | None:
-        return self.regions.get(key)
-
-
-@dataclass
 class FakeIdpAdmin:
     unavailable: bool = False
     deleted: list[str] = field(default_factory=list)
@@ -293,9 +295,7 @@ class FakeManagedEventRepository:
             key=lambda image: image.position,
         )
 
-    async def list_for_region(
-        self, region_id: UUID, ids: frozenset[UUID] | None
-    ) -> list[ModEventSummary]:
+    async def list_events(self, ids: frozenset[UUID] | None) -> list[ModEventSummary]:
         return [
             ModEventSummary(
                 id=e.id,
@@ -311,7 +311,7 @@ class FakeManagedEventRepository:
                 version=e.version,
             )
             for e in self.events.values()
-            if e.region_id == region_id and not e.deleted and (ids is None or e.id in ids)
+            if not e.deleted and (ids is None or e.id in ids)
         ]
 
     async def get(self, event_id: UUID) -> ManagedEvent | None:
@@ -336,14 +336,6 @@ class FakeManagedEventRepository:
         saved.version = expected_version + 1
         self.events[event.id] = saved
         return saved.version
-
-
-@dataclass
-class FakeModRegions:
-    regions: dict[str, ModRegion] = field(default_factory=dict)
-
-    async def by_key(self, key: str) -> ModRegion | None:
-        return self.regions.get(key)
 
 
 @dataclass
@@ -618,3 +610,124 @@ class FakeCategoryRepository:
         self.categories = [c for c in self.categories if c.id != category_id]
         self.outbox.append(CATEGORY_CHANGED)
         return moved
+
+
+# --- AI search (R10) ----------------------------------------------------------------------
+
+
+@dataclass
+class FakeWebSearch:
+    """Returns fixed hits for every query; can fail."""
+
+    hits: list[SearchHit] = field(default_factory=list)
+    unavailable: bool = False
+    queries: list[str] = field(default_factory=list)
+
+    async def search(self, query: str, count: int) -> list[SearchHit]:
+        if self.unavailable:
+            raise WebSearchUnavailableError
+        self.queries.append(query)
+        return self.hits[:count]
+
+
+@dataclass
+class FakeEventFinder:
+    """Calls the search tool once per query, then returns the configured finds."""
+
+    finds: list[FoundEvent] = field(default_factory=list)
+    invalid: int = 0
+    queries: list[str] = field(default_factory=lambda: ["Feste 73430"])
+    unavailable: bool = False
+    delay_seconds: float = 0.0
+    prompts: list[tuple[str, str]] = field(default_factory=list)
+
+    async def find(
+        self, system: str, prompt: str, search: SearchTool, limits: FinderLimits
+    ) -> FinderResult:
+        self.prompts.append((system, prompt))
+        if self.unavailable:
+            raise LlmUnavailableError
+        if self.delay_seconds:
+            await asyncio.sleep(self.delay_seconds)
+        for query in self.queries:
+            await search(query)
+        return FinderResult(list(self.finds), self.invalid, input_tokens=100, output_tokens=50)
+
+
+@dataclass
+class FakeSourceChecker:
+    dead: set[str] = field(default_factory=set)
+
+    async def reachable(self, url: str) -> bool:
+        return url not in self.dead
+
+
+@dataclass
+class FakeAiSearchRepository:
+    jobs: dict[UUID, AiSearchJob] = field(default_factory=dict)
+    outbox: list[str] = field(default_factory=list)
+
+    async def add(self, job: AiSearchJob) -> None:
+        self.jobs[job.id] = copy.deepcopy(job)
+        self.outbox.append(AiSearchEventType.REQUESTED.value)
+
+    async def get(self, job_id: UUID) -> AiSearchJob | None:
+        job = self.jobs.get(job_id)
+        return copy.deepcopy(job) if job else None
+
+    async def list_for_moderator(
+        self, moderator_id: UUID, *, active_only: bool, limit: int
+    ) -> list[AiSearchJob]:
+        jobs = [
+            j
+            for j in self.jobs.values()
+            if j.moderator_id == moderator_id and (j.active or not active_only)
+        ]
+        return sorted(jobs, key=lambda j: j.created_at, reverse=True)[:limit]
+
+    async def count_created_since(self, moderator_id: UUID, since: datetime) -> int:
+        return sum(
+            1
+            for j in self.jobs.values()
+            if j.moderator_id == moderator_id and j.created_at >= since
+        )
+
+    async def save(self, job: AiSearchJob) -> None:
+        self.jobs[job.id] = copy.deepcopy(job)
+        if job.status is AiSearchStatus.COMPLETED:
+            self.outbox.append(AiSearchEventType.COMPLETED.value)
+        elif job.status is AiSearchStatus.FAILED:
+            self.outbox.append(AiSearchEventType.FAILED.value)
+
+    async def stuck(self, started_before: datetime) -> list[AiSearchJob]:
+        return [
+            copy.deepcopy(j)
+            for j in self.jobs.values()
+            if j.active and j.created_at < started_before
+        ]
+
+    async def compact_logs(self, finished_before: datetime) -> int:
+        changed = 0
+        for job in self.jobs.values():
+            if job.finished_at and job.finished_at < finished_before and job.log:
+                job.log = {}
+                changed += 1
+        return changed
+
+
+@dataclass
+class FakeDraftStore:
+    """Known events as (name, normalized URL); rejected URLs; stored drafts."""
+
+    known_names: set[str] = field(default_factory=set)
+    known_urls: set[str] = field(default_factory=set)
+    stored: list[DraftCandidate] = field(default_factory=list)
+
+    async def is_duplicate(self, candidate: DraftCandidate, normalized_url: str) -> bool:
+        return candidate.find.name in self.known_names or normalized_url in self.known_urls
+
+    async def add_drafts(
+        self, job_id: UUID, found_at: datetime, drafts: Sequence[DraftCandidate]
+    ) -> list[UUID]:
+        self.stored.extend(drafts)
+        return [uuid4() for _ in drafts]

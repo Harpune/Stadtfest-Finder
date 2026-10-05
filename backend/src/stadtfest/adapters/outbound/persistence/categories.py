@@ -24,7 +24,7 @@ _UNIQUE_NAME = "category_name_key"
 
 
 def _count_events() -> ScalarSelect[int]:
-    """Events per category, all regions and statuses except deleted (R09-US1)."""
+    """Events per category, all statuses except deleted (R09-US1)."""
     return (
         select(func.count())
         .select_from(EventRow)

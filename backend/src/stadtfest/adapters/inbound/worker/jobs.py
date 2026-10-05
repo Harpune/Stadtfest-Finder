@@ -10,6 +10,7 @@ from uuid import UUID
 
 from arq import Retry
 
+from stadtfest.application.ai_ingestion.use_cases import CompactAiSearchLogs, FailStuckSearches
 from stadtfest.application.identity.ports import IdpUnavailableError
 from stadtfest.application.identity.use_cases import DeleteIdpUser
 from stadtfest.application.moderation.images import PurgeImages
@@ -128,10 +129,38 @@ async def purge_images(ctx: dict[str, Any]) -> int:
     return result.uploads + result.images
 
 
+async def fail_stuck_searches(ctx: dict[str, Any]) -> int:
+    """Watchdog: AI searches still queued/running after twice the timeout fail (R10).
+
+    Args:
+        ctx: arq job context with the container.
+
+    Returns:
+        Number of jobs marked failed.
+    """
+    use_case: FailStuckSearches = ctx["container"].fail_stuck_searches
+    return await use_case()
+
+
+async def compact_ai_search_logs(ctx: dict[str, Any]) -> int:
+    """Weekly: AI search logs older than 90 days keep only their counters (R10).
+
+    Args:
+        ctx: arq job context with the container.
+
+    Returns:
+        Number of jobs changed.
+    """
+    use_case: CompactAiSearchLogs = ctx["container"].compact_ai_search_logs
+    return await use_case()
+
+
 JOBS: list[Callable[..., Awaitable[object]]] = [
     ping,
     delete_idp_user,
     handle_domain_event,
     purge_outbox,
     purge_images,
+    fail_stuck_searches,
+    compact_ai_search_logs,
 ]

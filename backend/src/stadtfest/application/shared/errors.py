@@ -41,11 +41,26 @@ class ForbiddenError(ApplicationError):
 class ConflictError(ApplicationError):
     """The request conflicts with the current state (`version_conflict`, `invalid_transition`)."""
 
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, fields: dict[str, str] | None = None) -> None:
         """Create the error.
 
         Args:
             code: Machine-readable error code.
+            fields: Optional details, e.g. the running job's ID.
+        """
+        super().__init__(code)
+        self.code = code
+        self.fields = fields
+
+
+class TooManyRequestsError(ApplicationError):
+    """A per-user limit is reached (e.g. the daily AI search limit)."""
+
+    def __init__(self, code: str) -> None:
+        """Create the error.
+
+        Args:
+            code: Machine-readable error code, e.g. `daily_limit`.
         """
         super().__init__(code)
         self.code = code

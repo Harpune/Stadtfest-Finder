@@ -6,9 +6,7 @@ erDiagram
   USER ||--o{ DEVICE : hat
   USER ||--|| NOTIFICATION_SETTINGS : hat
   USER ||--o{ NOTIFICATION : erhält
-  USER }o--o| REGION : "moderiert (optional)"
   USER ||--o{ FRIENDSHIP : ""
-  REGION ||--o{ EVENT : enthält
   CATEGORY ||--o{ EVENT : ordnet
   EVENT ||--o{ EVENT_IMAGE : hat
   EVENT ||--o{ PROGRAM_ITEM : hat
@@ -27,6 +25,8 @@ erDiagram
 
 ## Entitäten
 
+Regionen gibt es seit dem 05.10.2026 nicht mehr ([ADR 0015](../../25-adr/0015-regionen-abgeschafft.md)).
+
 ### User
 | Feld | Typ | Hinweis |
 |---|---|---|
@@ -35,17 +35,12 @@ erDiagram
 | email | string, unique | |
 | authProviders | enum[] `apple, google, password` | |
 | roles | enum[] `user, moderator` | |
-| regionId | uuid? | nur bei Moderatoren |
 | createdAt | datetime | |
-
-### Region
-`id`, `name` (z. B. „Ostalb“), `geometry` (Polygon) oder `postalCodes[]`.
 
 ### Event
 | Feld | Typ | Hinweis |
 |---|---|---|
 | id | uuid | |
-| regionId | uuid | aus der Lage bzw. dem Moderator |
 | name, shortName | string | shortName für die Pin-Pille |
 | categoryId | uuid? | Pflicht beim Veröffentlichen |
 | status | enum `draft, published, cancelled` | „Vergangen“ wird aus `endDate < heute` abgeleitet |
@@ -107,4 +102,4 @@ erDiagram
 `userId`, `pushToken`, `platform` (`ios`, `android`), `lastSeenAt`.
 
 ### AiSearchJob
-`id`, `moderatorId`, `regionId`, `postalCode`, `status` (`queued, running, completed, failed`), `startedAt`, `finishedAt`, `newEventIds[]`, `skippedDuplicate`, `skippedOutOfRegion`, `error`, `log` (Quellen, Anfragen).
+`id`, `moderatorId`, `postalCode`, `status` (`queued, running, completed, failed`), `startedAt`, `finishedAt`, `newEventIds[]`, `skippedDuplicate`, `skippedOutOfArea`, `error`, `log` (Quellen, Anfragen).

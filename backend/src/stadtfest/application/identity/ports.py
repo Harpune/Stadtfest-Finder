@@ -48,15 +48,6 @@ class UserRecord:
     last_name: str = field(repr=False)
 
 
-@dataclass(frozen=True, slots=True)
-class RegionRecord:
-    """Moderation region as referenced from a profile."""
-
-    id: UUID
-    key: str
-    name: str
-
-
 class UserRepository(Protocol):
     """Persistence of user accounts and their personal data."""
 
@@ -77,14 +68,6 @@ class UserRepository(Protocol):
         Returns:
             True if a user existed.
         """
-        ...
-
-
-class RegionDirectory(Protocol):
-    """Read access to moderation regions."""
-
-    async def get_by_key(self, key: str) -> RegionRecord | None:
-        """Return the region with this key or None."""
         ...
 
 

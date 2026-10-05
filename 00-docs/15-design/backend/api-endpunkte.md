@@ -2,7 +2,7 @@
 
 Vorschlag einer REST-API, abgeleitet aus den Workflows. Alle Pfade beginnen mit `/v1`, Formate sind JSON, Zeitangaben ISO 8601 (Europe/Berlin), Koordinaten WGS84.
 
-**Auth:** `–` öffentlich · `U` angemeldeter Nutzer · `M` Rolle Moderator (bei Festen zusätzlich nur eigene Region).
+**Auth:** `–` öffentlich · `U` angemeldeter Nutzer · `M` Rolle Moderator (alle Feste, keine Regionen, [ADR 0015](../../25-adr/0015-regionen-abgeschafft.md)).
 **Modus:** siehe [README](../README.md#konventionen-in-den-workflow-dokumenten).
 
 ## Öffentlich (Gast und Nutzer)
@@ -26,7 +26,7 @@ Vorschlag einer REST-API, abgeleitet aus den Workflows. Alle Pfade beginnen mit 
 | POST | `/auth/refresh` | – | Access-Token erneuern | sync | 03 |
 | POST | `/auth/logout` | U | Refresh-Token widerrufen, Gerät abmelden | sync | 03 |
 | POST | `/auth/password-reset` | – | Link per E-Mail (immer `202`) | async | 03 |
-| GET | `/me` | U | Profil inkl. `roles[]`, `regionId` | sync | 03, 04 |
+| GET | `/me` | U | Profil inkl. `roles[]` | sync | 03, 04 |
 | POST | `/me/devices` | U | Push-Token registrieren `{token, platform}` | sync | 03 |
 | DELETE | `/me/devices/{token}` | U | Push-Token entfernen | sync | 03 |
 
@@ -69,11 +69,11 @@ Vorschlag einer REST-API, abgeleitet aus den Workflows. Alle Pfade beginnen mit 
 | GET | `/me/notification-settings` | U | Einstellungen | sync | 07 |
 | PUT | `/me/notification-settings` | U | `{remind, remindDaysBefore, near, home{name,plz,lat,lon}, nearRadiusKm, change, invite, rsvp}` | sync | 07 |
 
-## Moderation: Feste (Rolle M, eigene Region)
+## Moderation: Feste (Rolle M)
 
 | Methode | Pfad | Zweck | Modus | Workflow |
 |---|---|---|---|---|
-| GET | `/mod/events?status=&q=&ids=` | Feste der Region, alle Status, mit `favoriteCount`, `source` | sync | 08, 09 |
+| GET | `/mod/events?status=&q=&ids=` | alle Feste, alle Status, mit `favoriteCount`, `source` | sync | 08, 09 |
 | GET | `/mod/events/{id}` | Fest zum Bearbeiten (mit `version`) | sync | 08 |
 | POST | `/mod/events` | Anlegen (immer Entwurf) | sync | 08 |
 | PATCH | `/mod/events/{id}` | Bearbeiten (`If-Match: version`) | sync; bei veröffentlichten Festen + async (`event.updated`) | 08, 09 |
@@ -92,7 +92,7 @@ Vorschlag einer REST-API, abgeleitet aus den Workflows. Alle Pfade beginnen mit 
 |---|---|---|---|---|
 | POST | `/mod/ai-searches` | `{plz}` → `202 {jobId, status}`. `409`, wenn bereits ein Job läuft. | **async** | 09 |
 | GET | `/mod/ai-searches?status=running` | Laufende Jobs (Leiste nach App-Neustart) | sync | 09 |
-| GET | `/mod/ai-searches/{jobId}` | Status und Ergebnis `{status, newEventIds[], skipped{duplicate, outOfRegion}}` | sync (Polling) | 09 |
+| GET | `/mod/ai-searches/{jobId}` | Status und Ergebnis `{status, newEventIds[], skipped{duplicate, outOfArea, invalid, unverifiedSource}}` | sync (Polling) | 09 |
 
 Abschluss zusätzlich per Push an das Gerät des Moderators (`ai_search.completed`) oder per Server-Sent Events (`GET /mod/events/stream`).
 
@@ -116,7 +116,7 @@ Abschluss zusätzlich per Push an das Gerät des Moderators (`ai_search.complete
 |---|---|---|
 | 401 | nicht angemeldet / Token ungültig | Token erneuern, sonst Gast-Hinweis |
 | 403 | Rolle fehlt | Moderationsansicht schließen, Toast |
-| 404 | nicht vorhanden oder fremde Region | Hinweis „nicht mehr verfügbar“ |
+| 404 | nicht vorhanden | Hinweis „nicht mehr verfügbar“ |
 | 409 | Konflikt (Version, laufender Job, E-Mail vergeben) | Hinweis mit Neuladen |
 | 422 | Validierung | Feldfehler anzeigen |
 | 429 | Rate-Limit | Toast „Bitte kurz warten“ |

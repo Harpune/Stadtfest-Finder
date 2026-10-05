@@ -184,8 +184,7 @@ export interface paths {
          * Own profile
          * @description Profile of the caller. Creates the user on the first call (upsert on the token
          *     subject); first and last name are taken from the claims `given_name` / `family_name`.
-         *     Roles and region come from the token. A moderator without a valid region gets no
-         *     moderation roles.
+         *     Roles come from the token.
          */
         get: operations["getMe"];
         put?: never;
@@ -263,16 +262,16 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Events of the moderator's region
-         * @description All events of the caller's region except deleted ones, with favorite count, source and
-         *     version. Ordered: upcoming by start date, then past ones descending, then events
-         *     without date. `ids` restricts the list; IDs of other regions are silently dropped.
+         * All events for maintenance
+         * @description All events except deleted ones, with favorite count, source and version. Ordered:
+         *     upcoming by start date, then past ones descending, then events without date. `ids`
+         *     restricts the list; unknown IDs are silently dropped.
          */
         get: operations["listModEvents"];
         put?: never;
         /**
          * Create an event
-         * @description Always creates a draft in the caller's region. Only the name is required.
+         * @description Always creates a draft. Only the name is required.
          */
         post: operations["createModEvent"];
         delete?: never;
@@ -293,7 +292,7 @@ export interface paths {
         };
         /**
          * Event for editing
-         * @description All fields of an event of the caller's region, with `version` and `ETag`.
+         * @description All fields of an event, with `version` and `ETag`.
          */
         get: operations["getModEvent"];
         put?: never;
@@ -330,8 +329,7 @@ export interface paths {
         put?: never;
         /**
          * Publish a draft
-         * @description Checks the required fields (`422 validation_failed` with `fields`) and that the postal
-         *     code belongs to the caller's region (`422 region_mismatch`). Only drafts (`409
+         * @description Checks the required fields (`422 validation_failed` with `fields`). Only drafts (`409
          *     invalid_transition` otherwise).
          */
         post: operations["publishModEvent"];
@@ -387,6 +385,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/mod/ai-searches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's AI searches, newest first
+         * @description At most the 20 newest searches of the calling moderator. `status=running` returns
+         *     queued and running jobs; the app uses it to restore the status bar after a restart.
+         */
+        get: operations["listAiSearches"];
+        put?: never;
+        /**
+         * Start an AI search for events around a postal code (flow C)
+         * @description Returns at once; a worker searches the web with an LLM and stores verified finds as
+         *     drafts (`source = ai`). Any postal code known to the geocoder is allowed
+         *     (`422 postal_code_unknown` otherwise, ADR 0015; `503 geocoding_unavailable` if the
+         *     geocoder is down); finds outside the search radius are skipped. One running search
+         *     per moderator (`409 search_running`, `fields.jobId` = the running job). Daily limit
+         *     per moderator (`429 daily_limit`).
+         */
+        post: operations["startAiSearch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/mod/ai-searches/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job ID. */
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Status and result of one AI search
+         * @description Only the caller's own searches (`404` otherwise). The app polls every 10 s (E-12).
+         */
+        get: operations["getAiSearch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/mod/categories": {
         parameters: {
             query?: never;
@@ -397,7 +448,7 @@ export interface paths {
         /**
          * All categories for maintenance
          * @description All categories including inactive ones, in chip order, with the number of events
-         *     (all regions and statuses except deleted). Roles `moderator` or `category_admin`.
+         *     (all statuses except deleted). Roles `moderator` or `category_admin`.
          */
         get: operations["listModCategories"];
         put?: never;
@@ -637,6 +688,37 @@ export interface components {
          * @enum {string}
          */
         CategoryColor: "#FFB547" | "#FF6B8B" | "#5EEAD4" | "#8B9CFF" | "#7ED957" | "#C792EA";
+        /** @enum {string} */
+        AiSearchStatus: "queued" | "running" | "completed" | "failed";
+        AiSearchRequest: {
+            postalCode: string;
+        };
+        /** @description Finds that were not stored, by reason (counts only, no content). */
+        AiSearchSkipped: {
+            duplicate: number;
+            /** @description Outside the search radius around the postal code, or no location. */
+            outOfArea: number;
+            invalid: number;
+            unverifiedSource: number;
+        };
+        /** @description An AI search job (R10). */
+        AiSearch: {
+            /** Format: uuid */
+            id: string;
+            postalCode: string;
+            placeName: string;
+            status: components["schemas"]["AiSearchStatus"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            startedAt?: string | null;
+            /** Format: date-time */
+            finishedAt?: string | null;
+            newEventIds: string[];
+            skipped: components["schemas"]["AiSearchSkipped"];
+            /** @enum {string|null} */
+            errorCode?: "llm_unavailable" | "search_unavailable" | "timeout" | "internal" | null;
+        };
         /** @description Category in the moderation view, including inactive ones. */
         ModCategory: {
             /** Format: uuid */
@@ -646,7 +728,7 @@ export interface components {
             color: string;
             active: boolean;
             sortOrder: number;
-            /** @description Events of all regions and statuses except deleted. */
+            /** @description Events of all statuses except deleted. */
             eventCount: number;
         };
         ModCategoryCreate: {
@@ -833,8 +915,6 @@ export interface components {
         ModEventDetail: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
-            regionId: string;
             name: string;
             shortName: string;
             status: components["schemas"]["ModEventStatus"];
@@ -862,6 +942,12 @@ export interface components {
             publishedAt?: string | null;
             favoriteCount: number;
             source: components["schemas"]["EventSource"];
+            /** @description Page an AI find came from (R10). */
+            sourceUrl?: string | null;
+            /** Format: date-time */
+            foundAt?: string | null;
+            /** Format: uuid */
+            aiJobId?: string | null;
             version: number;
             /** @description All images in order, including processing and failed ones (R08). */
             images: components["schemas"]["ModImage"][];
@@ -979,19 +1065,9 @@ export interface components {
             lastName: string;
             /** @description Effective roles from the token. */
             roles: components["schemas"]["Role"][];
-            region?: components["schemas"]["RegionRef"];
         };
         /** @enum {string} */
         Role: "user" | "moderator" | "category_admin";
-        /** @description Moderation region of a moderator. */
-        RegionRef: {
-            /** Format: uuid */
-            id: string;
-            /** @example ostalb */
-            key: string;
-            /** @example Ostalbkreis */
-            name: string;
-        };
         UpdateMeRequest: {
             firstName: string;
             lastName: string;
@@ -1498,7 +1574,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Events of the region. */
+            /** @description The events. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1723,6 +1799,90 @@ export interface operations {
             404: components["responses"]["Error"];
             409: components["responses"]["Error"];
             422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    listAiSearches: {
+        parameters: {
+            query?: {
+                /** @description Filter; `running` includes `queued`. */
+                status?: components["schemas"]["AiSearchStatus"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The searches. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiSearch"][];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    startAiSearch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiSearchRequest"];
+            };
+        };
+        responses: {
+            /** @description The search was queued. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiSearch"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getAiSearch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job ID. */
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The search. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiSearch"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

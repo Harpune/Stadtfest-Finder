@@ -13,7 +13,6 @@ const CATEGORIES = [
 ];
 const PUBLISHED: ModEventDetail = {
   id: 'e1',
-  regionId: 'r1',
   name: 'Aalener Weihnachtsmarkt',
   shortName: 'Weihnachtsmarkt',
   status: 'published',
@@ -253,6 +252,9 @@ describe('ModEventFormScreen', () => {
     expect(
       await screen.findByText(
         'Kein Ort gefunden. Setze sonst einen Pin auf der Karte.',
+        {},
+        // 300 ms debounce plus the request: the 1 s default timed out in a loaded full run.
+        {timeout: 3000},
       ),
     ).toBeOnTheScreen();
   });

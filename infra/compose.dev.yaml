@@ -78,6 +78,18 @@ services:
       - nominatim-data:/var/lib/postgresql/16/main
     shm_size: 1gb
 
+  # Optional: real web search for the AI search (ADR 0013). Start with `--profile search`
+  # and set WEB_SEARCH_PROVIDER=searxng. The default local setup uses the fake search.
+  searxng:
+    image: docker.io/searxng/searxng:2026.10.2-19ffbcd30
+    profiles: ["search"]
+    environment:
+      SEARXNG_SECRET: dev-only-not-secret
+    ports:
+      - "${SEARXNG_HOST_PORT:-58089}:8080"
+    volumes:
+      - ./dev/searxng/settings.yml:/etc/searxng/settings.yml:ro
+
 volumes:
   postgres-data:
   seaweedfs-data:

@@ -30,7 +30,7 @@
 |---|---|---|---|
 | `search_events` | `zip_code` (5 Ziffern), `radius_km` (10–300, Standard 25), `date_from?`, `date_to?` (ISO-Datum) | Geocoding PLZ → Mittelpunkt, dann `events.search` (gleiche Sichtbarkeitsregeln wie REST). Der Zeitraum wird auf Überschneidung geprüft (entspricht `from/to`, intern zusätzlich zur Monatslogik). | Liste mit `id`, `name`, `startDate`, `endDate`, `place`, `city`, `category`, `distanceKm`, `status`, `url` (Deep Link), max. 50 Einträge |
 | `get_event` | `event_id` | `events.get_public` | Detail wie `EventDetail` ohne nutzerbezogene Felder, plus `url` |
-| `start_ai_search` | `zip_code` | `ai_ingestion.start_search` mit Principal | `{jobId, status}`. Dieselben Fehler wie REST (Region, laufender Job, Tageslimit) als verständliche Tool-Fehler. |
+| `start_ai_search` | `zip_code` | `ai_ingestion.start_search` mit Principal | `{jobId, status}`. Dieselben Fehler wie REST (unbekannte PLZ, laufender Job, Tageslimit) als verständliche Tool-Fehler. |
 
 - Die Tool-Beschreibungen sind deutsch/englisch und nennen die Grenzen (Deutschland, nur veröffentlichte Feste).
 - **Rate-Limit** pro Token bzw. IP: 60 Aufrufe pro Minute.
@@ -44,7 +44,7 @@
 - Unit bzw. Integration mit dem FastMCP-Testclient:
   - `search_events` und `get_event` ohne Token
   - `start_ai_search` ohne Token → Auth-Fehler, Nutzer → Berechtigungsfehler, Moderator → Job angelegt (Fake-LLM)
-  - fremde Region und laufender Job
+  - unbekannte PLZ und laufender Job
 - Ein Test prüft, dass die Tools dieselben Use-Case-Funktionen aufrufen wie die REST-Router (keine Duplikation).
 
 ## Doku/Betrieb

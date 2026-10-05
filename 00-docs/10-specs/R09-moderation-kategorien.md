@@ -1,5 +1,7 @@
 # R09 · Moderation: Kategorien
 
+> **Hinweis (05.10.2026):** Die Moderationsregionen wurden abgeschafft ([ADR 0015](../25-adr/0015-regionen-abgeschafft.md)). Angaben zu Regionen in diesem Inkrement sind überholt.
+
 | | |
 |---|---|
 | **Ziel** | Kategorie-Admins pflegen die app-weiten Kategorien (Name, Emoji, Farbe, Reihenfolge, aktiv) und löschen sie mit Ersatzkategorie. Die Chips und Marker-Farben in der App folgen sofort. |

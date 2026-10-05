@@ -17,6 +17,7 @@ const meta = {
         'danger',
         'destructive',
         'mod',
+        'modOutline',
       ],
     },
     size: {control: 'inline-radio', options: ['large', 'medium']},
@@ -41,6 +42,9 @@ export const Destructive: Story = {
 };
 export const Moderator: Story = {
   args: {variant: 'mod', label: 'Veröffentlichen'},
+};
+export const ModeratorOutline: Story = {
+  args: {variant: 'modOutline', label: 'Suchen', size: 'medium'},
 };
 export const Loading: Story = {args: {loading: true, label: 'Anmelden'}};
 export const Disabled: Story = {

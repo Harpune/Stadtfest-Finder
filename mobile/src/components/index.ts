@@ -1,3 +1,4 @@
+export * from './AiSearchBanner/AiSearchBanner';
 export * from './Avatar/Avatar';
 export * from './AvatarButton/AvatarButton';
 export * from './BottomSheet/BottomSheet';

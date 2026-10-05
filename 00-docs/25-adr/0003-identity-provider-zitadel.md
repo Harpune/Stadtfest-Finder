@@ -14,13 +14,13 @@ Die App braucht Anmeldung per Apple, Google und E-Mail. Das Backend soll nie Pas
 - **Lokal und in Tests:** Keycloak (`infra/compose.dev.yaml`, Realm `infra/dev/keycloak/stadtfest-realm.json`).
 - Die App meldet sich per OIDC Authorization Code + PKCE im **Hosted Login** an. Apple und Google sind als externe IdPs in Zitadel angebunden. Eigene `/auth/*`-Endpunkte gibt es nicht.
 - **Rollen:** `user`, `moderator`, `category_admin`, vergeben in Zitadel.
-- Die **Region** eines Moderators ist ein Nutzer-Metadatum und erscheint als Claim `region` im Access-Token.
+- ~~Die **Region** eines Moderators ist ein Nutzer-Metadatum und erscheint als Claim `region` im Access-Token.~~ Ersetzt durch [ADR 0015](0015-regionen-abgeschafft.md): Es gibt keine Regionen und keinen Region-Claim mehr.
 - Die Claim-Namen sind konfigurierbar, weil sich Zitadel und Keycloak unterscheiden:
 
   | Claim | Keycloak | Zitadel |
   |---|---|---|
   | Rollen | `realm_access.roles` | `urn:zitadel:iam:org:project:roles` |
-  | Region | Mapper `region` | per Action |
+  | Region (entfallen, ADR 0015) | – | – |
 
 - **Audience** der API: `stadtfest-api` (Keycloak, per Audience-Mapper). Zitadel setzt als Audience die Projekt-ID; in Produktion ist `AUTH_AUDIENCE` daher die Projekt-ID (Ergänzung R05, siehe [Zitadel-Anleitung](../40-operations/zitadel.md)).
 - Das Backend validiert JWTs gegen das JWKS des IdP und speichert keine E-Mail-Adressen (E-08).

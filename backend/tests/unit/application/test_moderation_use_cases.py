@@ -3,7 +3,6 @@ from uuid import uuid4
 
 import pytest
 
-from stadtfest.application.moderation.ports import ModRegion
 from stadtfest.application.moderation.use_cases import (
     CancelModEvent,
     CreateModEvent,
@@ -29,7 +28,6 @@ from stadtfest.domain.events.maintenance import (
     EventContent,
     ManagedEvent,
 )
-from stadtfest.domain.events.region import Region
 from stadtfest.domain.identity.principal import Principal, Role
 from tests.fakes import (
     FakeAccountResolver,
@@ -38,16 +36,13 @@ from tests.fakes import (
     FakeEventFavorites,
     FakeEventQueue,
     FakeManagedEventRepository,
-    FakeModRegions,
     FakeOutboxStore,
     FixedClock,
 )
 
 TODAY = date(2026, 10, 1)
 CATEGORY = uuid4()
-OSTALB = ModRegion(uuid4(), Region("ostalb", "Ostalb", frozenset({"73430", "73525"})))
-ULM = ModRegion(uuid4(), Region("ulm", "Ulm", frozenset({"89073"})))
-MODERATOR = Principal("sub-mod", frozenset({Role.USER, Role.MODERATOR}), "ostalb")
+MODERATOR = Principal("sub-mod", frozenset({Role.USER, Role.MODERATOR}))
 USER = Principal("sub-user", frozenset({Role.USER}))
 COMPLETE = {
     "category_id": CATEGORY,
@@ -65,10 +60,9 @@ COMPLETE = {
 class Setup:
     def __init__(self) -> None:
         self.events = FakeManagedEventRepository()
-        regions = FakeModRegions({"ostalb": OSTALB, "ulm": ULM})
         clock = FixedClock(TODAY)
         accounts = FakeAccountResolver()
-        base = (self.events, regions, clock)
+        base = (self.events, clock)
         self.list = ListModEvents(*base)
         self.get = GetModEvent(*base)
         self.create = CreateModEvent(*base, accounts)
@@ -86,13 +80,11 @@ class Setup:
     def stored(
         self,
         status: EventStatus,
-        region: ModRegion = OSTALB,
         name: str = "Fest",
         **content: object,
     ) -> ManagedEvent:
         event = ManagedEvent(
             uuid4(),
-            region.id,
             status,
             EventContent(name=name, **(COMPLETE | content)).with_defaults(),  # type: ignore[arg-type]
         )
@@ -125,24 +117,23 @@ async def test_non_moderators_are_forbidden(s: Setup) -> None:
         await s.list(USER)
 
 
-async def test_moderator_with_unknown_region_is_forbidden(s: Setup) -> None:
-    lost = Principal("sub-x", frozenset({Role.USER, Role.MODERATOR}), "atlantis")
-    with pytest.raises(ForbiddenError):
-        await s.list(lost)
+async def test_every_moderator_maintains_events_anywhere(s: Setup) -> None:
+    """No regions (ADR 0015): events in Ulm and Berlin are as editable as in Aalen."""
+    ulm = s.stored(EventStatus.DRAFT, city="Ulm", postal_code="89073", lat=48.4, lon=10.0)
+    berlin = s.stored(EventStatus.PUBLISHED, city="Berlin", postal_code="10115", lat=52.5, lon=13.4)
+    assert (await s.get(MODERATOR, ulm.id)).event.id == ulm.id
+    assert (await s.publish(MODERATOR, ulm.id)).status is ModStatus.PUBLISHED
+    assert (await s.cancel(MODERATOR, berlin.id, None)).status is ModStatus.CANCELLED
 
 
-async def test_events_of_other_regions_look_unknown(s: Setup) -> None:
-    foreign = s.stored(EventStatus.PUBLISHED, ULM)
+async def test_unknown_events_are_not_found(s: Setup) -> None:
     with pytest.raises(NotFoundError):
-        await s.get(MODERATOR, foreign.id)
-    with pytest.raises(NotFoundError):
-        await s.cancel(MODERATOR, foreign.id, None)
+        await s.get(MODERATOR, uuid4())
 
 
-async def test_list_drops_ids_of_other_regions(s: Setup) -> None:
+async def test_list_drops_unknown_ids(s: Setup) -> None:
     own = s.stored(EventStatus.PUBLISHED)
-    foreign = s.stored(EventStatus.PUBLISHED, ULM)
-    rows = await s.list(MODERATOR, ids=frozenset({own.id, foreign.id}))
+    rows = await s.list(MODERATOR, ids=frozenset({own.id, uuid4()}))
     assert [row.summary.id for row in rows] == [own.id]
 
 
@@ -196,10 +187,9 @@ async def test_overview_order_status_and_search(s: Setup) -> None:
 # --- create and edit (R07-US3) ----------------------------------------------------------
 
 
-async def test_create_always_makes_a_draft_in_the_own_region(s: Setup) -> None:
+async def test_create_always_makes_a_draft(s: Setup) -> None:
     view = await s.create(MODERATOR, EventContent(name="  Herbstfest Wasseralfingen "))
     assert view.event.status is EventStatus.DRAFT
-    assert view.event.region_id == OSTALB.id
     assert view.event.content.name == "Herbstfest Wasseralfingen"
     assert view.event.content.short_name == "Herbstfest Wassera"
     assert view.event.version == 1
@@ -254,13 +244,6 @@ async def test_publish_with_missing_fields_reports_them(s: Setup) -> None:
     with pytest.raises(InvalidInputError) as raised:
         await s.publish(MODERATOR, event.id)
     assert raised.value.fields == {"categoryId": "required", "location": "required"}
-
-
-async def test_publish_outside_the_region(s: Setup) -> None:
-    event = s.stored(EventStatus.DRAFT, postal_code="89073")
-    with pytest.raises(InvalidInputError) as raised:
-        await s.publish(MODERATOR, event.id)
-    assert raised.value.code == "region_mismatch"
 
 
 async def test_publish_unpublish_cancel_delete(s: Setup) -> None:

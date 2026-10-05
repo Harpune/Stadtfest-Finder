@@ -35,28 +35,9 @@ Zitadel Cloud (EU-Region) ist in Produktion der Identity Provider der App (ADR 0
 4. In der Login-Richtlinie der Organisation die beiden IdPs aktivieren sowie „Registrierung erlauben“ und „Benutzername/Passwort erlauben“.
 5. Die **IdP-IDs** (in der URL der IdP-Detailseite) notieren; die App springt mit ihnen direkt zu Apple bzw. Google.
 
-### 4. Region als Claim (Action)
+### 4. Region als Claim (entfallen)
 
-Die Region eines Moderators ist ein Nutzer-Metadatum `region` (z. B. `ostalb`) und muss im Access-Token als Claim `region` stehen.
-
-1. *Actions → Neu*, Name `setRegionClaim`, Skript:
-
-   ```javascript
-   function setRegionClaim(ctx, api) {
-     const metadata = ctx.v1.user.getMetadata();
-     if (!metadata || !metadata.metadata) {
-       return;
-     }
-     metadata.metadata.forEach(({key, value}) => {
-       if (key === 'region' && value) {
-         api.v1.claims.setClaim('region', value);
-       }
-     });
-   }
-   ```
-
-2. *Flows → Complement Token → Trigger „Pre access token creation“* → Action `setRegionClaim` hinzufügen.
-3. Wie Rolle und Region an einen Moderator vergeben werden: [Moderator einrichten](moderator-einrichten.md).
+Seit [ADR 0015](../25-adr/0015-regionen-abgeschafft.md) gibt es keine Moderationsregionen mehr. Es braucht kein Nutzer-Metadatum `region` und keine Action. Eine früher angelegte Action `setRegionClaim` im Flow „Complement Token“ kann entfernt werden; das Backend ignoriert den Claim.
 
 ### 5. Service-User für die Kontolöschung
 
@@ -73,7 +54,6 @@ Backend (Komodo, **nie ins Repo**):
 | `AUTH_ISSUER` | `https://<instanz>.eu1.zitadel.cloud` (ohne Schrägstrich am Ende) |
 | `AUTH_AUDIENCE` | Projekt-ID aus Schritt 1 |
 | `AUTH_ROLES_CLAIM` | `urn:zitadel:iam:org:project:roles` |
-| `AUTH_REGION_CLAIM` | `region` |
 | `IDP_ADMIN_PROVIDER` | `zitadel` |
 | `IDP_ADMIN_TOKEN` | PAT aus Schritt 5 (Secret) |
 
@@ -93,7 +73,7 @@ App (EAS-Umgebung, zur Build-Zeit eingebettet, **nicht geheim**):
 
 1. Backend neu starten; es startet nur, wenn alle Variablen gültig sind (Fehlermeldung nennt die fehlende Variable, nie den Wert).
 2. In der App „Mit E-Mail anmelden“ → Hosted Login von Zitadel erscheint → nach der Anmeldung zeigt der Drawer Name und E-Mail.
-3. Mit einem Moderator anmelden: `GET /v1/me` liefert `roles: ["user", "moderator"]` und `region`. Fehlt `moderator`, sind „Assert Roles on Authentication“ oder die Projekt-Audience (`EXPO_PUBLIC_AUTH_PROJECT_ID`) nicht gesetzt; fehlt `region`, läuft die Action nicht.
+3. Mit einem Moderator anmelden: `GET /v1/me` liefert `roles: ["user", "moderator"]`. Fehlt `moderator`, sind „Assert Roles on Authentication“ oder die Projekt-Audience (`EXPO_PUBLIC_AUTH_PROJECT_ID`) nicht gesetzt.
 4. „Mit Apple fortfahren“ und „Mit Google fortfahren“ springen direkt zum Anbieter.
 5. Testkonto anlegen und in der App löschen: Der Nutzer ist danach in der Zitadel-Konsole nicht mehr aktiv, im Backend-Log steht kein `idp_deletion_deferred`.
 
@@ -107,6 +87,5 @@ curl -X DELETE "$AUTH_ISSUER/v2/users/<subject>" -H "Authorization: Bearer $IDP_
 
 ## Rollback
 
-- Fehlerhafte Action: im Flow „Complement Token“ entfernen; Moderatoren verlieren dann die Moderationsrechte (das Backend loggt `moderator_without_region`), alle anderen Funktionen laufen weiter.
 - Kompromittiertes PAT: beim Service-User löschen, neues Token erzeugen, `IDP_ADMIN_TOKEN` in Komodo ersetzen und das Backend neu starten.
 - Kein Umschalten auf `IDP_ADMIN_PROVIDER=fake` in Produktion (der Start schlägt fehl); bei einem Zitadel-Ausfall bleiben Kontolöschungen im Retry-Job, bis Zitadel wieder erreichbar ist.

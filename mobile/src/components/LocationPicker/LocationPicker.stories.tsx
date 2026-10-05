@@ -23,6 +23,6 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const ExistingPin: Story = {};
-export const RegionStart: Story = {
+export const DefaultStart: Story = {
   args: {start: {lat: 48.84, lon: 10.09}, exact: false},
 };

@@ -1,5 +1,7 @@
 # R05 · Authentifizierung und Konto
 
+> **Hinweis (05.10.2026):** Die Moderationsregionen wurden abgeschafft ([ADR 0015](../25-adr/0015-regionen-abgeschafft.md)). Angaben zu Regionen in diesem Inkrement sind überholt.
+
 | | |
 |---|---|
 | **Ziel** | Gäste melden sich über den IdP an (Apple, Google oder E-Mail). Danach holt die App die ausgelöste Aktion nach. Das Backend validiert JWTs und kennt Rollen und Region. Nutzer können sich abmelden und ihr Konto löschen. |

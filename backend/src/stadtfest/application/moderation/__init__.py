@@ -1,1 +1,1 @@
-"""Moderation context: moderators maintain the events of their region (R07)."""
+"""Moderation context: moderators maintain all events (R07, ADR 0015)."""

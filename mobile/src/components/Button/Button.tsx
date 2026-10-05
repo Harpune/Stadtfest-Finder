@@ -8,7 +8,13 @@ import {Spinner} from '../Spinner/Spinner';
 import {Text} from '../Text/Text';
 
 export type ButtonVariant =
-  'primary' | 'secondary' | 'ghost' | 'danger' | 'destructive' | 'mod';
+  | 'primary'
+  | 'secondary'
+  | 'ghost'
+  | 'danger'
+  | 'destructive'
+  | 'mod'
+  | 'modOutline';
 export type ButtonSize = 'large' | 'medium';
 
 export interface ButtonProps {
@@ -57,6 +63,13 @@ function colorsFor(theme: Theme, variant: ButtonVariant) {
         background: c.secondary,
         foreground: c.onSecondary,
         border: c.secondary,
+      };
+    case 'modOutline':
+      // Secondary action of the moderation view, e.g. "Suchen" (09-01).
+      return {
+        background: 'transparent',
+        foreground: c.mod.text,
+        border: c.mod.primary,
       };
     case 'mod':
       return {

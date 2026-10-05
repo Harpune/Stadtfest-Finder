@@ -17,8 +17,8 @@ from stadtfest.domain.events.category import CategoryDraft
 from stadtfest.domain.identity.principal import Principal, Role
 from tests.fakes import FakeCache, FakeCategoryRepository, FakeEventFavorites
 
-ADMIN = Principal("a", frozenset({Role.USER, Role.MODERATOR, Role.CATEGORY_ADMIN}), "ostalb")
-MODERATOR = Principal("m", frozenset({Role.USER, Role.MODERATOR}), "ostalb")
+ADMIN = Principal("a", frozenset({Role.USER, Role.MODERATOR, Role.CATEGORY_ADMIN}))
+MODERATOR = Principal("m", frozenset({Role.USER, Role.MODERATOR}))
 USER = Principal("u", frozenset({Role.USER}))
 STADTFEST = ModCategoryView(uuid4(), "Stadtfest", "🎪", "#FFB547", True, 0, 0)
 VOLKSFEST = ModCategoryView(uuid4(), "Volksfest & Kirmes", "🎡", "#FF6B8B", True, 1, 0)

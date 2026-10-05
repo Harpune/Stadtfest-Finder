@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from catalog import CATEGORIES, EVENTS, REGIONS, seed_id
+from catalog import CATEGORIES, EVENTS, seed_id
 
 from stadtfest.adapters.outbound.cache.redis_cache import RedisCache
 from stadtfest.adapters.outbound.cache.redis_client import create_redis
@@ -27,7 +27,6 @@ from stadtfest.adapters.outbound.persistence.models import (
     CategoryRow,
     EventRow,
     ProgramItemRow,
-    RegionRow,
 )
 from stadtfest.application.events.use_cases import (
     CATALOG_NAMESPACE,
@@ -47,9 +46,7 @@ async def load(sessions: async_sessionmaker[AsyncSession], today: date) -> dict[
         Number of inserted rows per table.
     """
     async with sessions() as session, session.begin():
-        await session.execute(
-            text("TRUNCATE event_image, program_item, event, region, category CASCADE")
-        )
+        await session.execute(text("TRUNCATE event_image, program_item, event, category CASCADE"))
         for position, category in enumerate(CATEGORIES):
             session.add(
                 CategoryRow(
@@ -59,15 +56,6 @@ async def load(sessions: async_sessionmaker[AsyncSession], today: date) -> dict[
                     color=category.color,
                     active=category.active,
                     sort_order=position,
-                )
-            )
-        for region in REGIONS:
-            session.add(
-                RegionRow(
-                    id=seed_id("region", region.key),
-                    key=region.key,
-                    name=region.name,
-                    postal_codes=list(region.postal_codes),
                 )
             )
         await session.flush()
@@ -85,7 +73,6 @@ async def load(sessions: async_sessionmaker[AsyncSession], today: date) -> dict[
             session.add(
                 EventRow(
                     id=event_id,
-                    region_id=seed_id("region", event.region),
                     name=event.name,
                     short_name=event.short_name,
                     category_id=seed_id("category", event.category) if event.category else None,
@@ -125,7 +112,6 @@ async def load(sessions: async_sessionmaker[AsyncSession], today: date) -> dict[
                 program_count += 1
     return {
         "category": len(CATEGORIES),
-        "region": len(REGIONS),
         "event": len(EVENTS),
         "program_item": program_count,
     }

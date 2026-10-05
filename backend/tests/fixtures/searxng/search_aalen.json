@@ -1,0 +1,34 @@
+{
+  "query": "Stadtfest Aalen 2026",
+  "number_of_results": 0,
+  "results": [
+    {
+      "url": "https://www.aalen.de/reichsstaedter-tage",
+      "title": "Reichsstädter Tage 2026 – Stadt Aalen",
+      "content": "Das große Stadtfest in der Aalener Innenstadt mit Musik, Markt und Feuerwerk.",
+      "engine": "duckduckgo",
+      "engines": ["duckduckgo", "google"],
+      "score": 4.0,
+      "category": "general"
+    },
+    {
+      "url": "https://www.aalen.de/veranstaltungen",
+      "title": "Veranstaltungskalender – Stadt Aalen",
+      "content": "Alle Veranstaltungen in Aalen und den Stadtbezirken.",
+      "engine": "google",
+      "engines": ["google"],
+      "score": 1.0,
+      "category": "general"
+    },
+    {
+      "title": "Eintrag ohne URL wird ignoriert",
+      "content": "",
+      "engine": "wikipedia"
+    }
+  ],
+  "answers": [],
+  "corrections": [],
+  "infoboxes": [],
+  "suggestions": [],
+  "unresponsive_engines": [["brave", "too many requests"]]
+}

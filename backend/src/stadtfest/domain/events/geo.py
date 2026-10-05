@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 
 _POSTAL_CODE = re.compile(r"^[0-9]{5}$")
+_EARTH_RADIUS_KM = 6371.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +27,14 @@ class GeoPoint:
     def rounded(self, decimals: int) -> GeoPoint:
         """Return the point rounded to `decimals` places (for cache keys, never stored)."""
         return GeoPoint(round(self.lat, decimals), round(self.lon, decimals))
+
+    def distance_km(self, other: GeoPoint) -> float:
+        """Great-circle distance in kilometers (haversine, mean earth radius)."""
+        lat1, lat2 = math.radians(self.lat), math.radians(other.lat)
+        dlat = lat2 - lat1
+        dlon = math.radians(other.lon - self.lon)
+        a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+        return 2 * _EARTH_RADIUS_KM * math.asin(math.sqrt(a))
 
 
 @dataclass(frozen=True, slots=True)

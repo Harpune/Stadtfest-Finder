@@ -13,7 +13,6 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 from stadtfest.domain.events.event import EventStatus
-from stadtfest.domain.events.region import Region
 
 SHORT_NAME_LENGTH = 18
 
@@ -38,10 +37,6 @@ class PublicationError(Exception):
         """Create the error."""
         super().__init__(", ".join(problems))
         self.problems = problems
-
-
-class RegionMismatchError(Exception):
-    """The event's location does not belong to the moderator's region."""
 
 
 class DomainEventType(StrEnum):
@@ -184,12 +179,15 @@ class ManagedEvent:
     """
 
     id: UUID
-    region_id: UUID
     status: EventStatus
     content: EventContent
     version: int = 1
     favorite_count: int = 0
     source: str = "manual"
+    # AI finds (R10): the page it came from, the job and when it was found.
+    source_url: str | None = None
+    ai_job_id: UUID | None = None
+    found_at: datetime | None = None
     published_at: datetime | None = None
     deleted: bool = False
     pending_events: list[DomainEvent] = field(default_factory=list)
@@ -220,21 +218,18 @@ class ManagedEvent:
         if self.status in {EventStatus.PUBLISHED, EventStatus.CANCELLED}:
             self._record(DomainEventType.UPDATED, changes)
 
-    def publish(self, region: Region, active_category_ids: frozenset[UUID], now: datetime) -> None:
+    def publish(self, active_category_ids: frozenset[UUID], now: datetime) -> None:
         """Draft → published.
 
         Raises:
             InvalidTransitionError: If the event is not a draft.
             PublicationError: If required fields are missing or invalid.
-            RegionMismatchError: If the postal code lies outside the region.
         """
         if self.status is not EventStatus.DRAFT:
             raise InvalidTransitionError
         problems = publication_problems(self.content, active_category_ids)
         if problems:
             raise PublicationError(problems)
-        if not self.content.postal_code or not region.contains(self.content.postal_code):
-            raise RegionMismatchError
         self.status = EventStatus.PUBLISHED
         if self.published_at is None:
             self.published_at = now

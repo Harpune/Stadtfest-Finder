@@ -16,7 +16,7 @@ Die Usage Policy des öffentlichen OSM-Nominatim verbietet Autocomplete und erla
 ## Entscheidung
 
 - **Nominatim wird selbst gehostet** als Container im Produktionsstack auf dem Heimserver (EU). Importiert wird der Geofabrik-Extrakt für Deutschland mit regelmäßigen Updates.
-- Es gibt **keine eigene PLZ-Tabelle**. Eine Region ist eine Liste von PLZ (E-05). Die Zugehörigkeit eines Fests ergibt sich aus seiner PLZ.
+- Es gibt **keine eigene PLZ-Tabelle**. ~~Eine Region ist eine Liste von PLZ (E-05).~~ Regionen gibt es seit [ADR 0015](0015-regionen-abgeschafft.md) nicht mehr; die KI-Suche nutzt Nominatim, um eine PLZ zu prüfen und ihren Mittelpunkt zu bestimmen.
 - Die App ruft Nominatim **nie direkt** auf, sondern nur über `/v1/geocode*`. Das Backend nutzt einen Geocoding-Port mit Redis-Cache (30 Tage).
 - **Lokal:** Standard ist ein Fake-Adapter. Optional läuft ein Nominatim-Container mit Regionsextrakt (Compose-Profil `geo`).
 - **Tests:** nie ein Live-Nominatim, stattdessen aufgezeichnete Antworten.

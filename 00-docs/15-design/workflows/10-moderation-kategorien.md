@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Ziel** | Kategorien pflegen, die app-weit als Filter-Chips und Marker-Farben erscheinen: anlegen, bearbeiten (Name, Emoji, Farbe), sortieren, deaktivieren, löschen. |
-| **Rollen** | **Geklärt (E-06):** `category_admin` legt an, ändert, sortiert und löscht (app-weit, nicht auf die Region beschränkt). `moderator` ohne diese Rolle sieht den Tab nur lesend. |
+| **Rollen** | **Geklärt (E-06):** `category_admin` legt an, ändert, sortiert und löscht (app-weit). `moderator` ohne diese Rolle sieht den Tab nur lesend. |
 | **Moderationsansicht** | **Ja**, Tab „Kategorien“ |
 | **Einstieg** | Moderationsansicht → Tab „🏷️ Kategorien“ |
 | **Wirkt auf** | [01 Stadtfest-Suche](01-stadtfest-suche.md): Reihenfolge und Sichtbarkeit der Chips, Filter-Sheet, Marker-Rand. [08](08-moderation-feste.md): Auswahl im Formular. |
@@ -44,10 +44,10 @@ flowchart TD
 
 ## Regeln
 
-- Kategorien gelten **app-weit** und sind nicht an eine Region gebunden.
+- Kategorien gelten **app-weit**.
 - Die **Reihenfolge** (`sortOrder`) bestimmt die Reihenfolge der Chips auf der Startseite und im Filter-Sheet.
 - **Farbe** = Rand der Karten-Marker und Rand des Emoji-Kreises. Werte aus der Palette in [theme-farben.md](../design/theme-farben.md).
-- Die **Anzahl** zählt Feste aller Regionen und Status (außer gelöscht).
+- Die **Anzahl** zählt alle Feste aller Status (außer gelöscht).
 - Ist in einer Nutzer-Sitzung eine Kategorie als Filter gesetzt, die inzwischen deaktiviert oder gelöscht wurde, entfällt der Filter beim nächsten Laden stillschweigend.
 - `GET /v1/categories` (öffentlich) ist mit `ETag` cachebar. Änderungen invalidieren den Cache, die App lädt beim nächsten Start bzw. nach 15 Minuten neu (Annahme).
 

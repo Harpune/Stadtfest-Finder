@@ -15,7 +15,6 @@ from stadtfest.adapters.inbound.rest.errors import register_error_handlers
 from stadtfest.adapters.outbound.storage.urls import ImageUrls
 from stadtfest.application.identity.claims import ClaimMapping
 from stadtfest.application.identity.use_cases import Authenticate
-from stadtfest.application.moderation.ports import ModRegion
 from stadtfest.application.moderation.use_cases import (
     CancelModEvent,
     CreateModEvent,
@@ -26,19 +25,16 @@ from stadtfest.application.moderation.use_cases import (
     UnpublishModEvent,
     UpdateModEvent,
 )
-from stadtfest.domain.events.region import Region
 from tests.fakes import (
     FakeAccountResolver,
     FakeActiveCategories,
     FakeDeletedAccounts,
     FakeManagedEventRepository,
-    FakeModRegions,
     FakeTokenVerifier,
     FixedClock,
 )
 
 CATEGORY = uuid4()
-OSTALB = ModRegion(uuid4(), Region("ostalb", "Ostalb", frozenset({"73430"})))
 MOD = {"Authorization": "Bearer mod"}
 USER = {"Authorization": "Bearer user"}
 
@@ -47,13 +43,12 @@ USER = {"Authorization": "Bearer user"}
 def client() -> TestClient:
     verifier = FakeTokenVerifier(
         {
-            "mod": {"sub": "m", "realm_access": {"roles": ["moderator"]}, "region": "ostalb"},
+            "mod": {"sub": "m", "realm_access": {"roles": ["moderator"]}},
             "user": {"sub": "u", "realm_access": {"roles": ["user"]}},
         }
     )
     base = (
         FakeManagedEventRepository(),
-        FakeModRegions({"ostalb": OSTALB}),
         FixedClock(date(2026, 10, 1)),
     )
     accounts = FakeAccountResolver()
@@ -62,7 +57,7 @@ def client() -> TestClient:
     app.include_router(mod_events.router)
     app.state.container = SimpleNamespace(
         authenticate=Authenticate(
-            verifier, ClaimMapping("realm_access.roles", "region"), FakeDeletedAccounts()
+            verifier, ClaimMapping("realm_access.roles"), FakeDeletedAccounts()
         ),
         image_urls=ImageUrls("https://img.test/bucket"),
         list_mod_events=ListModEvents(*base),
@@ -148,6 +143,18 @@ def test_full_lifecycle(client: TestClient) -> None:
     assert client.get(f"/v1/mod/events/{event_id}", headers=MOD).status_code == 404
 
 
+def test_status_filter_is_applied(client: TestClient) -> None:
+    """The filter was silently ignored (generated RootModel as query type, 05.10.2026)."""
+    _create(client)
+
+    drafts = client.get("/v1/mod/events", params={"status": "draft"}, headers=MOD).json()
+    cancelled = client.get("/v1/mod/events", params={"status": "cancelled"}, headers=MOD).json()
+
+    assert len(drafts["items"]) == 1
+    assert cancelled["items"] == []
+    assert client.get("/v1/mod/events", params={"status": "x"}, headers=MOD).status_code == 422
+
+
 def test_patch_needs_if_match(client: TestClient) -> None:
     event_id = _create(client)
     response = client.patch(
@@ -167,7 +174,7 @@ def test_stale_version_conflicts(client: TestClient) -> None:
     assert stale.json()["error"] == "version_conflict"
 
 
-def test_invalid_transition_and_region_mismatch(client: TestClient) -> None:
+def test_invalid_transition_and_publish_anywhere(client: TestClient) -> None:
     event_id = _create(client)
     cancel = client.post(f"/v1/mod/events/{event_id}/cancel", headers=MOD)
     assert cancel.status_code == 409
@@ -186,7 +193,7 @@ def test_invalid_transition_and_region_mismatch(client: TestClient) -> None:
         },
         "1",
     )
-    outside = client.post(f"/v1/mod/events/{event_id}/publish", headers=MOD)
-    assert outside.status_code == 422
-    assert outside.json()["error"] == "region_mismatch"
-    assert outside.json()["message"] == "Der Ort liegt außerhalb deiner Region."
+    # Ulm, far from the old moderator region: no regions anymore (ADR 0015).
+    published = client.post(f"/v1/mod/events/{event_id}/publish", headers=MOD)
+    assert published.status_code == 200
+    assert "regionId" not in published.json()

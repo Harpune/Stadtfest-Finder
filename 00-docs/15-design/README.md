@@ -81,6 +81,6 @@ Endpunkte sind als `METHODE /pfad` angegeben, Details in [api-endpunkte.md](back
 
 ## Annahmen
 
-- Stichtag der Beispieldaten ist **Freitag, 25.09.2026**. Standort und Beispiel-Wohnort ist Aalen, die Moderator-Region „Ostalb“.
+- Stichtag der Beispieldaten ist **Freitag, 25.09.2026**. Standort und Beispiel-Wohnort ist Aalen. Die Moderator-Region „Ostalb“ der Screens gibt es seit ADR 0015 nicht mehr.
 - Namen, Freunde, Nachrichten und KI-Funde sind fiktive Beispieldaten.
 - Die Backend-Schnittstellen sind aus dem Verhalten des Prototyps abgeleitet und als Vorschlag zu verstehen.

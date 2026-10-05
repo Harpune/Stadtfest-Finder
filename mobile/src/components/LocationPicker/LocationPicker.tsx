@@ -25,7 +25,7 @@ const START_ZOOM = 12;
 
 export interface LocationPickerProps {
   visible: boolean;
-  /** Start position: the current pin, the geocoded address or the region. */
+  /** Start position: the current pin, the geocoded address or a default center. */
   start: {lat: number; lon: number};
   /** True if `start` is an exact location (zooms in further). */
   exact: boolean;

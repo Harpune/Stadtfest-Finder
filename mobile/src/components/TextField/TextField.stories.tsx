@@ -23,3 +23,12 @@ export const Error: Story = {
   args: {value: '', error: 'Bitte gib 1 bis 50 Zeichen ein.'},
 };
 export const Disabled: Story = {args: {disabled: true}};
+export const PostalCode: Story = {
+  args: {
+    label: 'Postleitzahl',
+    value: '73430',
+    variant: 'code',
+    keyboardType: 'number-pad',
+    accentColor: '#2DD4BF',
+  },
+};

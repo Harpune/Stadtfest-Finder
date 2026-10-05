@@ -74,9 +74,9 @@ async def test_moderator_token_is_validated_and_mapped(issuer: str) -> None:
         verifier = JwksTokenVerifier(http, issuer, "stadtfest-api")
         claims = await verifier.verify(response.json()["access_token"])
 
-    principal = principal_from_claims(claims, ClaimMapping("realm_access.roles", "region"))
+    principal = principal_from_claims(claims, ClaimMapping("realm_access.roles"))
     assert principal.roles == {Role.USER, Role.MODERATOR}
-    assert principal.region_key == "ostalb"
+    assert principal.can_moderate
     assert (principal.given_name, principal.family_name) == ("Mia", "Moderatorin")
 
 

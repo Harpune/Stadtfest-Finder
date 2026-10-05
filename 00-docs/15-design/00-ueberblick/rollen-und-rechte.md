@@ -1,6 +1,6 @@
 # Rollen und Rechte
 
-Es gibt drei Rollen. Moderatoren melden sich mit demselben Account an wie normale Nutzer. Die Rolle ist eine Eigenschaft des Accounts (`roles: ["user","moderator"]`) und wird zusätzlich einer **Region** zugeordnet.
+Es gibt drei Rollen. Moderatoren melden sich mit demselben Account an wie normale Nutzer. Die Rolle ist eine Eigenschaft des Accounts (`roles: ["user","moderator"]`). Regionen gibt es nicht mehr: Die Rolle gilt für alle Feste in Deutschland ([ADR 0015](../../25-adr/0015-regionen-abgeschafft.md)).
 
 | Funktion | Gast | Nutzer | Moderator |
 |---|---|---|---|
@@ -13,15 +13,15 @@ Es gibt drei Rollen. Moderatoren melden sich mit demselben Account an wie normal
 | Benachrichtigungen und Einstellungen | – | ✓ | ✓ |
 | Profil-Drawer mit Zeitleiste | Anmelde-Hinweis | ✓ | ✓ |
 | Link „Moderator-Ansicht“ im Drawer | – | – | ✓ |
-| Feste anlegen, bearbeiten, veröffentlichen, absagen, löschen | – | – | ✓ nur eigene Region |
-| KI-Suche per PLZ auslösen | – | – | ✓ (Ergebnisse landen in der eigenen Region) |
+| Feste anlegen, bearbeiten, veröffentlichen, absagen, löschen | – | – | ✓ alle Feste |
+| KI-Suche per PLZ auslösen | – | – | ✓ für jede PLZ |
 | Kategorien anlegen, bearbeiten, sortieren, deaktivieren, löschen | – | – | ✓ app-weit |
 | Nutzer verwalten | – | – | – (ausdrücklich nicht vorgesehen) |
 
 ## Durchsetzung
 
 - Das **Frontend** blendet Moderationsfunktionen nur ein, wenn `GET /v1/me` die Rolle `moderator` liefert.
-- Das **Backend** prüft jede Anfrage unter `/v1/mod/*` selbst: Rolle vorhanden und, bei Festen, `event.regionId == user.regionId`. Verstöße ergeben `403`, Feste anderer Regionen `404` (keine Auskunft, dass sie existieren).
+- Das **Backend** prüft jede Anfrage unter `/v1/mod/*` selbst: Rolle vorhanden. Verstöße ergeben `403`, unbekannte Feste `404`.
 - Gast-Aufrufe an geschützte Endpunkte ergeben `401`. Der Client zeigt daraufhin den Gast-Hinweis ([03](../workflows/03-authentifizierung.md)).
 
 ## Screenshots
@@ -33,4 +33,4 @@ Es gibt drei Rollen. Moderatoren melden sich mit demselben Account an wie normal
 ## Offene Punkte
 
 - Darf jeder Moderator Kategorien ändern, oder nur eine eigene Rolle „Kategorie-Admin“? Der Prototyp erlaubt es jedem Moderator.
-- Wer vergibt die Moderator-Rolle und die Region? Im Prototyp nicht vorgesehen (Backoffice oder direkt in der Datenbank).
+- Wer vergibt die Moderator-Rolle? Ein Admin beim IdP (E-07, [Moderator einrichten](../../40-operations/moderator-einrichten.md)).

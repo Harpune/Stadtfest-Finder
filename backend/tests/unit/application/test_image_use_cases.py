@@ -14,7 +14,6 @@ from stadtfest.application.moderation.images import (
     RemoveImage,
     RetryImage,
 )
-from stadtfest.application.moderation.ports import ModRegion
 from stadtfest.application.moderation.use_cases import GetModEvent
 from stadtfest.application.outbox.ports import OutboxMessage
 from stadtfest.application.outbox.use_cases import HandleDomainEvent
@@ -33,7 +32,6 @@ from stadtfest.domain.events.images import (
     upload_key,
 )
 from stadtfest.domain.events.maintenance import EventContent, ManagedEvent
-from stadtfest.domain.events.region import Region
 from stadtfest.domain.identity.principal import Principal, Role
 from tests.fakes import (
     FakeAccountResolver,
@@ -42,16 +40,13 @@ from tests.fakes import (
     FakeImageProcessor,
     FakeImageRepository,
     FakeManagedEventRepository,
-    FakeModRegions,
     FakeObjectStorage,
     FixedClock,
 )
 
 NOW = datetime(2026, 10, 1, 12, tzinfo=UTC)
-OSTALB = ModRegion(uuid4(), Region("ostalb", "Ostalb", frozenset({"73430"})))
-ULM = ModRegion(uuid4(), Region("ulm", "Ulm", frozenset({"89073"})))
-MODERATOR = Principal("sub-mod", frozenset({Role.USER, Role.MODERATOR}), "ostalb")
-OTHER_MODERATOR = Principal("sub-other", frozenset({Role.USER, Role.MODERATOR}), "ostalb")
+MODERATOR = Principal("sub-mod", frozenset({Role.USER, Role.MODERATOR}))
+OTHER_MODERATOR = Principal("sub-other", frozenset({Role.USER, Role.MODERATOR}))
 USER = Principal("sub-user", frozenset({Role.USER}))
 
 
@@ -61,10 +56,9 @@ class Setup:
         self.images = FakeImageRepository(images=self.events.images)
         self.storage = FakeObjectStorage()
         self.cache = FakeCache()
-        regions = FakeModRegions({"ostalb": OSTALB, "ulm": ULM})
         clock = FixedClock(date(2026, 10, 1))
         accounts = FakeAccountResolver()
-        base = (self.events, regions, clock)
+        base = (self.events, clock)
         self.get = GetModEvent(*base)
         self.create_upload = CreateUpload(
             *base, accounts, self.images, self.storage, now=lambda: NOW
@@ -79,8 +73,8 @@ class Setup:
         self.delete_files = DeleteImageFiles(self.storage)
         self.purge = PurgeImages(self.images, self.storage, now=lambda: NOW)
 
-    def event(self, region: ModRegion = OSTALB) -> ManagedEvent:
-        event = ManagedEvent(uuid4(), region.id, EventStatus.DRAFT, EventContent(name="Fest"))
+    def event(self) -> ManagedEvent:
+        event = ManagedEvent(uuid4(), EventStatus.DRAFT, EventContent(name="Fest"))
         self.events.events[event.id] = event
         return event
 
@@ -177,10 +171,9 @@ async def test_at_most_12_images(s: Setup) -> None:
     assert error.value.code == "too_many_images"
 
 
-async def test_images_of_other_regions_look_unknown(s: Setup) -> None:
-    event = s.event(ULM)
+async def test_images_of_unknown_events_are_not_found(s: Setup) -> None:
     with pytest.raises(NotFoundError):
-        await s.attach(MODERATOR, event.id, await s.uploaded(), None)
+        await s.attach(MODERATOR, uuid4(), await s.uploaded(), None)
 
 
 # --- processing (R08-US2) ----------------------------------------------------------------

@@ -11,15 +11,12 @@ from stadtfest.domain.events.maintenance import (
     InvalidTransitionError,
     ManagedEvent,
     PublicationError,
-    RegionMismatchError,
     changed_fields,
     is_web_url,
     publication_problems,
 )
-from stadtfest.domain.events.region import Region
 
 CATEGORY = uuid4()
-OSTALB = Region("ostalb", "Ostalb", frozenset({"73430", "73525"}))
 NOW = datetime(2026, 10, 1, 12, tzinfo=UTC)
 COMPLETE = EventContent(
     name="Stadtfest Schwäbisch Gmünd",
@@ -37,7 +34,7 @@ COMPLETE = EventContent(
 
 
 def _event(status: EventStatus = EventStatus.DRAFT, **content: object) -> ManagedEvent:
-    return ManagedEvent(uuid4(), uuid4(), status, replace(COMPLETE, **content).with_defaults())
+    return ManagedEvent(uuid4(), status, replace(COMPLETE, **content).with_defaults())
 
 
 def _types(event: ManagedEvent) -> list[DomainEventType]:
@@ -95,7 +92,7 @@ def test_short_name_defaults_to_the_shortened_name() -> None:
 
 def test_publish_draft() -> None:
     event = _event()
-    event.publish(OSTALB, frozenset({CATEGORY}), NOW)
+    event.publish(frozenset({CATEGORY}), NOW)
     assert event.status is EventStatus.PUBLISHED
     assert event.published_at == NOW
     assert _types(event) == [DomainEventType.PUBLISHED]
@@ -103,26 +100,27 @@ def test_publish_draft() -> None:
 
 def test_publishing_again_keeps_the_first_publication_time() -> None:
     event = _event()
-    event.publish(OSTALB, frozenset({CATEGORY}), NOW)
+    event.publish(frozenset({CATEGORY}), NOW)
     event.unpublish()
-    event.publish(OSTALB, frozenset({CATEGORY}), datetime(2026, 11, 1, tzinfo=UTC))
+    event.publish(frozenset({CATEGORY}), datetime(2026, 11, 1, tzinfo=UTC))
     assert event.published_at == NOW
 
 
 def test_publish_reports_missing_fields() -> None:
     event = _event(category_id=None, start_date=None)
     with pytest.raises(PublicationError) as raised:
-        event.publish(OSTALB, frozenset({CATEGORY}), NOW)
+        event.publish(frozenset({CATEGORY}), NOW)
     assert raised.value.problems == {"categoryId": "required", "startDate": "required"}
     assert event.status is EventStatus.DRAFT
     assert event.pending_events == []
 
 
-@pytest.mark.parametrize("postal_code", ["89073", None])
-def test_publish_outside_the_region_is_rejected(postal_code: str | None) -> None:
+@pytest.mark.parametrize("postal_code", ["89073", "10115", None])
+def test_publish_anywhere_in_germany(postal_code: str | None) -> None:
+    """No regions (ADR 0015): the location is required, not a postal code range."""
     event = _event(postal_code=postal_code)
-    with pytest.raises(RegionMismatchError):
-        event.publish(OSTALB, frozenset({CATEGORY}), NOW)
+    event.publish(frozenset({CATEGORY}), NOW)
+    assert event.status is EventStatus.PUBLISHED
 
 
 @pytest.mark.parametrize(
@@ -139,7 +137,7 @@ def test_publish_outside_the_region_is_rejected(postal_code: str | None) -> None
 def test_forbidden_transitions(status: EventStatus, action: str) -> None:
     event = _event(status)
     actions = {
-        "publish": lambda: event.publish(OSTALB, frozenset({CATEGORY}), NOW),
+        "publish": lambda: event.publish(frozenset({CATEGORY}), NOW),
         "unpublish": event.unpublish,
         "cancel": lambda: event.cancel(None),
     }

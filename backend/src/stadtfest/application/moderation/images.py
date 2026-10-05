@@ -1,6 +1,6 @@
 """Use cases for event images (R08).
 
-Moderator actions share the authorization of the event use cases (own region only).
+Moderator actions share the authorization of the event use cases (moderator role).
 Processing and clean-up run in the worker, triggered by `image.*` domain events.
 """
 
@@ -24,7 +24,6 @@ from stadtfest.application.moderation.image_ports import (
 from stadtfest.application.moderation.ports import (
     AccountResolver,
     ManagedEventRepository,
-    RegionDirectory,
 )
 from stadtfest.application.moderation.use_cases import _Moderation
 from stadtfest.application.shared.errors import (
@@ -81,12 +80,11 @@ class _ImageModeration(_Moderation):
     def __init__(
         self,
         events: ManagedEventRepository,
-        regions: RegionDirectory,
         clock: Clock,
         images: ImageRepository,
         cache: CachePort,
     ) -> None:
-        super().__init__(events, regions, clock)
+        super().__init__(events, clock)
         self._images = images
         self._cache = cache
 
@@ -101,7 +99,6 @@ class CreateUpload(_Moderation):
     def __init__(
         self,
         events: ManagedEventRepository,
-        regions: RegionDirectory,
         clock: Clock,
         accounts: AccountResolver,
         images: ImageRepository,
@@ -109,7 +106,7 @@ class CreateUpload(_Moderation):
         now: Now = _utc_now,
     ) -> None:
         """Create the use case."""
-        super().__init__(events, regions, clock)
+        super().__init__(events, clock)
         self._accounts = accounts
         self._images = images
         self._storage = storage
@@ -124,7 +121,7 @@ class CreateUpload(_Moderation):
             InvalidInputError: Type or size not allowed.
             ServiceUnavailableError: The storage cannot sign the URL.
         """
-        await self._region(principal)
+        self._authorize(principal)
         problems = upload_problems(content_type, size_bytes)
         if problems:
             raise InvalidInputError(problems)
@@ -149,7 +146,6 @@ class AttachImage(_ImageModeration):
     def __init__(
         self,
         events: ManagedEventRepository,
-        regions: RegionDirectory,
         clock: Clock,
         images: ImageRepository,
         cache: CachePort,
@@ -158,7 +154,7 @@ class AttachImage(_ImageModeration):
         now: Now = _utc_now,
     ) -> None:
         """Create the use case."""
-        super().__init__(events, regions, clock, images, cache)
+        super().__init__(events, clock, images, cache)
         self._accounts = accounts
         self._storage = storage
         self._now = now
@@ -172,7 +168,7 @@ class AttachImage(_ImageModeration):
             InvalidInputError: `invalid_upload` or `too_many_images`.
             ServiceUnavailableError: The storage cannot be reached.
         """
-        _, event = await self._own_event(principal, event_id)
+        event = await self._event(principal, event_id)
         upload = await self._images.get_upload(upload_id)
         if (
             upload is None
@@ -209,7 +205,7 @@ class OrderImages(_ImageModeration):
         Raises:
             InvalidInputError: An ID is missing, unknown or repeated.
         """
-        _, event = await self._own_event(principal, event_id)
+        event = await self._event(principal, event_id)
         current = await self._images.list_for_event(event.id)
         try:
             check_order([image.id for image in current], image_ids)
@@ -229,7 +225,7 @@ class RemoveImage(_ImageModeration):
         Raises:
             NotFoundError: The image does not belong to the event.
         """
-        _, event = await self._own_event(principal, event_id)
+        event = await self._event(principal, event_id)
         if await self._images.remove(event.id, image_id) is None:
             raise NotFoundError
         await self._images_changed()
@@ -241,14 +237,13 @@ class RetryImage(_ImageModeration):
     def __init__(
         self,
         events: ManagedEventRepository,
-        regions: RegionDirectory,
         clock: Clock,
         images: ImageRepository,
         cache: CachePort,
         storage: ObjectStorage,
     ) -> None:
         """Create the use case."""
-        super().__init__(events, regions, clock, images, cache)
+        super().__init__(events, clock, images, cache)
         self._storage = storage
 
     async def __call__(self, principal: Principal, event_id: UUID, image_id: UUID) -> EventImage:
@@ -258,7 +253,7 @@ class RetryImage(_ImageModeration):
             NotFoundError: The image does not belong to the event.
             ConflictError: `not_retryable` if it did not fail or its upload is gone.
         """
-        _, event = await self._own_event(principal, event_id)
+        event = await self._event(principal, event_id)
         image = await self._images.get(image_id)
         if image is None or image.event_id != event.id:
             raise NotFoundError

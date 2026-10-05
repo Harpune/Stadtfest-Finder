@@ -7,7 +7,7 @@ const meta = {
   title: 'Moderation/ModBanner',
   component: ModBanner,
   args: {
-    subtitle: 'Region Ostalb · Lena Hofmann',
+    subtitle: 'Lena Hofmann',
     onExit: fn(),
     topInset: 0,
     testID: 'story.modBanner',
@@ -18,4 +18,4 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
-export const WithoutName: Story = {args: {subtitle: 'Region Ostalb'}};
+export const WithoutName: Story = {args: {subtitle: 'Alle Feste'}};

@@ -16,7 +16,7 @@ import {Text} from '../Text/Text';
 export interface PinMapProps {
   lat: number | null;
   lon: number | null;
-  /** Map center when no pin is set yet (e.g. the region). */
+  /** Map center when no pin is set yet (default center). */
   fallback: {lat: number; lon: number};
   mapStyle: string | StyleSpecification;
   /** Pin mode (08-07): the frame turns turquoise. */
