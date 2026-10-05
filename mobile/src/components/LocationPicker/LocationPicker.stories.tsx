@@ -11,7 +11,7 @@ const meta = {
   args: {
     visible: true,
     start: {lat: 48.7996, lon: 9.7986},
-    exact: true,
+    startZoom: 16,
     mapStyle: offlineStyle('#15111C'),
     onConfirm: fn(),
     onCancel: fn(),
@@ -23,6 +23,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const ExistingPin: Story = {};
-export const DefaultStart: Story = {
-  args: {start: {lat: 48.84, lon: 10.09}, exact: false},
+export const OwnLocation: Story = {
+  args: {start: {lat: 48.84, lon: 10.09}, startZoom: 13},
+};
+export const Germany: Story = {
+  args: {start: {lat: 51.16, lon: 10.45}, startZoom: 5},
 };
