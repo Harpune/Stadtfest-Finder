@@ -133,6 +133,7 @@ from stadtfest.bootstrap.settings import (
     LlmProvider,
     Settings,
     WebSearchProvider,
+    ai_search_prompt,
 )
 
 
@@ -155,6 +156,19 @@ def _idp_admin(settings: Settings, http: httpx.AsyncClient) -> IdpAdminPort:
             return ZitadelIdpAdmin(http, issuer, _secret(settings.idp_admin_token))
         case IdpAdminProvider.FAKE:
             return FakeIdpAdmin()
+
+
+@dataclass(frozen=True)
+class AiSearchParts:
+    """The configured building blocks of the AI search (worker and `ai_eval`)."""
+
+    finder: EventFinder
+    search: WebSearchPort
+    sources: SourceChecker
+    geocoding: GeocodingPort
+    catalog: SqlCatalog
+    clock: BerlinClock
+    settings: AiSearchSettings
 
 
 @dataclass
@@ -217,6 +231,7 @@ class Container:
     run_ai_search: RunAiSearch
     fail_stuck_searches: FailStuckSearches
     compact_ai_search_logs: CompactAiSearchLogs
+    ai_parts: AiSearchParts
 
     @classmethod
     def build(cls, settings: Settings) -> Container:
@@ -289,8 +304,10 @@ class Container:
             daily_limit=settings.ai_search_daily_limit,
             max_tool_calls=settings.ai_search_max_tool_calls,
             timeout_seconds=settings.ai_search_timeout_s,
+            prompt=ai_search_prompt(settings),
         )
         ai_jobs = SqlAiSearchRepository(sessions)
+        ai_parts = AiSearchParts(finder, search, sources, geocoding, catalog, clock, ai_settings)
         run_ai_search = RunAiSearch(
             ai_jobs,
             finder,
@@ -373,6 +390,7 @@ class Container:
             run_ai_search=run_ai_search,
             fail_stuck_searches=FailStuckSearches(ai_jobs, ai_settings),
             compact_ai_search_logs=CompactAiSearchLogs(ai_jobs),
+            ai_parts=ai_parts,
         )
 
     async def aclose(self) -> None:

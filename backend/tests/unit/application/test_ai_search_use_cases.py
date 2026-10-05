@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 
 from stadtfest.application.ai_ingestion.ports import SearchHit
+from stadtfest.application.ai_ingestion.prompts import load_bundled
 from stadtfest.application.ai_ingestion.use_cases import (
     AiSearchSettings,
     CompactAiSearchLogs,
@@ -73,7 +74,7 @@ def _find(**changes: object) -> FoundEvent:
 
 
 class Setup:
-    def __init__(self, daily_limit: int = 3) -> None:
+    def __init__(self, daily_limit: int = 3, prompt: str = "v2") -> None:
         self.jobs = FakeAiSearchRepository()
         accounts = FakeAccountResolver()
         self.geocoding = FakeGeocoding(places=[AALEN, WASSERALFINGEN, ULM], reverse_result=AALEN)
@@ -81,7 +82,9 @@ class Setup:
         self.finder = FakeEventFinder(finds=[_find()])
         self.sources = FakeSourceChecker()
         self.drafts = FakeDraftStore()
-        self.settings = AiSearchSettings(daily_limit=daily_limit, timeout_seconds=1)
+        self.settings = AiSearchSettings(
+            daily_limit=daily_limit, timeout_seconds=1, prompt=load_bundled(prompt)
+        )
         clock = FixedClock(TODAY)
         self.start = StartAiSearch(
             self.jobs, accounts, self.geocoding, clock, self.settings, now=lambda: NOW
@@ -197,6 +200,38 @@ async def test_prompt_has_only_public_parameters(s: Setup) -> None:
     assert "Stadtfest" in prompt
     for private in ("sub-mod", str(job.moderator_id)):
         assert private not in prompt
+
+
+async def test_prompt_names_the_towns_around_and_is_logged(s: Setup) -> None:
+    """v2: towns within the radius from reverse geocoding (public names, deduplicated)."""
+    s.geocoding.reverse_result = WASSERALFINGEN
+    job = await s.start(MODERATOR, "73430")
+
+    done = await s.run(job.id)
+
+    system, prompt = s.finder.prompts[0]
+    assert "Orte im Umkreis: Aalen." in prompt  # Wasseralfingen is a district of Aalen
+    assert "Ort für Ort" in system
+    assert done is not None
+    assert done.log["prompt"] == "v2"
+    assert done.log["nearbyPlaces"] == ["Aalen"]
+    assert len(s.geocoding.reverse_calls) == 17 + 1  # center + 6 + 10 points, + the find
+
+
+async def test_other_towns_are_added_and_geocoding_failures_ignored(s: Setup) -> None:
+    s.geocoding.reverse_result = ULM
+    job = await s.start(MODERATOR, "73430")
+    await s.run(job.id)
+    assert "Orte im Umkreis: Aalen, Ulm." in s.finder.prompts[0][1]
+
+
+async def test_prompt_version_comes_from_the_settings() -> None:
+    s = Setup(prompt="v1")
+    job = await s.start(MODERATOR, "73430")
+    done = await s.run(job.id)
+    assert done is not None
+    assert done.log["prompt"] == "v1"
+    assert "Orte im Umkreis" not in s.finder.prompts[0][1]
 
 
 async def test_no_draft_without_a_verified_source(s: Setup) -> None:

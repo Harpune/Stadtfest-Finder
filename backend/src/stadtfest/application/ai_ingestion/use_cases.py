@@ -12,7 +12,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -28,6 +28,7 @@ from stadtfest.application.ai_ingestion.ports import (
     WebSearchPort,
     WebSearchUnavailableError,
 )
+from stadtfest.application.ai_ingestion.prompts import DEFAULT_VERSION, load_bundled
 from stadtfest.application.events.ports import CategoryCatalog
 from stadtfest.application.geocoding.ports import GeocodingPort, GeocodingUnavailableError, Place
 from stadtfest.application.moderation.ports import AccountResolver
@@ -49,7 +50,7 @@ from stadtfest.domain.ai_ingestion.job import (
     SkipCounts,
     SkipReason,
 )
-from stadtfest.domain.ai_ingestion.prompt import SYSTEM_PROMPT, SearchParameters, build_prompt
+from stadtfest.domain.ai_ingestion.prompt import PromptTemplate, SearchParameters
 from stadtfest.domain.events.geo import GeoPoint, PostalCode
 from stadtfest.domain.identity.principal import Principal
 
@@ -78,10 +79,15 @@ class AiSearchSettings:
     daily_limit: int = 10
     max_tool_calls: int = 8
     timeout_seconds: int = 300
+    # `AI_SEARCH_PROMPT_VERSION` or a local file (`AI_SEARCH_PROMPT_FILE`, dev only).
+    prompt: PromptTemplate = field(default_factory=lambda: load_bundled(DEFAULT_VERSION))
 
 
 # Finds may lie a little outside the search radius (venue at the edge of a town).
 AREA_TOLERANCE = 1.1
+# Sample points for the towns within the radius: (fraction of the radius, points, offset °).
+NEARBY_RINGS = ((0.0, 1, 0.0), (0.45, 6, 0.0), (0.85, 10, 18.0))
+MAX_NEARBY_PLACES = 12
 
 
 def _authorize(principal: Principal) -> None:
@@ -279,6 +285,7 @@ class RunAiSearch:
         center = await self._center(job)
         today = self._clock.today()
         active = {c.name: c.id for c in await self._categories.list_active()}
+        nearby = await self._nearby(center, job.place_name)
         parameters = SearchParameters(
             postal_code=job.postal_code,
             place_name=job.place_name,
@@ -286,10 +293,14 @@ class RunAiSearch:
             date_from=today,
             date_to=today + timedelta(days=SEARCH_HORIZON_DAYS),
             categories=tuple(active),
+            nearby_places=nearby,
         )
+        prompt = self._settings.prompt.render(parameters)
+        log["prompt"] = self._settings.prompt.version
+        log["nearbyPlaces"] = list(nearby)
         result = await self._finder.find(
-            SYSTEM_PROMPT,
-            build_prompt(parameters),
+            prompt.system,
+            prompt.user,
             tool,
             FinderLimits(max_tool_calls=self._settings.max_tool_calls),
         )
@@ -352,6 +363,35 @@ class RunAiSearch:
         if place is None or not place.postal_code:
             return None
         return location, place.postal_code, place.city
+
+    async def _nearby(self, center: GeoPoint, place_name: str) -> tuple[str, ...]:
+        """Towns within the radius: reverse geocoding on two rings around the center.
+
+        Public place names only; nearest first, the searched place itself leads. Geocoding
+        failures just shorten the list.
+        """
+        radius = self._settings.radius_km
+        points = [
+            center.destination(360 * i / count + offset, radius * fraction)
+            for fraction, count, offset in NEARBY_RINGS
+            for i in range(count)
+        ]
+        places = await asyncio.gather(*(self._reverse(point) for point in points))
+        names = [place_name] if place_name else []
+        for place in places:
+            if (
+                place is not None
+                and place.city
+                and place.city.casefold() not in {name.casefold() for name in names}
+            ):
+                names.append(place.city)
+        return tuple(names[:MAX_NEARBY_PLACES])
+
+    async def _reverse(self, point: GeoPoint) -> Place | None:
+        try:
+            return await self._geocoding.reverse(point)
+        except GeocodingUnavailableError:
+            return None
 
     async def _center(self, job: AiSearchJob) -> GeoPoint:
         """Middle of the search area. A failure ends the job as `internal`."""

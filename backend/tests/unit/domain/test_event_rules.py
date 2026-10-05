@@ -57,3 +57,14 @@ def test_postal_code_and_distance() -> None:
     assert aalen.distance_km(aalen) == 0
     with pytest.raises(ValueError, match="5 digits"):
         PostalCode("7343")
+
+
+def test_destination_moves_by_distance_and_bearing() -> None:
+    aalen = GeoPoint(48.8378, 10.0933)
+    north = aalen.destination(0, 10)
+    east = aalen.destination(90, 10)
+    assert aalen.distance_km(north) == pytest.approx(10, abs=0.01)
+    assert aalen.distance_km(east) == pytest.approx(10, abs=0.01)
+    assert north.lat > aalen.lat
+    assert north.lon == pytest.approx(aalen.lon)
+    assert east.lon > aalen.lon

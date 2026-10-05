@@ -26,6 +26,7 @@ Jedes Inkrement ist ein **vertikaler Schnitt**: API-Spec → Backend (Domain, Us
 | R08 | [Moderation: Bilder](R08-moderation-bilder.md) | 08 | R07 | Upload, Thumbnails, Galerie |
 | R09 | [Moderation: Kategorien](R09-moderation-kategorien.md) | 10 | R07 | Kategorien pflegen (Rolle `category_admin`) |
 | R10 | [KI-Suche per PLZ](R10-ki-suche.md) | 09 | R07 | Async-Job, LLM-Port, Web-Suche, Entwürfe, Prüfmodus |
+| R10b | [Bessere Treffer der KI-Suche](R10b-ki-suche-qualitaet.md) | 09 | R10 | Prompt v2, Orte im Umkreis, Prompt-Versionen, Auswertung, Seiten lesen |
 | R11 | [Benachrichtigungen und Push](R11-benachrichtigungen.md) | 07 | R07 | Benachrichtigungsliste, Einstellungen, Push-Port, Erinnerungen |
 | R12 | [Freunde](R12-freunde.md) | – (neu) | R11 | Freundschaft per Link/QR |
 | R13 | [Gemeinsame Listen](R13-gemeinsame-listen.md) | 05 | R12 | Listen mit Freunden |

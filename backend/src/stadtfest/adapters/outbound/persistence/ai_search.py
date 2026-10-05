@@ -35,7 +35,7 @@ NAME_SIMILARITY = 0.5
 DUPLICATE_DISTANCE_M = 2000
 _ACTIVE = (AiSearchStatus.QUEUED.value, AiSearchStatus.RUNNING.value)
 # Keys of the log that keep their value when the log is compacted after 90 days.
-_COUNTER_KEYS = ("schema", "tokens", "durationSeconds")
+_COUNTER_KEYS = ("schema", "prompt", "tokens", "durationSeconds")
 
 
 def _job(row: AiSearchJobRow) -> AiSearchJob:

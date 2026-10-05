@@ -1,6 +1,13 @@
+from pathlib import Path
+
 import pytest
 
-from stadtfest.bootstrap.settings import Environment, SettingsError, load_settings
+from stadtfest.bootstrap.settings import (
+    Environment,
+    SettingsError,
+    ai_search_prompt,
+    load_settings,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -216,4 +223,39 @@ def test_fake_ai_providers_are_rejected_in_prod(monkeypatch: pytest.MonkeyPatch)
     _set_prod_auth(monkeypatch)
     monkeypatch.setenv("LLM_PROVIDER", "fake")
     with pytest.raises(SettingsError, match="LLM_PROVIDER=fake"):
+        load_settings()
+
+
+def test_prompt_version_defaults_to_v2_and_must_be_bundled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _base(monkeypatch)
+    monkeypatch.delenv("AI_SEARCH_PROMPT_FILE", raising=False)
+    monkeypatch.delenv("AI_SEARCH_PROMPT_VERSION", raising=False)
+    assert ai_search_prompt(load_settings()).version == "v2"
+    monkeypatch.setenv("AI_SEARCH_PROMPT_VERSION", "v1")
+    assert ai_search_prompt(load_settings()).version == "v1"
+    monkeypatch.setenv("AI_SEARCH_PROMPT_VERSION", "v99")
+    with pytest.raises(SettingsError, match="AI_SEARCH_PROMPT_VERSION"):
+        load_settings()
+
+
+def test_prompt_file_is_validated_and_only_allowed_outside_prod(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    good = tmp_path / "test.md"
+    good.write_text("<!-- system -->\nS\n<!-- user -->\nPLZ {postal_code}\n", encoding="utf-8")
+    bad = tmp_path / "bad.md"
+    bad.write_text("<!-- system -->\nS\n<!-- user -->\nfür {email}\n", encoding="utf-8")
+    _base(monkeypatch)
+    monkeypatch.setenv("AI_SEARCH_PROMPT_FILE", str(good))
+    assert ai_search_prompt(load_settings()).version == "file:test.md"
+    for path in (bad, tmp_path / "missing.md"):
+        monkeypatch.setenv("AI_SEARCH_PROMPT_FILE", str(path))
+        with pytest.raises(SettingsError, match=r"AI_SEARCH_PROMPT_FILE|prompt"):
+            load_settings()
+
+    _prod(monkeypatch)
+    monkeypatch.setenv("AI_SEARCH_PROMPT_FILE", str(good))
+    with pytest.raises(SettingsError, match="AI_SEARCH_PROMPT_FILE is not allowed in prod"):
         load_settings()
