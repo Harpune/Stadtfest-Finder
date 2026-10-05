@@ -30,12 +30,11 @@ export default function ModerationLayout() {
   if (status !== 'restoring' && !isModerator) return <Redirect href="/" />;
 
   const name = user ? `${user.firstName} ${user.lastName}`.trim() : '';
-  const region = user?.region?.name ?? '';
 
   return (
     <View style={[styles.root, {backgroundColor: theme.colors.background}]}>
       <ModBanner
-        subtitle={strings.mod.bannerSubtitle(region, name)}
+        subtitle={strings.mod.bannerSubtitle(name)}
         onExit={() => exit()}
         topInset={insets.top}
         testID="mod.banner"

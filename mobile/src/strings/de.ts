@@ -215,8 +215,7 @@ export const strings = {
       alreadyHandled: 'Dieser Fund wurde schon bearbeitet.',
       errors: {
         search_running: 'Für dich läuft schon eine Suche.',
-        postal_code_outside_region:
-          'Diese Postleitzahl liegt nicht in deiner Region.',
+        postal_code_unknown: 'Diese Postleitzahl kennen wir nicht.',
         daily_limit:
           'Du hast heute schon die maximale Anzahl an Suchen gestartet.',
       },
@@ -309,8 +308,8 @@ export const strings = {
       confirm: 'Pin übernehmen',
     },
     banner: 'Moderator-Ansicht',
-    bannerSubtitle: (region: string, name: string) =>
-      name ? `Region ${region} · ${name}` : `Region ${region}`,
+    // No regions (ADR 0015): the banner names the signed-in moderator only.
+    bannerSubtitle: (name: string) => name || 'Alle Feste',
     exit: 'Beenden',
     exited: 'Zurück in der Nutzeransicht',
     forbidden: 'Die Moderator-Ansicht ist für dich nicht freigegeben',
@@ -318,7 +317,7 @@ export const strings = {
     tabCategories: 'Kategorien',
     title: 'Feste',
     newEvent: '+ Neues Fest',
-    searchPlaceholder: 'Fest oder Ort in deiner Region',
+    searchPlaceholder: 'Fest oder Ort suchen',
     filterAll: 'Alle',
     status: {
       draft: 'Entwurf',
@@ -418,7 +417,6 @@ export const strings = {
       end: 'Bitte wähle das Ende.',
       endBeforeStart: 'Das Ende liegt vor dem Beginn.',
       location: 'Bitte gib eine Adresse ein oder setze einen Pin.',
-      region: 'Der Ort liegt außerhalb deiner Region.',
       website: 'Bitte gib eine gültige Web-Adresse ein.',
     },
   },

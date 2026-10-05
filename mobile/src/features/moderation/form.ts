@@ -186,9 +186,7 @@ export function publishErrors(
 /** Maps backend field codes (`422 validation_failed`) to the same texts. */
 export function errorsFromServer(
   fields: Record<string, string> | undefined,
-  code?: string,
 ): FormErrors {
-  if (code === 'region_mismatch') return {location: strings.mod.errors.region};
   const errors: FormErrors = {};
   for (const [field, problem] of Object.entries(fields ?? {})) {
     switch (field) {

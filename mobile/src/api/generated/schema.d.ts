@@ -184,8 +184,7 @@ export interface paths {
          * Own profile
          * @description Profile of the caller. Creates the user on the first call (upsert on the token
          *     subject); first and last name are taken from the claims `given_name` / `family_name`.
-         *     Roles and region come from the token. A moderator without a valid region gets no
-         *     moderation roles.
+         *     Roles come from the token.
          */
         get: operations["getMe"];
         put?: never;
@@ -263,16 +262,16 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Events of the moderator's region
-         * @description All events of the caller's region except deleted ones, with favorite count, source and
-         *     version. Ordered: upcoming by start date, then past ones descending, then events
-         *     without date. `ids` restricts the list; IDs of other regions are silently dropped.
+         * All events for maintenance
+         * @description All events except deleted ones, with favorite count, source and version. Ordered:
+         *     upcoming by start date, then past ones descending, then events without date. `ids`
+         *     restricts the list; unknown IDs are silently dropped.
          */
         get: operations["listModEvents"];
         put?: never;
         /**
          * Create an event
-         * @description Always creates a draft in the caller's region. Only the name is required.
+         * @description Always creates a draft. Only the name is required.
          */
         post: operations["createModEvent"];
         delete?: never;
@@ -293,7 +292,7 @@ export interface paths {
         };
         /**
          * Event for editing
-         * @description All fields of an event of the caller's region, with `version` and `ETag`.
+         * @description All fields of an event, with `version` and `ETag`.
          */
         get: operations["getModEvent"];
         put?: never;
@@ -330,8 +329,7 @@ export interface paths {
         put?: never;
         /**
          * Publish a draft
-         * @description Checks the required fields (`422 validation_failed` with `fields`) and that the postal
-         *     code belongs to the caller's region (`422 region_mismatch`). Only drafts (`409
+         * @description Checks the required fields (`422 validation_failed` with `fields`). Only drafts (`409
          *     invalid_transition` otherwise).
          */
         post: operations["publishModEvent"];
@@ -404,10 +402,11 @@ export interface paths {
         /**
          * Start an AI search for events around a postal code (flow C)
          * @description Returns at once; a worker searches the web with an LLM and stores verified finds as
-         *     drafts (`source = ai`). The postal code must belong to the caller's region
-         *     (`422 postal_code_outside_region`). One running search per moderator (`409
-         *     search_running`, `fields.jobId` = the running job). Daily limit per moderator
-         *     (`429 daily_limit`).
+         *     drafts (`source = ai`). Any postal code known to the geocoder is allowed
+         *     (`422 postal_code_unknown` otherwise, ADR 0015; `503 geocoding_unavailable` if the
+         *     geocoder is down); finds outside the search radius are skipped. One running search
+         *     per moderator (`409 search_running`, `fields.jobId` = the running job). Daily limit
+         *     per moderator (`429 daily_limit`).
          */
         post: operations["startAiSearch"];
         delete?: never;
@@ -449,7 +448,7 @@ export interface paths {
         /**
          * All categories for maintenance
          * @description All categories including inactive ones, in chip order, with the number of events
-         *     (all regions and statuses except deleted). Roles `moderator` or `category_admin`.
+         *     (all statuses except deleted). Roles `moderator` or `category_admin`.
          */
         get: operations["listModCategories"];
         put?: never;
@@ -697,7 +696,8 @@ export interface components {
         /** @description Finds that were not stored, by reason (counts only, no content). */
         AiSearchSkipped: {
             duplicate: number;
-            outOfRegion: number;
+            /** @description Outside the search radius around the postal code, or no location. */
+            outOfArea: number;
             invalid: number;
             unverifiedSource: number;
         };
@@ -728,7 +728,7 @@ export interface components {
             color: string;
             active: boolean;
             sortOrder: number;
-            /** @description Events of all regions and statuses except deleted. */
+            /** @description Events of all statuses except deleted. */
             eventCount: number;
         };
         ModCategoryCreate: {
@@ -915,8 +915,6 @@ export interface components {
         ModEventDetail: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
-            regionId: string;
             name: string;
             shortName: string;
             status: components["schemas"]["ModEventStatus"];
@@ -1067,19 +1065,9 @@ export interface components {
             lastName: string;
             /** @description Effective roles from the token. */
             roles: components["schemas"]["Role"][];
-            region?: components["schemas"]["RegionRef"];
         };
         /** @enum {string} */
         Role: "user" | "moderator" | "category_admin";
-        /** @description Moderation region of a moderator. */
-        RegionRef: {
-            /** Format: uuid */
-            id: string;
-            /** @example ostalb */
-            key: string;
-            /** @example Ostalbkreis */
-            name: string;
-        };
         UpdateMeRequest: {
             firstName: string;
             lastName: string;
@@ -1586,7 +1574,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Events of the region. */
+            /** @description The events. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1867,6 +1855,7 @@ export interface operations {
             409: components["responses"]["Error"];
             422: components["responses"]["Error"];
             429: components["responses"]["Error"];
+            503: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

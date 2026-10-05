@@ -40,7 +40,7 @@ const JOB: AiSearch = {
   status: 'running',
   createdAt: '2026-10-02T09:00:00Z',
   newEventIds: [],
-  skipped: {duplicate: 0, outOfRegion: 0, invalid: 0, unverifiedSource: 0},
+  skipped: {duplicate: 0, outOfArea: 0, invalid: 0, unverifiedSource: 0},
 };
 const DONE: AiSearch = {
   ...JOB,
@@ -54,7 +54,6 @@ function find(
 ): ModEventDetail {
   return {
     id,
-    regionId: 'r1',
     name: `Fund ${id}`,
     shortName: `Fund ${id}`,
     status: 'draft',

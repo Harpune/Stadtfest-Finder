@@ -59,7 +59,7 @@ import {
   useRefreshModeration,
 } from './useModeration';
 
-/** Center of the map before a location is set (Ostalb). */
+/** Center of the map before a location is set (Aalen; there are no regions, ADR 0015). */
 const FALLBACK_CENTER = {lat: 48.84, lon: 10.09};
 
 type Busy = 'draft' | 'publish' | 'cancel' | 'delete' | null;
@@ -150,7 +150,7 @@ function EventFormBody({
       return;
     }
     if (result.status === 422) {
-      setErrors(errorsFromServer(result.error?.fields, result.error?.error));
+      setErrors(errorsFromServer(result.error?.fields));
       toast(strings.mod.toast.fixFields);
       return;
     }

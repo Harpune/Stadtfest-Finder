@@ -1,5 +1,5 @@
 /**
- * Overview of the region's events (R07-US2, 08-01): search and status chips filter the
+ * Overview of all events (R07-US2, 08-01, no regions since ADR 0015): search and status chips filter the
  * loaded list on the device; a row opens the form.
  */
 import {router} from 'expo-router';

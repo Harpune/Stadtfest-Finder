@@ -8,7 +8,7 @@ import {Icon} from '../Icon/Icon';
 import {Text} from '../Text/Text';
 
 export interface ModBannerProps {
-  /** "Region Ostalb · Lena Hofmann" */
+  /** Name of the moderator, e.g. "Lena Hofmann" */
   subtitle: string;
   onExit: () => void;
   topInset: number;

@@ -13,7 +13,6 @@ const CATEGORIES = [
 ];
 const PUBLISHED: ModEventDetail = {
   id: 'e1',
-  regionId: 'r1',
   name: 'Aalener Weihnachtsmarkt',
   shortName: 'Weihnachtsmarkt',
   status: 'published',

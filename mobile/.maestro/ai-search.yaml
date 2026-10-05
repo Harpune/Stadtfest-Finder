@@ -8,7 +8,7 @@ name: Moderator prüft Funde der KI-Suche
 tags:
   - typing
 env:
-  USERNAME: moderator@example.test # dev realm moderator, region "ostalb"
+  USERNAME: moderator@example.test # dev realm moderator
   PASSWORD: stadtfest-dev
 ---
 - runFlow:

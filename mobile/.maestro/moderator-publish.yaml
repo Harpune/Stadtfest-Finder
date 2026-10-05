@@ -8,7 +8,7 @@ name: Moderator veröffentlicht ein Fest
 tags:
   - typing
 env:
-  USERNAME: moderator@example.test # dev realm moderator, region "ostalb"
+  USERNAME: moderator@example.test # dev realm moderator
   PASSWORD: stadtfest-dev
   NAME: Maestro-Testfest Aalen
 ---
