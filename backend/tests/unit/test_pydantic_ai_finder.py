@@ -85,3 +85,12 @@ def test_every_provider_is_configuration_only(kind: LlmKind, model_class: str) -
 
     assert type(model).__name__ == model_class
     assert model.model_name == "some-model"
+
+
+def test_gemini_retries_overload_errors() -> None:
+    """google-genai does not retry by default; free-tier 503s must not fail the job."""
+    model = build_model(LlmConfig(LlmKind.GOOGLE, "gemini-model", api_key="test-key"))
+
+    # No public accessor for the client's HTTP options.
+    retries = model.client._api_client._http_options.retry_options  # type: ignore[attr-defined]
+    assert retries.attempts == 5

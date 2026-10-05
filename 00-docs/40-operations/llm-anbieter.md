@@ -11,7 +11,7 @@ Das Sprachmodell der KI-Suche per PLZ (R10, Flow C). Ein generischer Adapter (Py
   - **Mistral:** Konto auf https://console.mistral.ai mit hinterlegter Zahlungsart (Workspace mit Abrechnung).
   - **OpenAI:** Konto auf https://platform.openai.com mit Guthaben bzw. Zahlungsart.
   - **Anthropic:** Konto auf https://console.anthropic.com mit Guthaben bzw. Zahlungsart.
-  - **Google Gemini:** Google-Konto mit Zugang zu Google AI Studio (https://aistudio.google.com). Der kostenlose Tarif reicht zum Testen; für mehr Anfragen die Abrechnung im zugehörigen Google-Cloud-Projekt aktivieren.
+  - **Google Gemini:** Google-Konto mit Zugang zu Google AI Studio (https://aistudio.google.com). Der kostenlose Tarif reicht nur zum Ausprobieren: Er erlaubt je Modell ca. 20 Anfragen pro Tag (gemessen am 05.10.2026 mit `gemini-3.8-flash`, aktuelle Werte unter *AI Studio → Usage & limits*). Eine KI-Suche braucht bis zu `AI_SEARCH_MAX_TOOL_CALLS` + 2 Anfragen (eine pro Web-Suche plus Start und Ergebnis), also bei Standardwerten etwa 2 Suchen pro Tag. Für den Betrieb die Abrechnung im zugehörigen Google-Cloud-Projekt aktivieren.
   - **Ollama:** ein Rechner bzw. Container mit Ollama (https://ollama.com) und genug RAM/GPU für ein Modell mit Tool-Calling (z. B. `qwen3`, `llama3.1`).
 - Zugriff auf die lokale `.env` bzw. die Secrets in Komodo (Produktion).
 
@@ -52,7 +52,7 @@ Das Sprachmodell der KI-Suche per PLZ (R10, Flow C). Ein generischer Adapter (Py
 
 ## Rollback
 
-- **Gemini-Kontingent erschöpft** (`llm_unavailable`, HTTP 429 im Dashboard): warten, Abrechnung aktivieren oder auf einen anderen Anbieter umschalten.
+- **Gemini überlastet oder Kontingent erschöpft** (`llm_unavailable`): Der Adapter wiederholt `429`/`503` bis zu fünfmal mit wachsender Pause (ca. 30 s). Das Worker-Log zeigt dann `Retrying … 503 UNAVAILABLE` (Google überlastet, vorübergehend) bzw. `429 RESOURCE_EXHAUSTED` (Kontingent). Beim Tageskontingent hilft nur warten (Reset um Mitternacht US-Pazifikzeit), ein anderes Gemini-Modell (eigenes Kontingent je Modell), Abrechnung aktivieren oder ein anderer Anbieter.
 - **Zurück auf die EU:** `LLM_PROVIDER=mistral` (bzw. `ollama`) mit passendem `LLM_MODEL` und `LLM_API_KEY` setzen, API und Worker neu starten.
 - **KI-Suche vorübergehend stoppen:** `AI_SEARCH_DAILY_LIMIT=0` setzen und neu starten; neue Suchen enden dann mit `429`. Hängende Jobs markiert der Wächter (alle 10 Minuten) nach der doppelten `AI_SEARCH_TIMEOUT_S` als `timeout`.
 - **Schlüssel kompromittiert:** im Dashboard des Anbieters widerrufen, neuen Schlüssel anlegen, Secret ersetzen, neu starten.

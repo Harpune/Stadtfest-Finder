@@ -82,12 +82,20 @@ def build_model(config: LlmConfig) -> Model:
         )
     if config.kind is LlmKind.GOOGLE:
         # Gemini API (Google AI Studio); ADR 0014.
+        from google.genai.types import HttpRetryOptions
         from pydantic_ai.models.google import GoogleModel
         from pydantic_ai.providers.google import GoogleProvider
 
         return GoogleModel(
             config.model,
-            provider=GoogleProvider(api_key=config.api_key, base_url=config.base_url),
+            provider=GoogleProvider(
+                api_key=config.api_key,
+                base_url=config.base_url,
+                # Unlike the OpenAI and Anthropic SDKs, google-genai does not retry by
+                # default; the free tier often answers 503 "high demand" (seen 05.10.2026).
+                # Up to 5 attempts, about 30 s of waiting, well inside AI_SEARCH_TIMEOUT_S.
+                retry_options=HttpRetryOptions(attempts=5, initial_delay=2.0, max_delay=16.0),
+            ),
         )
     from pydantic_ai.models.ollama import OllamaModel
     from pydantic_ai.providers.ollama import OllamaProvider
