@@ -2,7 +2,7 @@
 
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import Depends, FastAPI
@@ -21,6 +21,7 @@ from stadtfest.application.geocoding.ports import Place, PlaceKind
 from stadtfest.application.identity.claims import ClaimMapping
 from stadtfest.application.identity.use_cases import Authenticate
 from stadtfest.application.moderation.ports import ModRegion
+from stadtfest.domain.ai_ingestion.job import AiSearchError
 from stadtfest.domain.events.geo import GeoPoint
 from stadtfest.domain.events.region import Region
 from tests.fakes import (
@@ -40,7 +41,12 @@ USER = {"Authorization": "Bearer user"}
 
 
 @pytest.fixture
-def client() -> TestClient:
+def jobs() -> FakeAiSearchRepository:
+    return FakeAiSearchRepository()
+
+
+@pytest.fixture
+def client(jobs: FakeAiSearchRepository) -> TestClient:
     verifier = FakeTokenVerifier(
         {
             "mod": {"sub": "m", "realm_access": {"roles": ["moderator"]}, "region": "ostalb"},
@@ -48,7 +54,6 @@ def client() -> TestClient:
             "user": {"sub": "u", "realm_access": {"roles": ["user"]}},
         }
     )
-    jobs = FakeAiSearchRepository()
     regions = FakeModRegions({"ostalb": OSTALB})
     accounts = FakeAccountResolver()
     geocoding = FakeGeocoding(
@@ -93,6 +98,26 @@ def test_start_returns_202_and_the_job(client: TestClient) -> None:
     running = client.get("/v1/mod/ai-searches", params={"status": "running"}, headers=MOD)
     assert [j["id"] for j in running.json()] == [body["id"]]
     assert client.get(f"/v1/mod/ai-searches/{body['id']}", headers=OTHER).status_code == 404
+
+
+async def test_status_filter_hides_finished_searches(
+    client: TestClient, jobs: FakeAiSearchRepository
+) -> None:
+    """Seen on the Pixel: a failed search came back as "running" after an app restart."""
+    failed = client.post("/v1/mod/ai-searches", json={"postalCode": "73430"}, headers=MOD)
+    job = await jobs.get(UUID(failed.json()["id"]))
+    assert job is not None
+    job.fail(AiSearchError.LLM_UNAVAILABLE, {}, datetime(2026, 10, 2, 9, 5, tzinfo=UTC))
+    await jobs.save(job)
+
+    running = client.get("/v1/mod/ai-searches", params={"status": "running"}, headers=MOD)
+    failed_only = client.get("/v1/mod/ai-searches", params={"status": "failed"}, headers=MOD)
+    everything = client.get("/v1/mod/ai-searches", headers=MOD)
+
+    assert running.json() == []
+    assert [j["status"] for j in failed_only.json()] == ["failed"]
+    assert len(everything.json()) == 1
+    assert client.get("/v1/mod/ai-searches", params={"status": "x"}, headers=MOD).status_code == 422
 
 
 def test_second_start_conflicts_with_the_running_job(client: TestClient) -> None:

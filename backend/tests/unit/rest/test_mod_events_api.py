@@ -148,6 +148,18 @@ def test_full_lifecycle(client: TestClient) -> None:
     assert client.get(f"/v1/mod/events/{event_id}", headers=MOD).status_code == 404
 
 
+def test_status_filter_is_applied(client: TestClient) -> None:
+    """The filter was silently ignored (generated RootModel as query type, 05.10.2026)."""
+    _create(client)
+
+    drafts = client.get("/v1/mod/events", params={"status": "draft"}, headers=MOD).json()
+    cancelled = client.get("/v1/mod/events", params={"status": "cancelled"}, headers=MOD).json()
+
+    assert len(drafts["items"]) == 1
+    assert cancelled["items"] == []
+    assert client.get("/v1/mod/events", params={"status": "x"}, headers=MOD).status_code == 422
+
+
 def test_patch_needs_if_match(client: TestClient) -> None:
     event_id = _create(client)
     response = client.patch(

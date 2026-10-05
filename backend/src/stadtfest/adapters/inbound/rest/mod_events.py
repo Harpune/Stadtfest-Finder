@@ -145,7 +145,8 @@ def _parse_version(if_match: str | None) -> int | None:
 async def list_mod_events(
     deps: Deps,
     principal: CurrentPrincipal,
-    status: api.ModEventStatus | None = None,
+    # Not the generated RootModel: FastAPI does not read it from the query string.
+    status: Annotated[ModStatus | None, Query()] = None,
     q: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
     ids: Annotated[str | None, Query(max_length=3700)] = None,
 ) -> api.ModEventList:
@@ -160,7 +161,7 @@ async def list_mod_events(
             raise InvalidInputError({"ids": "too_many"})
     rows = await deps.list_mod_events(
         principal,
-        status=ModStatus(status.root) if status else None,
+        status=status,
         query=q,
         ids=id_set,
     )

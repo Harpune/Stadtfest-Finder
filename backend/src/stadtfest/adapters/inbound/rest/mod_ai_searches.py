@@ -5,9 +5,10 @@ Thin adapter: parse and translate; authorization and rules live in the use cases
 
 from __future__ import annotations
 
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from stadtfest.adapters.inbound.rest.auth import CurrentPrincipal
 from stadtfest.adapters.inbound.rest.dependencies import Deps
@@ -39,14 +40,17 @@ def _search(job: AiSearchJob) -> api.AiSearch:
 
 @router.get("", operation_id="listAiSearches", response_model=list[api.AiSearch])
 async def list_searches(
-    deps: Deps, principal: CurrentPrincipal, status: api.AiSearchStatus | None = None
+    deps: Deps,
+    principal: CurrentPrincipal,
+    # The domain enum, not the generated RootModel: FastAPI does not read a RootModel
+    # from the query string and silently ignored the filter (seen 05.10.2026).
+    status: Annotated[AiSearchStatus | None, Query()] = None,
 ) -> list[api.AiSearch]:
     """The caller's searches; `running` also returns queued ones."""
-    value = status.root if status else None
-    active_only = value in {AiSearchStatus.RUNNING.value, AiSearchStatus.QUEUED.value}
+    active_only = status in {AiSearchStatus.RUNNING, AiSearchStatus.QUEUED}
     jobs = await deps.list_ai_searches(principal, active_only=active_only)
-    if value and not active_only:
-        jobs = [job for job in jobs if job.status.value == value]
+    if status and not active_only:
+        jobs = [job for job in jobs if job.status is status]
     return [_search(job) for job in jobs]
 
 
