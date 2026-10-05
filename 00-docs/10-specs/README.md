@@ -59,9 +59,9 @@ Diese Entscheidungen wurden beim Ableiten der Requirements getroffen (Rückfrage
 | E-02 | Freunde | Freundschaft entsteht über einen **persönlichen Freundschaftslink bzw. QR-Code**. Es gibt keine Suche nach E-Mail oder Namen. | Das Feature ist neu, im Design nicht gestaltet ([R12](R12-freunde.md)). |
 | E-03 | Zeitraumfilter | **Monatsraster wie im Prototyp**: Alle Termine, Heute, Dieses Wochenende, Monate mit Mehrfachauswahl. | Kein freier Kalender. |
 | E-04 | Push-Inhalt | Der Push enthält einen **generischen Titel und Text je Art ohne Namen oder Festdetails** plus IDs. Den vollen Text zeigt die Benachrichtigungsliste. | Design-Beispiele wie „Jonas Weber lädt dich ein“ gibt es nur in der Liste, nicht im Push. |
-| E-05 | Region | Eine Region ist eine **Menge von Postleitzahlen**. Ein Fest gehört zur Region, wenn seine PLZ (aus der Adresse bzw. per Reverse-Geocoding des Pins) in dieser Menge liegt. Es gibt keine eigenen Geometrien. Die Pflege läuft per Migration/Seed, eine UI gibt es nicht. | Konkretisiert „Polygon oder postalCodes[]“. |
+| E-05 | Region | Eine Region ist eine **Menge von Postleitzahlen**. Ein Fest gehört zur Region, wenn seine PLZ (aus der Adresse bzw. per Reverse-Geocoding des Pins) in dieser Menge liegt. Es gibt keine eigenen Geometrien. Die Pflege läuft per Migration/Seed, eine UI gibt es nicht. **Ersetzt am 05.10.2026 durch [ADR 0015](../25-adr/0015-regionen-abgeschafft.md): keine Regionen mehr.** | Konkretisiert „Polygon oder postalCodes[]“. |
 | E-06 | Kategorien-Rechte | Eigene Rolle **`category_admin`**. Moderatoren ohne diese Rolle sehen den Tab „Kategorien“ nur lesend. Umgesetzt in R09. | Im Prototyp darf jeder Moderator Kategorien ändern. |
-| E-07 | Rollenvergabe | Rollen `moderator` und `category_admin` werden in **Zitadel** vergeben. Die **Region** hinterlegt ein Admin als Nutzer-Metadatum, das als Claim im Token erscheint. Dazu gibt es ein Runbook in `40-operations`. | Im Design offen. |
+| E-07 | Rollenvergabe | Rollen `moderator` und `category_admin` werden in **Zitadel** vergeben (die frühere Region als Nutzer-Metadatum entfällt mit ADR 0015). Dazu gibt es ein Runbook in `40-operations`. | Im Design offen. |
 | E-08 | Personenbezogene Daten im Backend | Das Backend speichert je Nutzer nur `id` (= IdP-`sub`), `firstName` und `lastName` (für Freunde, Listen, Einladungen). **Keine E-Mail, kein Passwort.** Die E-Mail im Drawer kommt aus dem ID-Token. | Das Design-Datenmodell hat `email`, `authProviders`. |
 | E-09 | Benachrichtigungstexte | Benachrichtigungen werden **strukturiert** gespeichert (Art + IDs). Der Anzeigetext entsteht beim Lesen. So verschwinden Namen gelöschter Accounts automatisch. | Im Design ist `text` fertig formuliert gespeichert. |
 | E-10 | Wohnort | Gespeichert werden **PLZ, Ortsname und PLZ-Mittelpunkt**, keine exakte GPS-Position. „Aktuellen Standort verwenden“ löst die Position per Reverse-Geocoding auf, danach wird die GPS-Position verworfen. | Das Design speichert `homeLat/homeLon` exakt. |
@@ -72,7 +72,7 @@ Diese Entscheidungen wurden beim Ableiten der Requirements getroffen (Rückfrage
 | E-15 | Clustering | **Clientseitig** mit MapLibre-Clustering (Radius 46 px). Das Backend liefert höchstens 500 Feste pro Ausschnitt. | Offener Punkt aus 01 entschieden. |
 | E-16 | Konto löschen | Wird in R05 ergänzt (App-Store-Pflicht, Art. 17 DSGVO). | Im Design nicht gestaltet. |
 
-Übernommene **Annahmen aus dem Design** gelten als Anforderung, sofern ein Inkrement nichts anderes sagt. Beispiele: Offline nur lesend, `404` für Feste fremder Regionen, Absage-Benachrichtigung auch an Zugesagte, `409` bei Versionskonflikt.
+Übernommene **Annahmen aus dem Design** gelten als Anforderung, sofern ein Inkrement nichts anderes sagt. Beispiele: Offline nur lesend, Absage-Benachrichtigung auch an Zugesagte, `409` bei Versionskonflikt.
 
 ## Querschnittsregeln für alle Inkremente
 

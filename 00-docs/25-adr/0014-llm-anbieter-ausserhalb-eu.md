@@ -24,7 +24,7 @@ Der generische LLM-Adapter (ADR 0012) unterstützt fünf Anbieter. Mistral (Pari
 ## Konsequenzen
 
 - Moderierende können bei schwacher Trefferqualität einen anderen Anbieter testen, ohne dass Code geändert wird.
-- Unterschiedliche Modelle liefern unterschiedliche Qualität. Die strenge Validierung (`EventDraftV1`, Quellenpflicht, Duplikat- und Regionsprüfung) gilt für alle gleich, Funde landen immer nur als Entwurf.
+- Unterschiedliche Modelle liefern unterschiedliche Qualität. Die strenge Validierung (`EventDraftV1`, Quellenpflicht, Duplikat- und Umkreisprüfung) gilt für alle gleich, Funde landen immer nur als Entwurf.
 - Kosten fallen je Anbieter an; `AI_SEARCH_DAILY_LIMIT` und `AI_SEARCH_MAX_TOOL_CALLS` begrenzen sie. Die Token-Zahl jedes Jobs steht im Job-Protokoll.
 
 ## Verworfene Alternativen

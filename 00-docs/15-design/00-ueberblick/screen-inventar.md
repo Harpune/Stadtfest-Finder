@@ -42,7 +42,7 @@ Alle 58 Screenshots. Die **ID** ist gleichzeitig der Dateiname in `screenshots/`
 | [07-02](../screenshots/07-02-benachrichtigungs-einstellungen.png) | Benachrichtigungs-Einstellungen | 07 | Nutzer | `benachrichtigungs-einstellungen` |
 | [07-03](../screenshots/07-03-einstellungen-wohnort-radius.png) | Einstellungen: Wohnort und Radius | 07 | Nutzer | wie 07-02 (gescrollt) |
 | [07-04](../screenshots/07-04-benachrichtigungen-hell.png) | Benachrichtigungen, Hellmodus | 07 | Nutzer | `benachrichtigungen` + hell |
-| [08-01](../screenshots/08-01-mod-feste.png) | Moderation: Feste der Region | 08 | Moderator | `mod-feste` |
+| [08-01](../screenshots/08-01-mod-feste.png) | Moderation: Feste | 08 | Moderator | `mod-feste` |
 | [08-02](../screenshots/08-02-mod-fest-bearbeiten.png) | Fest bearbeiten (oben) | 08 | Moderator | `mod-fest-bearbeiten` |
 | [08-03](../screenshots/08-03-mod-fest-ort.png) | Fest bearbeiten: Ort | 08 | Moderator | wie 08-02 (gescrollt) |
 | [08-04](../screenshots/08-04-mod-fest-programm-bilder.png) | Fest bearbeiten: Programm, Anfahrt, Bilder | 08 | Moderator | wie 08-02 (gescrollt) |

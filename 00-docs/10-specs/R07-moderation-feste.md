@@ -1,5 +1,7 @@
 # R07 · Moderation: Feste
 
+> **Hinweis (05.10.2026):** Die Moderationsregionen wurden abgeschafft ([ADR 0015](../25-adr/0015-regionen-abgeschafft.md)). Angaben zu Regionen in diesem Inkrement sind überholt.
+
 | | |
 |---|---|
 | **Ziel** | Moderatoren pflegen die Feste ihrer Region in einer klar abgegrenzten Moderationsansicht: anlegen, bearbeiten, als Entwurf speichern, veröffentlichen, zurückziehen, absagen und löschen. Änderungen wirken sofort auf die Nutzeransicht. |

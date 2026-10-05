@@ -30,7 +30,7 @@ flowchart LR
   DR -->|nur Moderator| M
 
   subgraph Moderation["Moderationsansicht · nur Moderator"]
-    M[08 Feste der Region] --> MF[08 Fest bearbeiten / anlegen]
+    M[08 Feste] --> MF[08 Fest bearbeiten / anlegen]
     M --> KI[09 KI-Suche per PLZ] --> PR[09 Funde prüfen] --> MF
     M <-->|Tab| KA[10 Kategorien] --> KF[10 Kategorie bearbeiten]
   end

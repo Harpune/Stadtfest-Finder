@@ -1,5 +1,7 @@
 # R08 · Moderation: Bilder
 
+> **Hinweis (05.10.2026):** Die Moderationsregionen wurden abgeschafft ([ADR 0015](../25-adr/0015-regionen-abgeschafft.md)). Angaben zu Regionen in diesem Inkrement sind überholt.
+
 | | |
 |---|---|
 | **Ziel** | Moderatoren laden Bilder zu Festen hoch und sortieren sie. Das erste Bild ist das Titelbild. Nutzer sehen die Bilder in Karussell, Liste und Galerie. |

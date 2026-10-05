@@ -26,7 +26,6 @@
 ### R16-US3 · Identität in Produktion
 - Zitadel Cloud (EU-Region):
   - Projekt, App-Client, Rollen `user`, `moderator`, `category_admin`
-  - Region-Claim (Action)
   - Apple- und Google-IdP
   - Service-User für die Kontolöschung
   - E-Mail-Absender

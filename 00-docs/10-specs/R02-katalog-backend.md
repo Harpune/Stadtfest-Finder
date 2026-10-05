@@ -1,5 +1,7 @@
 # R02 · Katalog-Backend
 
+> **Hinweis (05.10.2026):** Die Moderationsregionen wurden abgeschafft ([ADR 0015](../25-adr/0015-regionen-abgeschafft.md)). Angaben zu Regionen in diesem Inkrement sind überholt.
+
 | | |
 |---|---|
 | **Ziel** | Das Datenmodell für Feste, Kategorien und Regionen steht. Die öffentliche Lese-API liefert veröffentlichte Feste für Karte, Liste und Detailseite. Geocoding läuft über Nominatim. Synthetische Seed-Daten machen alles lokal sichtbar. |

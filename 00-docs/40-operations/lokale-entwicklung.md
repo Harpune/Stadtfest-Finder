@@ -48,7 +48,7 @@ Für native Builds zusätzlich **mindestens 20 GB freien Speicher** einplanen (P
 | SearXNG (optional, Web-Suche der KI-Suche) | http://localhost:58089 | `docker compose -f infra/compose.dev.yaml --profile search up -d`, dazu `WEB_SEARCH_PROVIDER=searxng` ([web-suche.md](web-suche.md)) |
 
 - Ports lassen sich in `.env` ändern (`*_HOST_PORT`).
-- **Testnutzer:** `nutzer@example.test` (Rolle `user`), `moderator@example.test` (`moderator`, Region `ostalb`), `katadmin@example.test` (`moderator`, `category_admin`). Alle Zugänge mit Passwörtern auf einen Blick: [Dev-Nutzer](dev-nutzer.md). Sie gelten nur lokal.
+- **Testnutzer:** `nutzer@example.test` (Rolle `user`), `moderator@example.test` (`moderator`), `katadmin@example.test` (`moderator`, `category_admin`). Alle Zugänge mit Passwörtern auf einen Blick: [Dev-Nutzer](dev-nutzer.md). Sie gelten nur lokal.
 
 ## Anmeldung lokal (R05)
 

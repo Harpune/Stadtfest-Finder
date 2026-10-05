@@ -2,16 +2,16 @@
 
 | | |
 |---|---|
-| **Ziel** | Moderatoren pflegen die Feste ihrer Region: anlegen, bearbeiten, als Entwurf speichern, veröffentlichen, absagen und löschen. |
-| **Rollen** | Moderator (nur Feste der eigenen Region) |
-| **Moderationsansicht** | **Ja.** Türkis statt Amber als Akzent, festes Banner „MODERATOR-ANSICHT · Region Ostalb · Name“ mit „Beenden“ und eine eigene Tab-Leiste „Feste / Kategorien“. |
+| **Ziel** | Moderatoren pflegen Feste in ganz Deutschland: anlegen, bearbeiten, als Entwurf speichern, veröffentlichen, absagen und löschen. |
+| **Rollen** | Moderator (alle Feste; Regionen abgeschafft, [ADR 0015](../../25-adr/0015-regionen-abgeschafft.md)) |
+| **Moderationsansicht** | **Ja.** Türkis statt Amber als Akzent, festes Banner „MODERATOR-ANSICHT · Name“ mit „Beenden“ und eine eigene Tab-Leiste „Feste / Kategorien“. |
 | **Einstieg** | Profil-Drawer → „Moderator-Ansicht“ ([04](04-favoriten-und-zeitleiste.md)) |
 | **Weiter zu** | [09 KI-Suche](09-moderation-ki-suche.md), [10 Kategorien](10-moderation-kategorien.md) |
 | **Wirkt auf** | [01](01-stadtfest-suche.md) und [02](02-fest-details.md) (sichtbare Feste), [07](07-benachrichtigungen.md) (Benachrichtigungen) |
 
 ## Screens
 
-| Feste der Region | Bearbeiten: oben | Bearbeiten: Ort | Bearbeiten: Programm, Bilder |
+| Feste | Bearbeiten: oben | Bearbeiten: Ort | Bearbeiten: Programm, Bilder |
 |---|---|---|---|
 | <img src="../screenshots/08-01-mod-feste.png" width="200"> | <img src="../screenshots/08-02-mod-fest-bearbeiten.png" width="200"> | <img src="../screenshots/08-03-mod-fest-ort.png" width="200"> | <img src="../screenshots/08-04-mod-fest-programm-bilder.png" width="200"> |
 | **Neues Fest** | **Validierung** | **Ort per Pin** | **Menü ⋯** |
@@ -67,7 +67,7 @@ flowchart TD
 
 | # | Screen | Moderator-Aktion | Frontend | Backend | Modus |
 |---|---|---|---|---|---|
-| 1 | 08-01 | Moderator-Ansicht öffnen | Banner, Tab-Leiste, Skeleton. | `GET /v1/mod/events?region=me` (alle Status, inkl. `favoriteCount`) | sync |
+| 1 | 08-01 | Moderator-Ansicht öffnen | Banner, Tab-Leiste, Skeleton. | `GET /v1/mod/events` (alle Status, inkl. `favoriteCount`) | sync |
 | 2 | 08-01 | Suche / Status-Chip | Filtert Name und Ort. Chips mit Anzahl: Alle, Entwurf, Veröffentlicht, Vergangen, Abgesagt. | clientseitig oder `GET …?q=&status=` | lokal / sync |
 | 3 | 08-05 | „+ Neues Fest“ | Leeres Formular mit Status „Entwurf“. | – | lokal |
 | 4 | 08-02 | Fest öffnen | Formular mit allen Feldern, ⋯-Menü. | `GET /v1/mod/events/{id}` | sync |
@@ -102,7 +102,7 @@ flowchart TD
 | Kategorie | – | ✓ (nur aktive) | „Bitte wähle eine Kategorie.“ |
 | Beginn | – | ✓ | „Bitte wähle den Beginn.“ |
 | Ende | – | ✓, ≥ Beginn | „Bitte wähle das Ende.“ / „Das Ende liegt vor dem Beginn.“ |
-| Adresse oder Pin | – | ✓, innerhalb der Region | „Bitte gib eine Adresse ein oder setze einen Pin.“ |
+| Adresse oder Pin | – | ✓ | „Bitte gib eine Adresse ein oder setze einen Pin.“ |
 | Öffnungszeiten, Beschreibung, Programm, Eintritt, Anfahrt, Website, Bilder | – | – | – |
 
 ## Stand der Umsetzung (R07)
@@ -123,7 +123,7 @@ flowchart TD
 
 - Die Übersicht ist sortiert: anstehende Feste aufsteigend, danach vergangene absteigend.
 - Jede Zeile zeigt Status-Pill, ggf. „Automatisch gefunden“ ([09](09-moderation-ki-suche.md)) und „♥ Anzahl Favoriten“.
-- **Region:** Liegt der Pin außerhalb der eigenen Region, lehnt das Backend das Veröffentlichen mit `422 region_mismatch` ab (Annahme).
+- **Ort:** Jeder Ort in Deutschland ist erlaubt; die frühere Regionsprüfung (`422 region_mismatch`) ist entfallen ([ADR 0015](../../25-adr/0015-regionen-abgeschafft.md)).
 - **Gleichzeitiges Bearbeiten:** Optimistische Sperre über `version`. Bei `409` erscheint „Dieses Fest wurde inzwischen geändert“ mit der Möglichkeit, neu zu laden (Annahme).
 
 ## Stand der Umsetzung (R08)

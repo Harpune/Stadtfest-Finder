@@ -85,11 +85,11 @@ seed/                          synthetic seed data + loader
 |---|---|---|
 | Guest | none | map, list, search, filter |
 | `user` | JWT | + favorites, share, invitations with accept/decline, shared lists, notifications |
-| `moderator` | JWT | + maintain events of own region, maintain categories, start AI search by ZIP, review/publish drafts |
+| `moderator` | JWT | + maintain all events (no regions, ADR 0015), start AI search for any ZIP, review/publish drafts |
 
 - The app logs in directly at the IdP (Authorization Code + PKCE). The backend never handles
   passwords; it only validates JWTs against the IdP's JWKS and reads roles from claims.
-- Public endpoints must work without a token. Authorization checks (role, region scope)
+- Public endpoints must work without a token. Authorization checks (roles)
   live in use cases, not in routers, so REST, MCP and worker enforce the same rules.
 - The MCP server uses OAuth against the same IdP.
 
@@ -132,10 +132,10 @@ seed/                          synthetic seed data + loader
 ## Backend architecture (hexagonal + DDD)
 
 - Bounded contexts:
-  - `events` – events, categories, regions, PostGIS radius search
+  - `events` – events, categories, PostGIS radius search
   - `collections` – favorites, lists, invitations
   - `ai_ingestion` – AI search jobs, event drafts
-  - `moderation` – review, publish (region-scoped)
+  - `moderation` – review, publish (any moderator, any event)
 - Dependency rule: `adapters → application → domain`. Never the other way round.
 - `domain/` is pure Python: no imports from FastAPI, SQLAlchemy, Pydantic, Redis, httpx.
 - Business logic lives in domain and application only. Adapters translate and delegate.
@@ -216,7 +216,7 @@ Tools are thin adapters: parse input, call the use case, map the result. No busi
 
 - Cache in Redis via a cache port; never cache inside domain code.
 - Cache: public guest geo searches (TTL 5 min), geocoding results ZIP → coordinates (TTL 30 days),
-  category/region lists (TTL 1 h).
+  category lists (TTL 1 h).
 - Invalidate affected search caches when an event is published, updated or unpublished.
 - Never cache user-specific or personal data.
 

@@ -58,7 +58,7 @@ flowchart TD
 
 - Die App ist **ohne Account vollständig nutzbar** für Karte, Liste, Suche, Filter und Details.
 - Der Gast-Hinweis ist ein **Bottom Sheet**, kein Vollbild. Er schließt per Tipp auf den Hintergrund.
-- Die **Rolle** wird ausschließlich vom Backend bestimmt (`GET /v1/me` → `roles`, `region`).
+- Die **Rolle** wird ausschließlich vom Backend bestimmt (`GET /v1/me` → `roles`).
 - **Passwort:** mindestens 8 Zeichen. Fehlertexte: „Bitte gib eine gültige E-Mail-Adresse ein.“, „Das Passwort braucht mindestens 8 Zeichen.“
 - Beim Registrieren mit Apple ohne Namensfreigabe wird der Vorname beim ersten Öffnen des Drawers abgefragt (Annahme).
 
