@@ -17,7 +17,7 @@ TIMEOUT_SECONDS = 5.0
 _USER_AGENT = "stadtfest-finder-source-check/0.1"
 
 
-async def _public_host(host: str) -> bool:
+async def is_public_host(host: str) -> bool:
     """True if every address of the host is public."""
     try:
         infos = await asyncio.get_running_loop().getaddrinfo(host, None, type=socket.SOCK_STREAM)
@@ -51,7 +51,7 @@ class HttpSourceChecker:
             parts = urlsplit(current)
             if parts.scheme not in {"http", "https"} or not parts.hostname:
                 return False
-            if not await _public_host(parts.hostname):
+            if not await is_public_host(parts.hostname):
                 return False
             try:
                 response = await self._client.head(current)

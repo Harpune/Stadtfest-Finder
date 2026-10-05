@@ -34,3 +34,15 @@ engines:
   # Brave rate-limits scraping ("too many requests"); other engines cover it.
   - name: brave
     disabled: true
+  # Only DuckDuckGo and Google CSE are on by default; after about 60 queries in an hour
+  # both blocked (CAPTCHA, "too many requests", 05.10.2026). More engines spread the load.
+  - name: bing
+    disabled: false
+  - name: google
+    disabled: false
+  - name: qwant
+    disabled: false
+  - name: yahoo
+    disabled: false
+  - name: gmx
+    disabled: false

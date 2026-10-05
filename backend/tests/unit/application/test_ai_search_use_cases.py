@@ -4,7 +4,13 @@ from uuid import uuid4
 import pytest
 
 from stadtfest.application.ai_ingestion.ports import SearchHit
+from stadtfest.application.ai_ingestion.prompts import load_bundled
 from stadtfest.application.ai_ingestion.use_cases import (
+    PAGE_MAX_CHARS,
+    READ_BUDGET_EXHAUSTED,
+    READ_FAILED,
+    READ_NOT_A_RESULT,
+    READ_UNAVAILABLE,
     AiSearchSettings,
     CompactAiSearchLogs,
     FailStuckSearches,
@@ -33,6 +39,7 @@ from tests.fakes import (
     FakeDraftStore,
     FakeEventFinder,
     FakeGeocoding,
+    FakePageReader,
     FakeSourceChecker,
     FakeWebSearch,
     FixedClock,
@@ -73,15 +80,21 @@ def _find(**changes: object) -> FoundEvent:
 
 
 class Setup:
-    def __init__(self, daily_limit: int = 3) -> None:
+    def __init__(self, daily_limit: int = 3, prompt: str = "v2", page_reads: int = 6) -> None:
         self.jobs = FakeAiSearchRepository()
         accounts = FakeAccountResolver()
         self.geocoding = FakeGeocoding(places=[AALEN, WASSERALFINGEN, ULM], reverse_result=AALEN)
         self.search = FakeWebSearch(hits=[SearchHit(SOURCE, "Stadtfest Aalen")])
         self.finder = FakeEventFinder(finds=[_find()])
         self.sources = FakeSourceChecker()
+        self.pages = FakePageReader({SOURCE: "Aalener Stadtfest, 17. bis 18. Oktober, Marktplatz"})
         self.drafts = FakeDraftStore()
-        self.settings = AiSearchSettings(daily_limit=daily_limit, timeout_seconds=1)
+        self.settings = AiSearchSettings(
+            daily_limit=daily_limit,
+            timeout_seconds=1,
+            prompt=load_bundled(prompt),
+            max_page_reads=page_reads,
+        )
         clock = FixedClock(TODAY)
         self.start = StartAiSearch(
             self.jobs, accounts, self.geocoding, clock, self.settings, now=lambda: NOW
@@ -93,6 +106,7 @@ class Setup:
             self.finder,
             self.search,
             self.sources,
+            self.pages,
             self.geocoding,
             _Catalog(),
             self.drafts,
@@ -197,6 +211,133 @@ async def test_prompt_has_only_public_parameters(s: Setup) -> None:
     assert "Stadtfest" in prompt
     for private in ("sub-mod", str(job.moderator_id)):
         assert private not in prompt
+
+
+async def test_prompt_names_the_towns_around_and_is_logged(s: Setup) -> None:
+    """v2: towns within the radius from reverse geocoding (public names, deduplicated)."""
+    s.geocoding.reverse_result = WASSERALFINGEN
+    job = await s.start(MODERATOR, "73430")
+
+    done = await s.run(job.id)
+
+    system, prompt = s.finder.prompts[0]
+    assert "Orte im Umkreis: Aalen." in prompt  # Wasseralfingen is a district of Aalen
+    assert "Du hast höchstens 8 Suchen." in system
+    assert done is not None
+    assert done.log["prompt"] == "v2"
+    assert done.log["nearbyPlaces"] == ["Aalen"]
+    assert len(s.geocoding.reverse_calls) == 17 + 1  # center + 6 + 10 points, + the find
+
+
+async def test_other_towns_are_added_and_geocoding_failures_ignored(s: Setup) -> None:
+    s.geocoding.reverse_result = ULM
+    job = await s.start(MODERATOR, "73430")
+    await s.run(job.id)
+    assert "Orte im Umkreis: Aalen, Ulm." in s.finder.prompts[0][1]
+
+
+async def test_one_failed_search_does_not_end_the_run(s: Setup) -> None:
+    """Seen with SearXNG: parallel queries made single engines block."""
+    s.finder.queries = ["Feste 73430", "Veranstaltungskalender Aalen"]
+    s.search.failing = {"Veranstaltungskalender Aalen"}
+    job = await s.start(MODERATOR, "73430")
+
+    done = await s.run(job.id)
+
+    assert done is not None
+    assert done.status is AiSearchStatus.COMPLETED
+    assert len(done.new_event_ids) == 1
+    assert done.log["failedSearches"] == 1
+
+
+async def test_all_searches_failed_means_search_unavailable(s: Setup) -> None:
+    s.search.failing = {"Feste 73430"}
+    job = await s.start(MODERATOR, "73430")
+    done = await s.run(job.id)
+    assert done is not None
+    assert done.error_code is AiSearchError.SEARCH_UNAVAILABLE
+
+
+async def test_only_result_pages_can_be_read_and_are_logged(s: Setup) -> None:
+    """R10b-US5: no invented or internal URLs; the page text goes to the model."""
+    s.finder.reads = [SOURCE, "http://10.0.0.1/admin", "https://www.aalen.de/stadtfest/"]
+    s.pages.texts["https://www.aalen.de/stadtfest/"] = "Aalener Stadtfest (gleiche Seite)"
+    job = await s.start(MODERATOR, "73430")
+
+    done = await s.run(job.id)
+
+    page, invented, same_page = s.finder.read_results
+    assert page.startswith("Aalener Stadtfest")
+    assert invented == READ_NOT_A_RESULT
+    assert same_page.startswith("Aalener Stadtfest")  # same page, normalized URL
+    assert s.pages.calls == [
+        (SOURCE, PAGE_MAX_CHARS),
+        ("https://www.aalen.de/stadtfest/", PAGE_MAX_CHARS),
+    ]
+    assert done is not None
+    assert done.log["pages"] == [SOURCE, "https://www.aalen.de/stadtfest/"]
+
+
+async def test_page_budget_and_unreadable_pages() -> None:
+    s = Setup(page_reads=1)
+    s.pages.texts = {}
+    s.finder.reads = [SOURCE, SOURCE]
+    job = await s.start(MODERATOR, "73430")
+    await s.run(job.id)
+    assert s.finder.read_results == [READ_FAILED, READ_BUDGET_EXHAUSTED]
+
+
+async def test_reading_is_off_with_zero_budget() -> None:
+    s = Setup(page_reads=0)
+    s.finder.reads = [SOURCE]
+    job = await s.start(MODERATOR, "73430")
+    await s.run(job.id)
+    assert s.finder.read_results == [READ_UNAVAILABLE]
+    assert s.pages.calls == []
+
+
+async def test_vague_addresses_fall_back_to_postal_code_and_town(s: Setup) -> None:
+    """Seen in make ai-eval: "Innenstadt, 73441 Bopfingen" was not found."""
+    s.geocoding.by_query = {"73430": [AALEN], "73433 Aalen": [WASSERALFINGEN]}
+    s.geocoding.reverse_result = WASSERALFINGEN
+    s.finder.finds = [_find(lat=None, lon=None, address="Innenstadt, 73433 Aalen")]
+    job = await s.start(MODERATOR, "73430")
+
+    done = await s.run(job.id)
+
+    assert done is not None
+    assert len(done.new_event_ids) == 1
+    assert s.drafts.stored[0].location == WASSERALFINGEN.location
+    assert s.geocoding.search_calls[-3:] == [
+        "Innenstadt, 73433 Aalen",
+        "Marktplatz, 73433 Aalen",
+        "73433 Aalen",
+    ]
+
+
+async def test_several_events_from_one_calendar_page_are_kept(s: Setup) -> None:
+    """Seen in make ai-eval: Weinfest and Heimattage from one calendar page."""
+    s.finder.finds = [
+        _find(name="Heimattage Bopfingen"),
+        _find(name="Weinfest Bopfingen", date_from=date(2026, 10, 24), date_to=date(2026, 10, 24)),
+        _find(name="Heimattage  Bopfingen!"),  # the same event again
+    ]
+    job = await s.start(MODERATOR, "73430")
+
+    done = await s.run(job.id)
+
+    assert done is not None
+    assert len(done.new_event_ids) == 2
+    assert done.skipped.duplicate == 1
+
+
+async def test_prompt_version_comes_from_the_settings() -> None:
+    s = Setup(prompt="v1")
+    job = await s.start(MODERATOR, "73430")
+    done = await s.run(job.id)
+    assert done is not None
+    assert done.log["prompt"] == "v1"
+    assert "Orte im Umkreis" not in s.finder.prompts[0][1]
 
 
 async def test_no_draft_without_a_verified_source(s: Setup) -> None:

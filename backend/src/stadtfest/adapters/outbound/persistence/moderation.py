@@ -27,7 +27,7 @@ from stadtfest.application.moderation.ports import (
     ModEventSummary,
     VersionConflictError,
 )
-from stadtfest.domain.ai_ingestion.finds import normalize_url
+from stadtfest.domain.ai_ingestion.finds import normalize_name, normalize_url
 from stadtfest.domain.events.event import EventStatus
 from stadtfest.domain.events.images import EventImage
 from stadtfest.domain.events.maintenance import (
@@ -275,10 +275,14 @@ class SqlManagedEventRepository:
             await _write_program(session, event)
             await _write_outbox(session, event)
             if event.deleted and event.source == "ai" and event.source_url:
-                # A discarded AI find is never suggested again (R10-US4, nationwide).
+                # A discarded AI find is never suggested again (R10-US4, nationwide). The
+                # name keeps the other events of the same calendar page (R10b).
                 await session.execute(
                     pg_insert(RejectedSourceRow)
-                    .values(url_normalized=normalize_url(event.source_url))
+                    .values(
+                        url_normalized=normalize_url(event.source_url),
+                        name_normalized=normalize_name(event.content.name),
+                    )
                     .on_conflict_do_nothing()
                 )
         return int(version)

@@ -40,6 +40,7 @@ make lint         # lint + type check (ruff, mypy, gts, tsc, spectral)
 make test         # unit + integration tests
 make test-e2e     # Maestro flows against local stack
 make check        # everything CI runs – must pass before you finish a task
+make ai-eval      # compare AI search prompts with real providers (ZIPS=..., PROMPTS=v1,v2)
 ```
 
 ## Repository layout
@@ -185,7 +186,11 @@ Flow letters match the architecture diagram.
 - Output schema for an event draft (fixed, versioned in code):
   name, date_from, date_to, place, address, coordinates, category, source_url, description.
 - Every draft must carry `source_url`. Drafts without a verifiable source are rejected.
-- Prompts contain only ZIP code, radius, time range and categories (see Privacy).
+- Prompts contain only ZIP code, place names (the searched place and towns within the radius,
+  from the geocoder), radius, time range and categories (see Privacy). Prompts are versioned
+  templates in `application/ai_ingestion/prompts/*.md` with an allowlist of placeholders,
+  selected via `AI_SEARCH_PROMPT_VERSION`. Compare versions with `make ai-eval` (real
+  providers, costs requests, never in CI).
 
 ## Push notifications
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import (
     AnyHttpUrl,
@@ -15,6 +16,13 @@ from pydantic import (
     model_validator,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from stadtfest.application.ai_ingestion.prompts import (
+    DEFAULT_VERSION,
+    bundled_versions,
+    load_bundled,
+)
+from stadtfest.domain.ai_ingestion.prompt import PromptTemplate, parse_prompt
 
 
 class Environment(StrEnum):
@@ -134,7 +142,12 @@ class Settings(BaseSettings):
     # 0 stops the AI search: every start is answered with `429 daily_limit`.
     ai_search_daily_limit: int = Field(default=10, ge=0, le=1000)
     ai_search_max_tool_calls: int = Field(default=8, ge=1, le=50)
+    ai_search_max_page_reads: int = Field(default=6, ge=0, le=20)
     ai_search_timeout_s: int = Field(default=300, ge=10, le=1800)
+    ai_search_prompt_version: str = Field(default=DEFAULT_VERSION, min_length=1)
+    ai_search_prompt_file: Path | None = Field(
+        default=None, description="Prompt file for local experiments (dev/test only)"
+    )
 
     @model_validator(mode="after")
     def _check_adapters(self) -> Settings:
@@ -149,6 +162,14 @@ class Settings(BaseSettings):
         return self
 
     def _check_ai(self) -> None:
+        if self.ai_search_prompt_file is not None:
+            if self.env is Environment.PROD:
+                raise ValueError("AI_SEARCH_PROMPT_FILE is not allowed in prod")
+            load_prompt_file(self.ai_search_prompt_file)
+        elif self.ai_search_prompt_version not in bundled_versions():
+            raise ValueError(
+                f"AI_SEARCH_PROMPT_VERSION must be one of {', '.join(bundled_versions())}"
+            )
         if self.env is Environment.PROD and LlmProvider.FAKE in (self.llm_provider,):
             raise ValueError("LLM_PROVIDER=fake is not allowed in prod")
         if self.env is Environment.PROD and self.web_search_provider is WebSearchProvider.FAKE:
@@ -215,3 +236,23 @@ def load_settings() -> Settings:
 def get_settings() -> Settings:
     """Return the process-wide settings instance."""
     return load_settings()
+
+
+def load_prompt_file(path: Path) -> PromptTemplate:
+    """Read a local prompt file (`AI_SEARCH_PROMPT_FILE`); its version is `file:<name>`.
+
+    Raises:
+        ValueError: If the file cannot be read or is no valid prompt.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise ValueError(f"AI_SEARCH_PROMPT_FILE cannot be read: {error.strerror}") from None
+    return parse_prompt(f"file:{path.name}", text)
+
+
+def ai_search_prompt(settings: Settings) -> PromptTemplate:
+    """The configured prompt: the local file if set, otherwise the bundled version."""
+    if settings.ai_search_prompt_file is not None:
+        return load_prompt_file(settings.ai_search_prompt_file)
+    return load_bundled(settings.ai_search_prompt_version)

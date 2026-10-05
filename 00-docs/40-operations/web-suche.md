@@ -59,6 +59,8 @@ Mit `LLM_PROVIDER=fake` bringt die echte Suche nichts: Die festen Fake-Funde hab
 
 ## Störungen
 
+- **Wenige Engines aktiv:** Ab Werk sind für die allgemeine Websuche nur DuckDuckGo und Google CSE aktiv; beide blockierten bei Tests nach etwa 60 Anfragen pro Stunde. `infra/dev/searxng/settings.yml` aktiviert zusätzlich Bing, Google, Qwant, Yahoo und GMX. Welche Engines gerade blockieren, zeigt `unresponsive_engines` in der JSON-Antwort.
+
 - **Eine Engine blockiert dauerhaft:** in `settings.yml` unter `engines` mit `disabled: true` abschalten (wie `brave`) und den Container neu starten.
 - **Engines liefern nach einem Update der Suchmaschinen nichts mehr:** Image auf eine aktuelle Version heben (Tag aus `docker image inspect … org.opencontainers.image.version`) und neu starten.
 

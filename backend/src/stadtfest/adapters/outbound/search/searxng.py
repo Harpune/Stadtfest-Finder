@@ -2,26 +2,40 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 
 from stadtfest.application.ai_ingestion.ports import SearchHit, WebSearchUnavailableError
+
+# Models send several searches at once (prompt v2); eight parallel queries made Google and
+# others answer with CAPTCHAs (05.10.2026).
+MAX_PARALLEL = 2
 
 
 class SearxngWebSearch:
     """Implements `WebSearchPort` against the JSON API of a SearXNG instance."""
 
-    def __init__(self, client: httpx.AsyncClient, base_url: str) -> None:
+    def __init__(
+        self, client: httpx.AsyncClient, base_url: str, max_parallel: int = MAX_PARALLEL
+    ) -> None:
         """Create the adapter.
 
         Args:
             client: HTTP client with a timeout.
             base_url: Instance root (`WEB_SEARCH_BASE_URL`); `format: json` must be enabled.
+            max_parallel: Concurrent requests; more make the upstream engines block.
         """
         self._client = client
         self._url = base_url.rstrip("/") + "/search"
+        self._slots = asyncio.Semaphore(max_parallel)
 
     async def search(self, query: str, count: int) -> list[SearchHit]:
         """German web results for the query, at most `count`."""
+        async with self._slots:
+            return await self._search(query, count)
+
+    async def _search(self, query: str, count: int) -> list[SearchHit]:
         try:
             response = await self._client.get(
                 self._url,

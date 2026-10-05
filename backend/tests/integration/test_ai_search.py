@@ -25,13 +25,16 @@ from stadtfest.adapters.outbound.persistence.moderation import (
 from stadtfest.adapters.outbound.search.fake import FakeWebSearch
 from stadtfest.adapters.outbound.sources.http import AllowAllSourceChecker
 from stadtfest.adapters.outbound.storage.urls import ImageUrls
+from stadtfest.application.ai_ingestion.ports import DraftCandidate
 from stadtfest.application.ai_ingestion.use_cases import (
     AiSearchSettings,
     RunAiSearch,
     StartAiSearch,
 )
 from stadtfest.application.identity.use_cases import EnsureAccount
+from stadtfest.domain.ai_ingestion.finds import FoundEvent, normalize_url
 from stadtfest.domain.ai_ingestion.job import AiSearchStatus
+from stadtfest.domain.events.geo import GeoPoint
 from stadtfest.domain.identity.principal import Principal, Role
 from tests.integration.seed_support import load
 
@@ -73,6 +76,7 @@ def _use_cases(
         FakeEventFinder(),
         FakeWebSearch(),
         AllowAllSourceChecker(),
+        None,
         geocoding,
         SqlCatalog(sessions, ImageUrls("https://img.test/b")),
         SqlDraftStore(sessions),
@@ -157,3 +161,38 @@ async def test_discarded_finds_are_never_suggested_again(
     assert again is not None
     assert len(again.new_event_ids) == 2
     assert again.skipped.duplicate == 1
+
+
+async def test_one_calendar_page_is_the_source_of_several_events(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    """R10b: same page and same name is a duplicate; another name from the page is not."""
+    page = f"https://www.bopfingen.de/{uuid4()}/veranstaltungskalender.html"
+    store = SqlDraftStore(sessions)
+
+    def candidate(name: str) -> DraftCandidate:
+        find = FoundEvent(
+            name=name,
+            date_from=TODAY,
+            date_to=TODAY,
+            place="Marktplatz",
+            address="Marktplatz, 73441 Bopfingen",
+            source_url=page,
+        )
+        return DraftCandidate(find, GeoPoint(48.857, 10.354), "73441", "Bopfingen", None)
+
+    await store.add_drafts(uuid4(), datetime.now(UTC), [candidate("Heimattage Bopfingen")])
+    key = normalize_url(page)
+
+    assert await store.is_duplicate(candidate("Heimattage Bopfingen!"), key)
+    assert not await store.is_duplicate(candidate("Weinfest Flochberg"), key)
+
+    async with sessions.begin() as session:
+        session.add(RejectedSourceRow(url_normalized=key, name_normalized="weinfest flochberg"))
+    assert await store.is_duplicate(candidate("Weinfest Flochberg"), key)
+    assert not await store.is_duplicate(candidate("Nikolausmarkt"), key)
+
+    # Rejections from before R10b have no name and still block the whole page.
+    async with sessions.begin() as session:
+        session.add(RejectedSourceRow(url_normalized=key, name_normalized=""))
+    assert await store.is_duplicate(candidate("Nikolausmarkt"), key)

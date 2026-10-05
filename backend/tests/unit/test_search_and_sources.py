@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import socket
 from pathlib import Path
@@ -13,6 +14,7 @@ from stadtfest.adapters.outbound.search.brave import BraveWebSearch
 from stadtfest.adapters.outbound.search.searxng import SearxngWebSearch
 from stadtfest.adapters.outbound.sources import http as sources
 from stadtfest.adapters.outbound.sources.http import HttpSourceChecker
+from stadtfest.adapters.outbound.sources.pages import HttpPageReader, html_to_text
 from stadtfest.application.ai_ingestion.ports import WebSearchUnavailableError
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
@@ -158,3 +160,66 @@ async def test_redirects_to_private_addresses_are_blocked(monkeypatch: pytest.Mo
     checker = HttpSourceChecker(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
 
     assert not await checker.reachable("https://www.aalen.de/fest")
+
+
+async def test_searxng_limits_parallel_requests() -> None:
+    """Many parallel queries made the upstream engines block; at most two run at once."""
+    running = 0
+    peak = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal running, peak
+        running += 1
+        peak = max(peak, running)
+        await asyncio.sleep(0.01)
+        running -= 1
+        return httpx.Response(200, json=SEARXNG)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    search = SearxngWebSearch(client, "http://searxng:8080")
+    await asyncio.gather(*(search.search(f"q{i}", 5) for i in range(8)))
+    assert peak == 2
+
+
+def test_html_to_text_keeps_visible_text_only() -> None:
+    html = (
+        "<html><head><title>Stadtfest Aalen</title><style>p{color:red}</style></head>"
+        "<body><nav><a>Menü</a></nav><h1>Reichsstädter Tage</h1>"
+        "<p>27.&nbsp;September&nbsp;bis 8. Oktober</p><script>track()</script>"
+        "<ul><li>Marktplatz</li><li>Marktplatz</li></ul></body></html>"
+    )
+    assert html_to_text(html) == (
+        "Stadtfest Aalen\nReichsstädter Tage\n27. September bis 8. Oktober\nMarktplatz"
+    )
+
+
+async def test_page_reader_reads_html_and_refuses_other_types(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _resolve(monkeypatch, {"www.aalen.de": "93.184.216.34"})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/fest":
+            html = "<html><body><h1>Stadtfest</h1><p>17. Oktober</p></body></html>"
+            return httpx.Response(200, html=html)
+        if request.url.path == "/plan.pdf":
+            return httpx.Response(200, content=b"%PDF", headers={"content-type": "application/pdf"})
+        return httpx.Response(404)
+
+    reader = HttpPageReader(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    assert await reader.read("https://www.aalen.de/fest", 100) == "Stadtfest\n17. Oktober"
+    assert await reader.read("https://www.aalen.de/fest", 9) == "Stadtfest"
+    assert await reader.read("https://www.aalen.de/plan.pdf", 100) is None
+    assert await reader.read("https://www.aalen.de/weg", 100) is None
+
+
+async def test_page_reader_blocks_redirects_to_internal_hosts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _resolve(monkeypatch, {"www.aalen.de": "93.184.216.34", "intern": "10.0.0.5"})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"location": "http://intern/secret"})
+
+    reader = HttpPageReader(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    assert await reader.read("https://www.aalen.de/fest", 100) is None

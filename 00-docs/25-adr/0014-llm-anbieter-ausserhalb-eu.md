@@ -11,7 +11,7 @@ Der generische LLM-Adapter (ADR 0012) unterstützt fünf Anbieter. Mistral (Pari
 
 - **OpenAI** (OpenAI, L.L.C.), **Anthropic** (Anthropic, PBC) und **Google Gemini** (Google LLC über die Gemini API, Vertragspartner im EWR: Google Ireland Ltd.) sind als **optionale** Anbieter zugelassen: `LLM_PROVIDER=openai`, `anthropic` bzw. `google`.
 - **Standard in Produktion:** `mistral` (EU). Alternativ `ollama` auf eigener Hardware.
-- Übertragen wird nur der Prompt aus `build_prompt`: PLZ, Ortsname, Radius, Zeitraum, Kategorien, dazu die Treffer der Web-Suche (öffentliche URLs, Titel, Snippets) während der Tool-Schleife. **Keine** Nutzer- oder Moderatordaten, keine Freitexte aus der App. Ein Snapshot-Test sichert, dass der Prompt nur diese Felder enthält.
+- Übertragen wird nur der Prompt aus den versionierten Vorlagen (Erlaubnisliste der Platzhalter, [R10b](../10-specs/R10b-ki-suche-qualitaet.md)): PLZ, Ortsname, Orte im Umkreis, Radius, Zeitraum, Kategorien, dazu die Treffer der Web-Suche (öffentliche URLs, Titel, Snippets) während der Tool-Schleife. **Keine** Nutzer- oder Moderatordaten, keine Freitexte aus der App. Ein Snapshot-Test sichert, dass der Prompt nur diese Felder enthält.
 - Der Wechsel ist reine Konfiguration (`LLM_PROVIDER`, `LLM_MODEL`, `LLM_API_KEY`), ohne Deployment-Änderung am Code.
 
 ## Datenschutz

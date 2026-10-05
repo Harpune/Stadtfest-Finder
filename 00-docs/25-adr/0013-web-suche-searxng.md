@@ -27,8 +27,9 @@ Zuerst war die Brave Search API vorgesehen. Sie hat keinen kostenlosen Tarif (En
 ## Datenschutz
 
 - SearXNG läuft auf dem eigenen Server; es gibt **keinen neuen Auftragsverarbeiter**.
-- SearXNG fragt Suchmaschinen wie Google, Bing, DuckDuckGo, Startpage und Wikipedia als normaler Client an. Diese sehen die IP-Adresse des Servers und die Suchanfragen. Die Anfragen enthalten nur Ortsname, PLZ, Kategorien und Zeitraum aus dem Prompt (reine Funktion `build_prompt`, Snapshot-Test). **Keine** Nutzer-, Moderator- oder Gerätedaten.
+- SearXNG fragt Suchmaschinen wie Google, Bing, DuckDuckGo, Startpage und Wikipedia als normaler Client an. Diese sehen die IP-Adresse des Servers und die Suchanfragen. Die Anfragen enthalten nur Ortsnamen, PLZ, Kategorien und Zeitraum aus dem Prompt (versionierte Vorlagen mit Erlaubnisliste der Platzhalter, Snapshot-Test). **Keine** Nutzer-, Moderator- oder Gerätedaten.
 - Ohne personenbezogene Daten liegt keine Drittlandübermittlung nach Art. 44 ff. DSGVO vor.
+- Seit R10b liest der Server zusätzlich einzelne Trefferseiten (`read_page`, nur URLs aus den Suchergebnissen des Jobs). Die Betreiber dieser Seiten sehen nur die IP-Adresse des Servers.
 - Mit `WEB_SEARCH_PROVIDER=brave` gilt das Gleiche für Brave (USA). Vor einer produktiven Nutzung den DPA prüfen und den Eintrag im Verarbeiterverzeichnis aktualisieren.
 - Einträge: [Auftragsverarbeiter](../30-privacy/auftragsverarbeiter.md), [Verarbeitungsverzeichnis Nr. 10](../30-privacy/verarbeitungsverzeichnis.md).
 
