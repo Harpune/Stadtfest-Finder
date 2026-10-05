@@ -8,7 +8,7 @@ Das Sprachmodell der KI-Suche per PLZ (R10, Flow C). Ein generischer Adapter (Py
 
 - Eine eingerichtete Web-Suche ([web-suche.md](web-suche.md)); ohne sie liefert das Modell keine belegbaren Quellen.
 - Je nach Anbieter:
-  - **Mistral:** Konto auf https://console.mistral.ai mit hinterlegter Zahlungsart (Workspace mit Abrechnung).
+  - **Mistral:** Konto auf https://console.mistral.ai. Zum Testen reicht der kostenlose Tarif „Experiment“ (Telefonnummer nötig; ca. 1 Anfrage/s, großzügiges Token-Kontingent). Dort dürfen Eingaben zum Training genutzt werden. Unsere Prompts enthalten keine personenbezogenen Daten, für den Betrieb trotzdem den kostenpflichtigen Tarif „Scale“ (Zahlungsart hinterlegen) wählen, bei dem das nicht gilt.
   - **OpenAI:** Konto auf https://platform.openai.com mit Guthaben bzw. Zahlungsart.
   - **Anthropic:** Konto auf https://console.anthropic.com mit Guthaben bzw. Zahlungsart.
   - **Google Gemini:** Google-Konto mit Zugang zu Google AI Studio (https://aistudio.google.com). Der kostenlose Tarif reicht nur zum Ausprobieren: Er erlaubt je Modell ca. 20 Anfragen pro Tag (gemessen am 05.10.2026 mit `gemini-3.8-flash`, aktuelle Werte unter *AI Studio → Usage & limits*). Eine KI-Suche braucht bis zu `AI_SEARCH_MAX_TOOL_CALLS` + 2 Anfragen (eine pro Web-Suche plus Start und Ergebnis), also bei Standardwerten etwa 2 Suchen pro Tag. Für den Betrieb die Abrechnung im zugehörigen Google-Cloud-Projekt aktivieren.
