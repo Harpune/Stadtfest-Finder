@@ -27,7 +27,7 @@ INVALID_REPLACEMENT = "invalid_replacement"
 
 @dataclass(frozen=True, slots=True)
 class ModCategoryView:
-    """A category with its number of events (all regions, not deleted)."""
+    """A category with its number of events (not deleted)."""
 
     id: UUID
     name: str

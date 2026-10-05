@@ -35,7 +35,6 @@ from stadtfest.adapters.outbound.persistence.models import EventRow, OutboxRow, 
 from stadtfest.adapters.outbound.persistence.moderation import (
     SqlActiveCategories,
     SqlManagedEventRepository,
-    SqlModRegionDirectory,
 )
 from stadtfest.adapters.outbound.persistence.outbox import SqlEventFavorites, SqlOutboxStore
 from stadtfest.adapters.outbound.storage.s3 import S3Config, S3ObjectStorage
@@ -64,7 +63,7 @@ SEAWEEDFS_IMAGE = "chrislusf/seaweedfs:4.00"  # same as infra/compose.dev.yaml
 S3_CONFIG = REPO_ROOT / "infra" / "dev" / "seaweedfs" / "s3.json"
 BUCKET = "stadtfest-images"
 TODAY = date(2026, 9, 25)
-MODERATOR = Principal("sub-image-mod", frozenset({Role.USER, Role.MODERATOR}), "ostalb")
+MODERATOR = Principal("sub-image-mod", frozenset({Role.USER, Role.MODERATOR}))
 
 
 @pytest.fixture(scope="module")
@@ -144,7 +143,7 @@ class World:
         self.events = SqlManagedEventRepository(sessions)
         self.images = SqlImageRepository(sessions)
         accounts = EnsureAccount(SqlUserRepository(sessions))
-        mod = (self.events, SqlModRegionDirectory(sessions), _Clock())
+        mod = (self.events, _Clock())
         self.create_upload = CreateUpload(*mod, accounts, self.images, storage)
         self.attach = AttachImage(*mod, self.images, cache, accounts, storage)
         self.remove = RemoveImage(*mod, self.images, cache)
@@ -208,8 +207,6 @@ def _photo_with_gps() -> bytes:
 
 
 async def _published_event(world: World) -> ManagedEvent:
-    ostalb = await SqlModRegionDirectory(world.sessions).by_key("ostalb")
-    assert ostalb is not None
     category = next(iter(await SqlActiveCategories(world.sessions).active_ids()))
     content = EventContent(
         name="Bilderfest",
@@ -222,7 +219,7 @@ async def _published_event(world: World) -> ManagedEvent:
         lat=48.86,
         lon=10.1,
     ).with_defaults()
-    event = ManagedEvent(uuid4(), ostalb.id, EventStatus.PUBLISHED, content)
+    event = ManagedEvent(uuid4(), EventStatus.PUBLISHED, content)
     user = (await SqlUserRepository(world.sessions).get_or_create("sub-seed", "S", "S")).id
     await world.events.add(event, user)
     return event

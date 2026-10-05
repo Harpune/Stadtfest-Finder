@@ -17,8 +17,6 @@ from stadtfest.application.identity.ports import (
     IdpUnavailableError,
     InvalidTokenError,
     JobQueueUnavailableError,
-    RegionDirectory,
-    RegionRecord,
     TokenVerifier,
     UserRecord,
     UserRepository,
@@ -35,13 +33,12 @@ ACCOUNT_DELETION_UNAVAILABLE = "account_deletion_unavailable"
 
 @dataclass(frozen=True, slots=True)
 class MeView:
-    """Own profile: stored names plus effective roles and region from the token."""
+    """Own profile: stored names plus effective roles from the token."""
 
     id: str
     first_name: str = field(repr=False)
     last_name: str = field(repr=False)
     roles: list[Role]
-    region: RegionRecord | None
 
 
 class Authenticate:
@@ -79,35 +76,22 @@ class Authenticate:
         return principal
 
 
-class _ProfileBuilder:
-    def __init__(self, regions: RegionDirectory) -> None:
-        self._regions = regions
-
-    async def view(self, principal: Principal, user: UserRecord) -> MeView:
-        region: RegionRecord | None = None
-        roles = set(principal.roles)
-        if principal.can_moderate and principal.region_key is not None:
-            region = await self._regions.get_by_key(principal.region_key)
-            if region is None:
-                logger.warning("moderator_region_unknown")
-                roles.discard(Role.MODERATOR)
-        order = list(Role)
-        return MeView(
-            id=str(user.id),
-            first_name=user.first_name,
-            last_name=user.last_name,
-            roles=sorted(roles, key=order.index),
-            region=region,
-        )
+def _view(principal: Principal, user: UserRecord) -> MeView:
+    order = list(Role)
+    return MeView(
+        id=str(user.id),
+        first_name=user.first_name,
+        last_name=user.last_name,
+        roles=sorted(principal.roles, key=order.index),
+    )
 
 
 class GetMe:
     """Return the caller's profile, creating the account on the first call."""
 
-    def __init__(self, users: UserRepository, regions: RegionDirectory) -> None:
+    def __init__(self, users: UserRepository) -> None:
         """Create the use case."""
         self._users = users
-        self._profiles = _ProfileBuilder(regions)
 
     async def __call__(self, principal: Principal) -> MeView:
         """Upsert the user (names from the token) and return the profile."""
@@ -116,7 +100,7 @@ class GetMe:
             name_from_claim(principal.given_name),
             name_from_claim(principal.family_name),
         )
-        return await self._profiles.view(principal, user)
+        return _view(principal, user)
 
 
 class EnsureAccount:
@@ -139,10 +123,9 @@ class EnsureAccount:
 class UpdateMe:
     """Change the caller's first and last name."""
 
-    def __init__(self, users: UserRepository, regions: RegionDirectory) -> None:
+    def __init__(self, users: UserRepository) -> None:
         """Create the use case."""
         self._users = users
-        self._profiles = _ProfileBuilder(regions)
 
     async def __call__(self, principal: Principal, first_name: str, last_name: str) -> MeView:
         """Validate and store the names.
@@ -167,7 +150,7 @@ class UpdateMe:
             user = await self._users.get_or_create(
                 principal.subject, names["firstName"], names["lastName"]
             )
-        return await self._profiles.view(principal, user)
+        return _view(principal, user)
 
 
 class DeleteAccount:

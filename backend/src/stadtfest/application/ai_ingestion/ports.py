@@ -135,20 +135,18 @@ class AiSearchRepository(Protocol):
 
 
 class DraftStore(Protocol):
-    """Region events for duplicate checks and new drafts (moderation context)."""
+    """Events for duplicate checks and new drafts (moderation context)."""
 
-    async def is_duplicate(
-        self, region_id: UUID, candidate: DraftCandidate, normalized_url: str
-    ) -> bool:
-        """True if the find already exists or its source was rejected.
+    async def is_duplicate(self, candidate: DraftCandidate, normalized_url: str) -> bool:
+        """True if the find already exists or its source was rejected (nationwide).
 
-        An event of the region (not deleted) matches with a similar name (trgm >= 0.5),
-        overlapping dates and a distance below 2 km, or with the same source.
+        An event (not deleted) matches with a similar name (trgm >= 0.5), overlapping dates
+        and a distance below 2 km, or with the same source.
         """
         ...
 
     async def add_drafts(
-        self, region_id: UUID, job_id: UUID, found_at: datetime, drafts: Sequence[DraftCandidate]
+        self, job_id: UUID, found_at: datetime, drafts: Sequence[DraftCandidate]
     ) -> list[UUID]:
         """Store the candidates as drafts (`source = ai`); returns their IDs."""
         ...

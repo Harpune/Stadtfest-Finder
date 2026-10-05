@@ -55,7 +55,7 @@ def client(repository: FakeFavoriteRepository) -> TestClient:
     app.include_router(favorites.router)
     app.state.container = SimpleNamespace(
         authenticate=Authenticate(
-            verifier, ClaimMapping("realm_access.roles", "region"), FakeDeletedAccounts()
+            verifier, ClaimMapping("realm_access.roles"), FakeDeletedAccounts()
         ),
         get_public_event=GetPublicEvent(catalog),
         add_favorite=AddFavorite(repository, FakeAccountResolver()),

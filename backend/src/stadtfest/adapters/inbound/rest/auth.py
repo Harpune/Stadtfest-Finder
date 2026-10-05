@@ -1,7 +1,7 @@
 """Bearer token handling for the REST adapter (flow B2/B3).
 
 Every route validates a present token, including public ones: an invalid token yields `401`
-so the client refreshes it. Authorization (roles, region) is checked in use cases.
+so the client refreshes it. Authorization (roles) is checked in use cases.
 """
 
 from __future__ import annotations

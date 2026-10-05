@@ -10,7 +10,6 @@ from stadtfest.domain.events.event import (
     is_running,
 )
 from stadtfest.domain.events.geo import BoundingBox, GeoPoint, PostalCode
-from stadtfest.domain.events.region import Region
 from stadtfest.domain.events.time_filter import DateRange
 
 TODAY = date(2026, 9, 25)
@@ -51,9 +50,10 @@ def test_geo_validation() -> None:
     assert BoundingBox(10, 48, 12, 50).center == GeoPoint(49, 11)
 
 
-def test_postal_code_and_region() -> None:
-    region = Region(key="ostalb", name="Ostalb", postal_codes=frozenset({"73430", "73431"}))
-    assert region.contains(PostalCode("73430"))
-    assert not region.contains("89073")
+def test_postal_code_and_distance() -> None:
+    assert str(PostalCode("73430")) == "73430"
+    aalen, ulm = GeoPoint(48.8378, 10.0933), GeoPoint(48.3984, 9.9916)
+    assert aalen.distance_km(ulm) == pytest.approx(49.5, abs=0.5)
+    assert aalen.distance_km(aalen) == 0
     with pytest.raises(ValueError, match="5 digits"):
         PostalCode("7343")

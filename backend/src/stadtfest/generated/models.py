@@ -58,7 +58,14 @@ class AiSearchSkipped(BaseModel):
         populate_by_name=True,
     )
     duplicate: Annotated[int, Field(ge=0)]
-    out_of_region: Annotated[int, Field(alias="outOfRegion", ge=0)]
+    out_of_area: Annotated[
+        int,
+        Field(
+            alias="outOfArea",
+            description="Outside the search radius around the postal code, or no location.",
+            ge=0,
+        ),
+    ]
     invalid: Annotated[int, Field(ge=0)]
     unverified_source: Annotated[int, Field(alias="unverifiedSource", ge=0)]
 
@@ -97,12 +104,7 @@ class ModCategory(BaseModel):
     active: bool
     sort_order: Annotated[int, Field(alias="sortOrder", ge=0)]
     event_count: Annotated[
-        int,
-        Field(
-            alias="eventCount",
-            description="Events of all regions and statuses except deleted.",
-            ge=0,
-        ),
+        int, Field(alias="eventCount", description="Events of all statuses except deleted.", ge=0)
     ]
 
 
@@ -531,17 +533,6 @@ class Role(RootModel[Literal["user", "moderator", "category_admin"]]):
     root: Literal["user", "moderator", "category_admin"]
 
 
-class RegionRef(BaseModel):
-    """Moderation region of a moderator."""
-
-    model_config = ConfigDict(
-        populate_by_name=True,
-    )
-    id: UUID
-    key: Annotated[str, Field(examples=["ostalb"])]
-    name: Annotated[str, Field(examples=["Ostalbkreis"])]
-
-
 class UpdateMeRequest(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -605,7 +596,6 @@ class ModEventDetail(BaseModel):
         populate_by_name=True,
     )
     id: UUID
-    region_id: Annotated[UUID, Field(alias="regionId")]
     name: str
     short_name: Annotated[str, Field(alias="shortName")]
     status: ModEventStatus
@@ -658,4 +648,3 @@ class Me(BaseModel):
     ]
     last_name: Annotated[str, Field(alias="lastName", max_length=50)]
     roles: Annotated[list[Role], Field(description="Effective roles from the token.")]
-    region: RegionRef | None = None

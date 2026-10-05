@@ -1,8 +1,9 @@
 """Use cases of the AI search by postal code (R10, flow C1-C8).
 
 The API only queues a job (`ai_search.requested` via the outbox); the worker runs the
-pipeline: geocoding → LLM with web search tool → validation → source check → region check
-→ duplicates → drafts. Finds are never published directly.
+pipeline: geocoding → LLM with web search tool → validation → source check → search area
+→ duplicates → drafts. Finds are never published directly. There are no regions: any
+moderator may search around any postal code (ADR 0015).
 """
 
 from __future__ import annotations
@@ -28,13 +29,14 @@ from stadtfest.application.ai_ingestion.ports import (
     WebSearchUnavailableError,
 )
 from stadtfest.application.events.ports import CategoryCatalog
-from stadtfest.application.geocoding.ports import GeocodingPort, GeocodingUnavailableError
-from stadtfest.application.moderation.ports import AccountResolver, RegionDirectory
+from stadtfest.application.geocoding.ports import GeocodingPort, GeocodingUnavailableError, Place
+from stadtfest.application.moderation.ports import AccountResolver
 from stadtfest.application.shared.errors import (
     ConflictError,
     ForbiddenError,
     InvalidInputError,
     NotFoundError,
+    ServiceUnavailableError,
     TooManyRequestsError,
 )
 from stadtfest.application.shared.ports import Clock
@@ -49,13 +51,13 @@ from stadtfest.domain.ai_ingestion.job import (
 )
 from stadtfest.domain.ai_ingestion.prompt import SYSTEM_PROMPT, SearchParameters, build_prompt
 from stadtfest.domain.events.geo import GeoPoint, PostalCode
-from stadtfest.domain.events.region import Region
 from stadtfest.domain.identity.principal import Principal
 
 logger = logging.getLogger(__name__)
 
 SEARCH_RUNNING = "search_running"
-OUTSIDE_REGION = "postal_code_outside_region"
+POSTAL_CODE_UNKNOWN = "postal_code_unknown"
+GEOCODING_UNAVAILABLE = "geocoding_unavailable"
 DAILY_LIMIT = "daily_limit"
 SEARCH_HORIZON_DAYS = 365
 LOG_RETENTION = timedelta(days=90)
@@ -78,22 +80,21 @@ class AiSearchSettings:
     timeout_seconds: int = 300
 
 
-async def _moderator(principal: Principal, regions: RegionDirectory) -> tuple[UUID, Region]:
-    if not principal.can_moderate or principal.region_key is None:
+# Finds may lie a little outside the search radius (venue at the edge of a town).
+AREA_TOLERANCE = 1.1
+
+
+def _authorize(principal: Principal) -> None:
+    if not principal.can_moderate:
         raise ForbiddenError
-    region = await regions.by_key(principal.region_key)
-    if region is None:
-        raise ForbiddenError
-    return region.id, region.region
 
 
 class StartAiSearch:
-    """Queue a search for a postal code of the caller's region (R10-US1)."""
+    """Queue a search around any postal code known to the geocoder (R10-US1, ADR 0015)."""
 
     def __init__(
         self,
         jobs: AiSearchRepository,
-        regions: RegionDirectory,
         accounts: AccountResolver,
         geocoding: GeocodingPort,
         clock: Clock,
@@ -102,7 +103,6 @@ class StartAiSearch:
     ) -> None:
         """Create the use case."""
         self._jobs = jobs
-        self._regions = regions
         self._accounts = accounts
         self._geocoding = geocoding
         self._clock = clock
@@ -113,16 +113,18 @@ class StartAiSearch:
         """Create a queued job; the worker picks it up via the outbox.
 
         Raises:
-            InvalidInputError: Not five digits, or outside the caller's region.
+            InvalidInputError: Not five digits, or `postal_code_unknown`.
             ConflictError: `search_running` with `jobId` if one is queued or running.
             TooManyRequestsError: `daily_limit` reached.
+            ServiceUnavailableError: `geocoding_unavailable`.
         """
-        region_id, region = await _moderator(principal, self._regions)
+        _authorize(principal)
         code = postal_code.strip()
         if not PostalCode.is_valid(code):
             raise InvalidInputError({"postalCode": "invalid"})
-        if not region.contains(code):
-            raise InvalidInputError({"postalCode": OUTSIDE_REGION}, OUTSIDE_REGION)
+        place = await _postal_code_place(self._geocoding, code)
+        if place is None:
+            raise InvalidInputError({"postalCode": POSTAL_CODE_UNKNOWN}, POSTAL_CODE_UNKNOWN)
         moderator_id = await self._accounts(principal)
         running = await self._jobs.list_for_moderator(moderator_id, active_only=True, limit=1)
         if running:
@@ -135,27 +137,31 @@ class StartAiSearch:
             self._settings.daily_limit
         ):
             raise TooManyRequestsError(DAILY_LIMIT)
-        job = AiSearchJob(uuid4(), moderator_id, region_id, code, await self._place_name(code), now)
+        job = AiSearchJob(uuid4(), moderator_id, code, place.city, now)
         await self._jobs.add(job)
         return job
 
-    async def _place_name(self, code: str) -> str:
-        try:
-            places = await self._geocoding.search(code, 1)
-        except GeocodingUnavailableError:
-            return ""
-        return places[0].city if places else ""
+
+async def _postal_code_place(geocoding: GeocodingPort, code: str) -> Place | None:
+    """The place of the postal code, or None if the geocoder does not know it.
+
+    Raises:
+        ServiceUnavailableError: `geocoding_unavailable`.
+    """
+    try:
+        # A few results: the postal code itself may not be the best match for its digits.
+        places = await geocoding.search(code, 5)
+    except GeocodingUnavailableError:
+        raise ServiceUnavailableError(GEOCODING_UNAVAILABLE) from None
+    return next((place for place in places if place.postal_code == code), None)
 
 
 class GetAiSearch:
     """Status of one of the caller's searches (R10-US2, polled every 10 s)."""
 
-    def __init__(
-        self, jobs: AiSearchRepository, regions: RegionDirectory, accounts: AccountResolver
-    ) -> None:
+    def __init__(self, jobs: AiSearchRepository, accounts: AccountResolver) -> None:
         """Create the use case."""
         self._jobs = jobs
-        self._regions = regions
         self._accounts = accounts
 
     async def __call__(self, principal: Principal, job_id: UUID) -> AiSearchJob:
@@ -164,7 +170,7 @@ class GetAiSearch:
         Raises:
             NotFoundError: Unknown or another moderator's job.
         """
-        await _moderator(principal, self._regions)
+        _authorize(principal)
         job = await self._jobs.get(job_id)
         if job is None or job.moderator_id != await self._accounts(principal):
             raise NotFoundError
@@ -174,17 +180,14 @@ class GetAiSearch:
 class ListAiSearches:
     """The caller's searches; `active_only` restores the status bar (R10-US2)."""
 
-    def __init__(
-        self, jobs: AiSearchRepository, regions: RegionDirectory, accounts: AccountResolver
-    ) -> None:
+    def __init__(self, jobs: AiSearchRepository, accounts: AccountResolver) -> None:
         """Create the use case."""
         self._jobs = jobs
-        self._regions = regions
         self._accounts = accounts
 
     async def __call__(self, principal: Principal, *, active_only: bool) -> list[AiSearchJob]:
         """Return up to 20 jobs, newest first."""
-        await _moderator(principal, self._regions)
+        _authorize(principal)
         return await self._jobs.list_for_moderator(
             await self._accounts(principal), active_only=active_only, limit=20
         )
@@ -218,7 +221,6 @@ class RunAiSearch:
     def __init__(
         self,
         jobs: AiSearchRepository,
-        regions: RegionDirectory,
         finder: EventFinder,
         search: WebSearchPort,
         sources: SourceChecker,
@@ -231,7 +233,6 @@ class RunAiSearch:
     ) -> None:
         """Create the use case."""
         self._jobs = jobs
-        self._regions = regions
         self._finder = finder
         self._search = search
         self._sources = sources
@@ -275,7 +276,7 @@ class RunAiSearch:
     async def _pipeline(
         self, job: AiSearchJob, tool: _RecordingSearch, log: dict[str, object]
     ) -> tuple[tuple[UUID, ...], SkipCounts]:
-        region = await self._region(job)
+        center = await self._center(job)
         today = self._clock.today()
         active = {c.name: c.id for c in await self._categories.list_active()}
         parameters = SearchParameters(
@@ -297,20 +298,18 @@ class RunAiSearch:
         candidates: list[DraftCandidate] = []
         seen_urls: set[str] = set()
         for find in result.finds:
-            reason, candidate = await self._check(find, today, tool, region, active)
+            reason, candidate = await self._check(find, today, tool, center, active)
             normalized = normalize_url(find.source_url)
             if candidate is not None and normalized in seen_urls:
                 reason, candidate = SkipReason.DUPLICATE, None
-            if candidate is not None and await self._drafts.is_duplicate(
-                job.region_id, candidate, normalized
-            ):
+            if candidate is not None and await self._drafts.is_duplicate(candidate, normalized):
                 reason, candidate = SkipReason.DUPLICATE, None
             if candidate is None:
                 skipped = skipped.add(reason or SkipReason.INVALID)
                 continue
             seen_urls.add(normalized)
             candidates.append(candidate)
-        new_ids = await self._drafts.add_drafts(job.region_id, job.id, self._now(), candidates)
+        new_ids = await self._drafts.add_drafts(job.id, self._now(), candidates)
         return tuple(new_ids), skipped
 
     async def _check(
@@ -318,7 +317,7 @@ class RunAiSearch:
         find: FoundEvent,
         today: date,
         tool: _RecordingSearch,
-        region: Region,
+        center: GeoPoint,
         active: dict[str, UUID],
     ) -> tuple[SkipReason | None, DraftCandidate | None]:
         if find.problems(today):
@@ -330,10 +329,10 @@ class RunAiSearch:
             return SkipReason.UNVERIFIED_SOURCE, None
         place = await self._locate(find)
         if place is None:
-            return SkipReason.OUT_OF_REGION, None
+            return SkipReason.OUT_OF_AREA, None
         location, postal_code, city = place
-        if not region.contains(postal_code):
-            return SkipReason.OUT_OF_REGION, None
+        if location.distance_km(center) > self._settings.radius_km * AREA_TOLERANCE:
+            return SkipReason.OUT_OF_AREA, None
         category = map_category(find.category, active)
         return None, DraftCandidate(find, location, postal_code, city, category)
 
@@ -354,11 +353,12 @@ class RunAiSearch:
             return None
         return location, place.postal_code, place.city
 
-    async def _region(self, job: AiSearchJob) -> Region:
-        found = await self._regions.by_id(job.region_id)
-        if found is None:
-            raise RuntimeError("region of the job vanished")
-        return found.region
+    async def _center(self, job: AiSearchJob) -> GeoPoint:
+        """Middle of the search area. A failure ends the job as `internal`."""
+        place = await _postal_code_place(self._geocoding, job.postal_code)
+        if place is None:
+            raise RuntimeError("postal code of the job is no longer known")
+        return place.location
 
     def _log(
         self, log: dict[str, object], tool: _RecordingSearch, started: float

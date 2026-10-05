@@ -39,11 +39,10 @@ _STATUS_ERRORS: dict[int, tuple[str, str]] = {
 _CODE_MESSAGES: dict[str, str] = {
     "version_conflict": "Dieses Fest wurde inzwischen geändert.",
     "invalid_transition": "Das ist in diesem Status nicht möglich.",
-    "region_mismatch": "Der Ort liegt außerhalb deiner Region.",
     "invalid_upload": "Das Bild wurde nicht vollständig hochgeladen. Bitte versuche es erneut.",
     "too_many_images": "Ein Fest kann höchstens 12 Bilder haben.",
     "search_running": "Für dich läuft schon eine Suche. Warte, bis sie fertig ist.",
-    "postal_code_outside_region": "Diese Postleitzahl liegt nicht in deiner Region.",
+    "postal_code_unknown": "Diese Postleitzahl kennen wir nicht.",
     "daily_limit": "Du hast heute schon die maximale Anzahl an Suchen gestartet.",
     "replacement_required": "Wähle eine Ersatzkategorie für die zugeordneten Feste.",
     "invalid_replacement": "Diese Ersatzkategorie ist nicht möglich.",

@@ -13,17 +13,11 @@ router = APIRouter(prefix="/v1/me", tags=["account"])
 
 
 def _me(view: MeView) -> api.Me:
-    region = (
-        api.RegionRef(id=view.region.id, key=view.region.key, name=view.region.name)
-        if view.region
-        else None
-    )
     return api.Me(
         id=view.id,
         first_name=view.first_name,
         last_name=view.last_name,
         roles=[role.value for role in view.roles],
-        region=region,
     )
 
 

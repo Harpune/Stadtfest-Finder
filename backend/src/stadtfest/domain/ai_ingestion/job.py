@@ -42,7 +42,7 @@ class SkipCounts:
     """Finds that were not stored, by reason. Counts only, never content."""
 
     duplicate: int = 0
-    out_of_region: int = 0
+    out_of_area: int = 0
     invalid: int = 0
     unverified_source: int = 0
 
@@ -56,7 +56,7 @@ class SkipReason(StrEnum):
     """Why a find was not stored as draft (R10-US3 steps 5-9)."""
 
     DUPLICATE = "duplicate"
-    OUT_OF_REGION = "out_of_region"
+    OUT_OF_AREA = "out_of_area"
     INVALID = "invalid"
     UNVERIFIED_SOURCE = "unverified_source"
 
@@ -67,11 +67,10 @@ class InvalidJobTransitionError(Exception):
 
 @dataclass(slots=True)
 class AiSearchJob:
-    """One AI search of a moderator for a postal code of their region."""
+    """One AI search of a moderator around a postal code (any in Germany, ADR 0015)."""
 
     id: UUID
     moderator_id: UUID | None
-    region_id: UUID
     postal_code: str
     place_name: str
     created_at: datetime

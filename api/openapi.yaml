@@ -30,10 +30,10 @@ tags:
       timeline in the profile drawer and the hearts on map, list and detail.
   - name: moderation
     description: |
-      Event maintenance for moderators of a region (R07, context `moderation`). Requires the
-      role `moderator`; events of other regions answer `404`. Changes are written together
-      with a domain event (transactional outbox, ADR 0005). Categories (R09) are app-wide:
-      `moderator` reads, `category_admin` writes.
+      Event maintenance for moderators (R07, context `moderation`). Requires the role
+      `moderator`, which covers all events; there are no regions (ADR 0015). Changes are
+      written together with a domain event (transactional outbox, ADR 0005). Categories
+      (R09) are app-wide: `moderator` reads, `category_admin` writes.
   - name: account
     description: |
       Profile of the signed-in user (flow B). The user is created on the first call; the
@@ -318,8 +318,7 @@ paths:
       description: |
         Profile of the caller. Creates the user on the first call (upsert on the token
         subject); first and last name are taken from the claims `given_name` / `family_name`.
-        Roles and region come from the token. A moderator without a valid region gets no
-        moderation roles.
+        Roles come from the token.
       responses:
         "200":
           description: Profile of the signed-in user.
@@ -440,11 +439,11 @@ paths:
     get:
       operationId: listModEvents
       tags: [moderation]
-      summary: Events of the moderator's region
+      summary: All events for maintenance
       description: |
-        All events of the caller's region except deleted ones, with favorite count, source and
-        version. Ordered: upcoming by start date, then past ones descending, then events
-        without date. `ids` restricts the list; IDs of other regions are silently dropped.
+        All events except deleted ones, with favorite count, source and version. Ordered:
+        upcoming by start date, then past ones descending, then events without date. `ids`
+        restricts the list; unknown IDs are silently dropped.
       parameters:
         - name: status
           in: query
@@ -474,7 +473,7 @@ paths:
               format: uuid
       responses:
         "200":
-          description: Events of the region.
+          description: The events.
           content:
             application/json:
               schema:
@@ -491,7 +490,7 @@ paths:
       operationId: createModEvent
       tags: [moderation]
       summary: Create an event
-      description: Always creates a draft in the caller's region. Only the name is required.
+      description: Always creates a draft. Only the name is required.
       requestBody:
         required: true
         content:
@@ -523,7 +522,7 @@ paths:
       operationId: getModEvent
       tags: [moderation]
       summary: Event for editing
-      description: All fields of an event of the caller's region, with `version` and `ETag`.
+      description: All fields of an event, with `version` and `ETag`.
       responses:
         "200":
           description: All fields and the version.
@@ -609,8 +608,7 @@ paths:
       tags: [moderation]
       summary: Publish a draft
       description: |
-        Checks the required fields (`422 validation_failed` with `fields`) and that the postal
-        code belongs to the caller's region (`422 region_mismatch`). Only drafts (`409
+        Checks the required fields (`422 validation_failed` with `fields`). Only drafts (`409
         invalid_transition` otherwise).
       responses:
         "200":
@@ -734,10 +732,11 @@ paths:
       summary: Start an AI search for events around a postal code (flow C)
       description: |
         Returns at once; a worker searches the web with an LLM and stores verified finds as
-        drafts (`source = ai`). The postal code must belong to the caller's region
-        (`422 postal_code_outside_region`). One running search per moderator (`409
-        search_running`, `fields.jobId` = the running job). Daily limit per moderator
-        (`429 daily_limit`).
+        drafts (`source = ai`). Any postal code known to the geocoder is allowed
+        (`422 postal_code_unknown` otherwise, ADR 0015; `503 geocoding_unavailable` if the
+        geocoder is down); finds outside the search radius are skipped. One running search
+        per moderator (`409 search_running`, `fields.jobId` = the running job). Daily limit
+        per moderator (`429 daily_limit`).
       requestBody:
         required: true
         content:
@@ -760,6 +759,8 @@ paths:
         "422":
           $ref: "#/components/responses/Error"
         "429":
+          $ref: "#/components/responses/Error"
+        "503":
           $ref: "#/components/responses/Error"
         default:
           $ref: "#/components/responses/Error"
@@ -799,7 +800,7 @@ paths:
       summary: All categories for maintenance
       description: |
         All categories including inactive ones, in chip order, with the number of events
-        (all regions and statuses except deleted). Roles `moderator` or `category_admin`.
+        (all statuses except deleted). Roles `moderator` or `category_admin`.
       responses:
         "200":
           description: The categories.
@@ -1320,14 +1321,15 @@ components:
     AiSearchSkipped:
       type: object
       description: Finds that were not stored, by reason (counts only, no content).
-      required: [duplicate, outOfRegion, invalid, unverifiedSource]
+      required: [duplicate, outOfArea, invalid, unverifiedSource]
       properties:
         duplicate:
           type: integer
           minimum: 0
-        outOfRegion:
+        outOfArea:
           type: integer
           minimum: 0
+          description: Outside the search radius around the postal code, or no location.
         invalid:
           type: integer
           minimum: 0
@@ -1390,7 +1392,7 @@ components:
         eventCount:
           type: integer
           minimum: 0
-          description: Events of all regions and statuses except deleted.
+          description: Events of all statuses except deleted.
     ModCategoryCreate:
       type: object
       required: [name, emoji, color]
@@ -1730,13 +1732,10 @@ components:
       type: object
       description: Event with all editable fields; fields of drafts may be empty.
       required:
-        [id, regionId, name, shortName, status, openingHours, place, address, city, program,
+        [id, name, shortName, status, openingHours, place, address, city, program,
          favoriteCount, source, version, images]
       properties:
         id:
-          type: string
-          format: uuid
-        regionId:
           type: string
           format: uuid
         name:
@@ -2043,25 +2042,9 @@ components:
           description: Effective roles from the token.
           items:
             $ref: "#/components/schemas/Role"
-        region:
-          $ref: "#/components/schemas/RegionRef"
     Role:
       type: string
       enum: [user, moderator, category_admin]
-    RegionRef:
-      type: object
-      description: Moderation region of a moderator.
-      required: [id, key, name]
-      properties:
-        id:
-          type: string
-          format: uuid
-        key:
-          type: string
-          examples: [ostalb]
-        name:
-          type: string
-          examples: [Ostalbkreis]
     UpdateMeRequest:
       type: object
       required: [firstName, lastName]

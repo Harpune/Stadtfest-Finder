@@ -36,9 +36,8 @@ def client() -> TestClient:
             "admin": {
                 "sub": "a",
                 "realm_access": {"roles": ["moderator", "category_admin"]},
-                "region": "ostalb",
             },
-            "mod": {"sub": "m", "realm_access": {"roles": ["moderator"]}, "region": "ostalb"},
+            "mod": {"sub": "m", "realm_access": {"roles": ["moderator"]}},
             "user": {"sub": "u", "realm_access": {"roles": ["user"]}},
         }
     )
@@ -48,7 +47,7 @@ def client() -> TestClient:
     app.include_router(mod_categories.router)
     app.state.container = SimpleNamespace(
         authenticate=Authenticate(
-            verifier, ClaimMapping("realm_access.roles", "region"), FakeDeletedAccounts()
+            verifier, ClaimMapping("realm_access.roles"), FakeDeletedAccounts()
         ),
         list_mod_categories=ListModCategories(repo),
         create_category=CreateCategory(repo),

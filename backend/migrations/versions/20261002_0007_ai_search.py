@@ -21,7 +21,6 @@ def upgrade() -> None:
         CREATE TABLE ai_search_job (
             id uuid PRIMARY KEY,
             moderator_id uuid REFERENCES app_user (id) ON DELETE SET NULL,
-            region_id uuid NOT NULL REFERENCES region (id),
             postal_code text NOT NULL CHECK (postal_code ~ '^[0-9]{5}$'),
             place_name text NOT NULL DEFAULT '',
             status text NOT NULL DEFAULT 'queued'
@@ -31,7 +30,7 @@ def upgrade() -> None:
             finished_at timestamptz,
             new_event_ids uuid[] NOT NULL DEFAULT '{}',
             skipped_duplicate integer NOT NULL DEFAULT 0,
-            skipped_out_of_region integer NOT NULL DEFAULT 0,
+            skipped_out_of_area integer NOT NULL DEFAULT 0,
             skipped_invalid integer NOT NULL DEFAULT 0,
             skipped_unverified_source integer NOT NULL DEFAULT 0,
             error_code text,
@@ -49,15 +48,13 @@ def upgrade() -> None:
     op.execute(
         """
         CREATE TABLE rejected_source (
-            region_id uuid NOT NULL REFERENCES region (id),
-            url_normalized text NOT NULL,
-            rejected_at timestamptz NOT NULL DEFAULT now(),
-            PRIMARY KEY (region_id, url_normalized)
+            url_normalized text PRIMARY KEY,
+            rejected_at timestamptz NOT NULL DEFAULT now()
         )
         """
     )
     op.execute(
-        "CREATE INDEX event_source_url_idx ON event (region_id) WHERE source_url IS NOT NULL"
+        "CREATE INDEX event_source_url_idx ON event (source_url) WHERE source_url IS NOT NULL"
     )
 
 

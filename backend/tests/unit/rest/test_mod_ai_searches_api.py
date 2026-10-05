@@ -2,7 +2,7 @@
 
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import pytest
 from fastapi import Depends, FastAPI
@@ -20,21 +20,17 @@ from stadtfest.application.ai_ingestion.use_cases import (
 from stadtfest.application.geocoding.ports import Place, PlaceKind
 from stadtfest.application.identity.claims import ClaimMapping
 from stadtfest.application.identity.use_cases import Authenticate
-from stadtfest.application.moderation.ports import ModRegion
 from stadtfest.domain.ai_ingestion.job import AiSearchError
 from stadtfest.domain.events.geo import GeoPoint
-from stadtfest.domain.events.region import Region
 from tests.fakes import (
     FakeAccountResolver,
     FakeAiSearchRepository,
     FakeDeletedAccounts,
     FakeGeocoding,
-    FakeModRegions,
     FakeTokenVerifier,
     FixedClock,
 )
 
-OSTALB = ModRegion(uuid4(), Region("ostalb", "Ostalb", frozenset({"73430"})))
 MOD = {"Authorization": "Bearer mod"}
 OTHER = {"Authorization": "Bearer other"}
 USER = {"Authorization": "Bearer user"}
@@ -49,12 +45,11 @@ def jobs() -> FakeAiSearchRepository:
 def client(jobs: FakeAiSearchRepository) -> TestClient:
     verifier = FakeTokenVerifier(
         {
-            "mod": {"sub": "m", "realm_access": {"roles": ["moderator"]}, "region": "ostalb"},
-            "other": {"sub": "o", "realm_access": {"roles": ["moderator"]}, "region": "ostalb"},
+            "mod": {"sub": "m", "realm_access": {"roles": ["moderator"]}},
+            "other": {"sub": "o", "realm_access": {"roles": ["moderator"]}},
             "user": {"sub": "u", "realm_access": {"roles": ["user"]}},
         }
     )
-    regions = FakeModRegions({"ostalb": OSTALB})
     accounts = FakeAccountResolver()
     geocoding = FakeGeocoding(
         places=[Place("73430 Aalen", "Aalen", GeoPoint(48.8, 10.1), PlaceKind.POSTCODE, "73430")]
@@ -64,19 +59,18 @@ def client(jobs: FakeAiSearchRepository) -> TestClient:
     app.include_router(mod_ai_searches.router)
     app.state.container = SimpleNamespace(
         authenticate=Authenticate(
-            verifier, ClaimMapping("realm_access.roles", "region"), FakeDeletedAccounts()
+            verifier, ClaimMapping("realm_access.roles"), FakeDeletedAccounts()
         ),
         start_ai_search=StartAiSearch(
             jobs,
-            regions,
             accounts,
             geocoding,
             FixedClock(date(2026, 10, 2)),
             AiSearchSettings(daily_limit=2),
             now=lambda: datetime(2026, 10, 2, 9, tzinfo=UTC),
         ),
-        get_ai_search=GetAiSearch(jobs, regions, accounts),
-        list_ai_searches=ListAiSearches(jobs, regions, accounts),
+        get_ai_search=GetAiSearch(jobs, accounts),
+        list_ai_searches=ListAiSearches(jobs, accounts),
     )
     return TestClient(app)
 
@@ -89,7 +83,7 @@ def test_start_returns_202_and_the_job(client: TestClient) -> None:
     assert (body["status"], body["placeName"], body["newEventIds"]) == ("queued", "Aalen", [])
     assert body["skipped"] == {
         "duplicate": 0,
-        "outOfRegion": 0,
+        "outOfArea": 0,
         "invalid": 0,
         "unverifiedSource": 0,
     }
@@ -130,9 +124,10 @@ def test_second_start_conflicts_with_the_running_job(client: TestClient) -> None
     assert second.json()["fields"] == {"jobId": first["id"]}
 
 
-def test_outside_region_invalid_code_and_roles(client: TestClient) -> None:
-    outside = client.post("/v1/mod/ai-searches", json={"postalCode": "89073"}, headers=MOD)
-    assert (outside.status_code, outside.json()["error"]) == (422, "postal_code_outside_region")
+def test_unknown_postal_code_invalid_code_and_roles(client: TestClient) -> None:
+    unknown = client.post("/v1/mod/ai-searches", json={"postalCode": "99999"}, headers=MOD)
+    assert (unknown.status_code, unknown.json()["error"]) == (422, "postal_code_unknown")
+    assert unknown.json()["message"] == "Diese Postleitzahl kennen wir nicht."
     assert (
         client.post("/v1/mod/ai-searches", json={"postalCode": "734"}, headers=MOD).status_code
         == 422

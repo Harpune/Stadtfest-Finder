@@ -1,7 +1,7 @@
 """Moderation use cases for events (R07).
 
-Authorization lives here, not in the adapters: only moderators, only events of their own
-region (others look like `404`).
+Authorization lives here, not in the adapters: only moderators. The role covers all events;
+there are no regions (ADR 0015).
 """
 
 from __future__ import annotations
@@ -17,8 +17,6 @@ from stadtfest.application.moderation.ports import (
     ActiveCategories,
     ManagedEventRepository,
     ModEventSummary,
-    ModRegion,
-    RegionDirectory,
     VersionConflictError,
 )
 from stadtfest.application.shared.errors import (
@@ -35,13 +33,11 @@ from stadtfest.domain.events.maintenance import (
     InvalidTransitionError,
     ManagedEvent,
     PublicationError,
-    RegionMismatchError,
 )
 from stadtfest.domain.identity.principal import Principal
 
 VERSION_CONFLICT = "version_conflict"
 INVALID_TRANSITION = "invalid_transition"
-REGION_MISMATCH = "region_mismatch"
 
 _CONTENT_FIELDS = frozenset(f.name for f in fields(EventContent))
 
@@ -80,35 +76,23 @@ class ModEventRow:
 
 
 class _Moderation:
-    """Shared authorization: moderator role and the caller's region."""
+    """Shared authorization: the moderator role."""
 
-    def __init__(
-        self,
-        events: ManagedEventRepository,
-        regions: RegionDirectory,
-        clock: Clock,
-    ) -> None:
+    def __init__(self, events: ManagedEventRepository, clock: Clock) -> None:
         self._events = events
-        self._regions = regions
         self._clock = clock
 
-    async def _region(self, principal: Principal) -> ModRegion:
-        if not principal.can_moderate or principal.region_key is None:
+    @staticmethod
+    def _authorize(principal: Principal) -> None:
+        if not principal.can_moderate:
             raise ForbiddenError
-        region = await self._regions.by_key(principal.region_key)
-        if region is None:
-            raise ForbiddenError
-        return region
 
-    async def _own_event(
-        self, principal: Principal, event_id: UUID
-    ) -> tuple[ModRegion, ManagedEvent]:
-        region = await self._region(principal)
+    async def _event(self, principal: Principal, event_id: UUID) -> ManagedEvent:
+        self._authorize(principal)
         event = await self._events.get(event_id)
-        # Events of other regions are indistinguishable from unknown ones (R07-US6).
-        if event is None or event.region_id != region.id:
+        if event is None:
             raise NotFoundError
-        return region, event
+        return event
 
     async def _view(self, event: ManagedEvent, *, with_images: bool = True) -> ModEventView:
         images = tuple(await self._events.list_images(event.id)) if with_images else ()
@@ -118,7 +102,7 @@ class _Moderation:
 
 
 class ListModEvents(_Moderation):
-    """Overview of the region's events (R07-US2)."""
+    """Overview of all events (R07-US2)."""
 
     async def __call__(
         self,
@@ -128,12 +112,12 @@ class ListModEvents(_Moderation):
         query: str | None = None,
         ids: frozenset[UUID] | None = None,
     ) -> list[ModEventRow]:
-        """Return the region's events: upcoming ascending, then past descending, then undated."""
-        region = await self._region(principal)
+        """Return the events: upcoming ascending, then past descending, then undated."""
+        self._authorize(principal)
         today = self._clock.today()
         rows = [
             ModEventRow(item, mod_status(item.status, item.end_date, today))
-            for item in await self._events.list_for_region(region.id, ids)
+            for item in await self._events.list_events(ids)
         ]
         if status is not None:
             rows = [row for row in rows if row.status is status]
@@ -159,32 +143,31 @@ class GetModEvent(_Moderation):
     """One event for editing."""
 
     async def __call__(self, principal: Principal, event_id: UUID) -> ModEventView:
-        """Return the event of the caller's region."""
-        _, event = await self._own_event(principal, event_id)
+        """Return the event."""
+        event = await self._event(principal, event_id)
         return await self._view(event)
 
 
 class CreateModEvent(_Moderation):
-    """Create a draft in the caller's region (R07-US3)."""
+    """Create a draft (R07-US3)."""
 
     def __init__(
         self,
         events: ManagedEventRepository,
-        regions: RegionDirectory,
         clock: Clock,
         accounts: AccountResolver,
     ) -> None:
         """Create the use case."""
-        super().__init__(events, regions, clock)
+        super().__init__(events, clock)
         self._accounts = accounts
 
     async def __call__(self, principal: Principal, content: EventContent) -> ModEventView:
         """Store the content as a new draft; only the name is required."""
-        region = await self._region(principal)
+        self._authorize(principal)
         content = content.with_defaults()
         if not content.name:
             raise InvalidInputError({"name": "required"})
-        event = ManagedEvent(uuid4(), region.id, EventStatus.DRAFT, content)
+        event = ManagedEvent(uuid4(), EventStatus.DRAFT, content)
         await self._events.add(event, await self._accounts(principal))
         return await self._view(event, with_images=False)
 
@@ -193,11 +176,10 @@ class _Changing(_Moderation):
     def __init__(
         self,
         events: ManagedEventRepository,
-        regions: RegionDirectory,
         clock: Clock,
         accounts: AccountResolver,
     ) -> None:
-        super().__init__(events, regions, clock)
+        super().__init__(events, clock)
         self._accounts = accounts
 
     async def _store(
@@ -227,7 +209,7 @@ class UpdateModEvent(_Changing):
         Raises:
             ConflictError: `version_conflict` or `invalid_transition` (cancelled events).
         """
-        _, event = await self._own_event(principal, event_id)
+        event = await self._event(principal, event_id)
         if event.version != expected_version:
             raise ConflictError(VERSION_CONFLICT)
         unknown = set(changes) - _CONTENT_FIELDS
@@ -244,19 +226,18 @@ class UpdateModEvent(_Changing):
 
 
 class PublishModEvent(_Changing):
-    """Draft → published, with required fields and region check (R07-US4)."""
+    """Draft → published, with the required fields check (R07-US4)."""
 
     def __init__(
         self,
         events: ManagedEventRepository,
-        regions: RegionDirectory,
         clock: Clock,
         accounts: AccountResolver,
         categories: ActiveCategories,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         """Create the use case."""
-        super().__init__(events, regions, clock, accounts)
+        super().__init__(events, clock, accounts)
         self._categories = categories
         self._now = now
 
@@ -264,19 +245,17 @@ class PublishModEvent(_Changing):
         """Publish the draft.
 
         Raises:
-            InvalidInputError: `validation_failed` with fields, or `region_mismatch`.
+            InvalidInputError: `validation_failed` with fields.
             ConflictError: `invalid_transition` if the event is no draft.
         """
-        region, event = await self._own_event(principal, event_id)
+        event = await self._event(principal, event_id)
         version = event.version
         try:
-            event.publish(region.region, await self._categories.active_ids(), self._now())
+            event.publish(await self._categories.active_ids(), self._now())
         except InvalidTransitionError:
             raise ConflictError(INVALID_TRANSITION) from None
         except PublicationError as error:
             raise InvalidInputError(error.problems) from None
-        except RegionMismatchError:
-            raise InvalidInputError({"location": REGION_MISMATCH}, REGION_MISMATCH) from None
         return await self._store(principal, event, version)
 
 
@@ -289,7 +268,7 @@ class UnpublishModEvent(_Changing):
         Raises:
             ConflictError: `invalid_transition` if the event is not published.
         """
-        _, event = await self._own_event(principal, event_id)
+        event = await self._event(principal, event_id)
         version = event.version
         try:
             event.unpublish()
@@ -309,7 +288,7 @@ class CancelModEvent(_Changing):
         Raises:
             ConflictError: `invalid_transition` if the event is not published.
         """
-        _, event = await self._own_event(principal, event_id)
+        event = await self._event(principal, event_id)
         version = event.version
         try:
             event.cancel(reason)
@@ -323,7 +302,7 @@ class DeleteModEvent(_Changing):
 
     async def __call__(self, principal: Principal, event_id: UUID) -> None:
         """Delete the event; favorites are removed by the `event.deleted` consumer."""
-        _, event = await self._own_event(principal, event_id)
+        event = await self._event(principal, event_id)
         version = event.version
         event.delete()
         await self._store(principal, event, version)

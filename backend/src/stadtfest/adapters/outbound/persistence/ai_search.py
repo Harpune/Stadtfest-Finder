@@ -42,7 +42,6 @@ def _job(row: AiSearchJobRow) -> AiSearchJob:
     return AiSearchJob(
         id=row.id,
         moderator_id=row.moderator_id,
-        region_id=row.region_id,
         postal_code=row.postal_code,
         place_name=row.place_name,
         created_at=row.created_at,
@@ -52,7 +51,7 @@ def _job(row: AiSearchJobRow) -> AiSearchJob:
         new_event_ids=tuple(row.new_event_ids or ()),
         skipped=SkipCounts(
             duplicate=row.skipped_duplicate,
-            out_of_region=row.skipped_out_of_region,
+            out_of_area=row.skipped_out_of_area,
             invalid=row.skipped_invalid,
             unverified_source=row.skipped_unverified_source,
         ),
@@ -68,7 +67,7 @@ def _values(job: AiSearchJob) -> dict[str, object]:
         "finished_at": job.finished_at,
         "new_event_ids": list(job.new_event_ids),
         "skipped_duplicate": job.skipped.duplicate,
-        "skipped_out_of_region": job.skipped.out_of_region,
+        "skipped_out_of_area": job.skipped.out_of_area,
         "skipped_invalid": job.skipped.invalid,
         "skipped_unverified_source": job.skipped.unverified_source,
         "error_code": job.error_code.value if job.error_code else None,
@@ -100,7 +99,6 @@ class SqlAiSearchRepository:
                 AiSearchJobRow(
                     id=job.id,
                     moderator_id=job.moderator_id,
-                    region_id=job.region_id,
                     postal_code=job.postal_code,
                     place_name=job.place_name,
                     created_at=job.created_at,
@@ -181,15 +179,13 @@ class SqlAiSearchRepository:
 
 
 class SqlDraftStore:
-    """Duplicate checks against the region's events and new AI drafts (table `event`)."""
+    """Duplicate checks against all events and new AI drafts (table `event`)."""
 
     def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
         """Create the store."""
         self._sessions = sessions
 
-    async def is_duplicate(
-        self, region_id: UUID, candidate: DraftCandidate, normalized_url: str
-    ) -> bool:
+    async def is_duplicate(self, candidate: DraftCandidate, normalized_url: str) -> bool:
         """Same source (also rejected ones) or similar name, overlapping dates, < 2 km."""
         find = candidate.find
         point = cast(
@@ -201,15 +197,13 @@ class SqlDraftStore:
         async with self._sessions() as session:
             rejected = await session.scalar(
                 select(RejectedSourceRow.url_normalized).where(
-                    RejectedSourceRow.region_id == region_id,
-                    RejectedSourceRow.url_normalized == normalized_url,
+                    RejectedSourceRow.url_normalized == normalized_url
                 )
             )
             if rejected is not None:
                 return True
             sources = await session.scalars(
                 select(EventRow.source_url).where(
-                    EventRow.region_id == region_id,
                     EventRow.source_url.is_not(None),
                     EventRow.deleted_at.is_(None),
                 )
@@ -219,7 +213,6 @@ class SqlDraftStore:
             similar = await session.scalar(
                 select(EventRow.id)
                 .where(
-                    EventRow.region_id == region_id,
                     EventRow.deleted_at.is_(None),
                     func.similarity(func.lower(EventRow.name), find.name.lower())
                     >= NAME_SIMILARITY,
@@ -232,7 +225,7 @@ class SqlDraftStore:
         return similar is not None
 
     async def add_drafts(
-        self, region_id: UUID, job_id: UUID, found_at: datetime, drafts: Sequence[DraftCandidate]
+        self, job_id: UUID, found_at: datetime, drafts: Sequence[DraftCandidate]
     ) -> list[UUID]:
         """Store the candidates as drafts (`source = ai`, no audit user)."""
         ids: list[UUID] = []
@@ -241,7 +234,6 @@ class SqlDraftStore:
                 find = draft.find
                 event = ManagedEvent(
                     id=uuid.uuid4(),
-                    region_id=region_id,
                     status=EventStatus.DRAFT,
                     content=EventContent(
                         name=find.name,

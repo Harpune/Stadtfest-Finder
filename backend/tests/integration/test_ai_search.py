@@ -21,7 +21,6 @@ from stadtfest.adapters.outbound.persistence.catalog import SqlCatalog
 from stadtfest.adapters.outbound.persistence.models import EventRow, OutboxRow, RejectedSourceRow
 from stadtfest.adapters.outbound.persistence.moderation import (
     SqlManagedEventRepository,
-    SqlModRegionDirectory,
 )
 from stadtfest.adapters.outbound.search.fake import FakeWebSearch
 from stadtfest.adapters.outbound.sources.http import AllowAllSourceChecker
@@ -39,7 +38,7 @@ from tests.integration.seed_support import load
 pytestmark = pytest.mark.integration
 
 TODAY = date.today()
-MODERATOR = Principal("sub-ai-mod", frozenset({Role.USER, Role.MODERATOR}), "ostalb")
+MODERATOR = Principal("sub-ai-mod", frozenset({Role.USER, Role.MODERATOR}))
 
 
 class _Clock:
@@ -64,15 +63,13 @@ def _use_cases(
     sessions: async_sessionmaker[AsyncSession],
 ) -> tuple[StartAiSearch, RunAiSearch, SqlAiSearchRepository]:
     jobs = SqlAiSearchRepository(sessions)
-    regions = SqlModRegionDirectory(sessions)
     geocoding = FakeGeocoding()
     settings = AiSearchSettings()
     start = StartAiSearch(
-        jobs, regions, EnsureAccount(SqlUserRepository(sessions)), geocoding, _Clock(), settings
+        jobs, EnsureAccount(SqlUserRepository(sessions)), geocoding, _Clock(), settings
     )
     run = RunAiSearch(
         jobs,
-        regions,
         FakeEventFinder(),
         FakeWebSearch(),
         AllowAllSourceChecker(),
@@ -126,8 +123,8 @@ async def test_discarded_finds_are_never_suggested_again(
     sessions: async_sessionmaker[AsyncSession],
 ) -> None:
     start, run, _ = _use_cases(sessions)
-    principal = Principal(f"sub-{uuid4()}", frozenset({Role.USER, Role.MODERATOR}), "ostalb")
-    # Earlier tests may have stored these finds; start from a clean region state.
+    principal = Principal(f"sub-{uuid4()}", frozenset({Role.USER, Role.MODERATOR}))
+    # Earlier tests may have stored these finds; start from a clean state.
     async with sessions.begin() as session:
         await session.execute(
             update(EventRow)

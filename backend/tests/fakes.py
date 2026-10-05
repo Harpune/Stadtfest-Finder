@@ -35,7 +35,6 @@ from stadtfest.application.identity.ports import (
     IdpUnavailableError,
     InvalidTokenError,
     JobQueueUnavailableError,
-    RegionRecord,
     UserRecord,
 )
 from stadtfest.application.moderation.categories import (
@@ -52,7 +51,6 @@ from stadtfest.application.moderation.image_ports import (
 )
 from stadtfest.application.moderation.ports import (
     ModEventSummary,
-    ModRegion,
     VersionConflictError,
 )
 from stadtfest.application.outbox.ports import OutboxMessage
@@ -182,14 +180,6 @@ class FakeUserRepository:
 
 
 @dataclass
-class FakeRegionDirectory:
-    regions: dict[str, RegionRecord] = field(default_factory=dict)
-
-    async def get_by_key(self, key: str) -> RegionRecord | None:
-        return self.regions.get(key)
-
-
-@dataclass
 class FakeIdpAdmin:
     unavailable: bool = False
     deleted: list[str] = field(default_factory=list)
@@ -305,9 +295,7 @@ class FakeManagedEventRepository:
             key=lambda image: image.position,
         )
 
-    async def list_for_region(
-        self, region_id: UUID, ids: frozenset[UUID] | None
-    ) -> list[ModEventSummary]:
+    async def list_events(self, ids: frozenset[UUID] | None) -> list[ModEventSummary]:
         return [
             ModEventSummary(
                 id=e.id,
@@ -323,7 +311,7 @@ class FakeManagedEventRepository:
                 version=e.version,
             )
             for e in self.events.values()
-            if e.region_id == region_id and not e.deleted and (ids is None or e.id in ids)
+            if not e.deleted and (ids is None or e.id in ids)
         ]
 
     async def get(self, event_id: UUID) -> ManagedEvent | None:
@@ -348,17 +336,6 @@ class FakeManagedEventRepository:
         saved.version = expected_version + 1
         self.events[event.id] = saved
         return saved.version
-
-
-@dataclass
-class FakeModRegions:
-    regions: dict[str, ModRegion] = field(default_factory=dict)
-
-    async def by_key(self, key: str) -> ModRegion | None:
-        return self.regions.get(key)
-
-    async def by_id(self, region_id: UUID) -> ModRegion | None:
-        return next((r for r in self.regions.values() if r.id == region_id), None)
 
 
 @dataclass
@@ -746,13 +723,11 @@ class FakeDraftStore:
     known_urls: set[str] = field(default_factory=set)
     stored: list[DraftCandidate] = field(default_factory=list)
 
-    async def is_duplicate(
-        self, region_id: UUID, candidate: DraftCandidate, normalized_url: str
-    ) -> bool:
+    async def is_duplicate(self, candidate: DraftCandidate, normalized_url: str) -> bool:
         return candidate.find.name in self.known_names or normalized_url in self.known_urls
 
     async def add_drafts(
-        self, region_id: UUID, job_id: UUID, found_at: datetime, drafts: Sequence[DraftCandidate]
+        self, job_id: UUID, found_at: datetime, drafts: Sequence[DraftCandidate]
     ) -> list[UUID]:
         self.stored.extend(drafts)
         return [uuid4() for _ in drafts]

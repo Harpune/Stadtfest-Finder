@@ -35,17 +35,6 @@ class CategoryRow(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default="now()")
 
 
-class RegionRow(Base):
-    """Table `region` (E-05: a region is a set of postal codes)."""
-
-    __tablename__ = "region"
-
-    id: Mapped[UUID] = mapped_column(primary_key=True)
-    key: Mapped[str] = mapped_column(unique=True)
-    name: Mapped[str]
-    postal_codes: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
-
-
 class AppUserRow(Base):
     """Table `app_user` (R05). No email address and no provider list (E-08)."""
 
@@ -65,7 +54,6 @@ class EventRow(Base):
     __tablename__ = "event"
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
-    region_id: Mapped[UUID] = mapped_column(ForeignKey("region.id"))
     name: Mapped[str]
     short_name: Mapped[str]
     category_id: Mapped[UUID | None] = mapped_column(ForeignKey("category.id"))
@@ -182,7 +170,6 @@ class AiSearchJobRow(Base):
     moderator_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("app_user.id", ondelete="SET NULL")
     )
-    region_id: Mapped[UUID] = mapped_column(ForeignKey("region.id"))
     postal_code: Mapped[str]
     place_name: Mapped[str] = mapped_column(default="")
     status: Mapped[str] = mapped_column(default="queued")
@@ -191,7 +178,7 @@ class AiSearchJobRow(Base):
     finished_at: Mapped[datetime | None]
     new_event_ids: Mapped[list[UUID]] = mapped_column(ARRAY(PG_UUID(as_uuid=True)), default=list)
     skipped_duplicate: Mapped[int] = mapped_column(default=0)
-    skipped_out_of_region: Mapped[int] = mapped_column(default=0)
+    skipped_out_of_area: Mapped[int] = mapped_column(default=0)
     skipped_invalid: Mapped[int] = mapped_column(default=0)
     skipped_unverified_source: Mapped[int] = mapped_column(default=0)
     error_code: Mapped[str | None]
@@ -203,6 +190,5 @@ class RejectedSourceRow(Base):
 
     __tablename__ = "rejected_source"
 
-    region_id: Mapped[UUID] = mapped_column(ForeignKey("region.id"), primary_key=True)
     url_normalized: Mapped[str] = mapped_column(primary_key=True)
     rejected_at: Mapped[datetime] = mapped_column(server_default="now()")

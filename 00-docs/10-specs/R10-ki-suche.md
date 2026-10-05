@@ -13,7 +13,7 @@
 **Drin:**
 - Job-Modell und Endpunkte
 - LLM-Port mit **einem generischen Adapter**, Web-Such-Port mit Anbieter-Adapter, beide mit Fake-Adapter
-- Worker-Pipeline: Geocoding → LLM mit Tool → Validierung → Quellenprüfung → Regionsprüfung → Duplikatabgleich → Entwürfe
+- Worker-Pipeline: Geocoding → LLM mit Tool → Validierung → Quellenprüfung → Umkreisprüfung → Duplikatabgleich → Entwürfe
 - Job-Protokoll, Rate-Limit
 - App: PLZ-Sheet, Statusleiste mit Polling, Prüfmodus
 
@@ -29,7 +29,7 @@
 - Bei 5 Ziffern zeigt die App den Ort über `GET /v1/geocode?q={plz}` an. Unbekannte PLZ: „Diese Postleitzahl kennen wir nicht.“
 - „Suche starten“ ist nur bei gültiger Eingabe aktiv. Fehlertext: „Bitte gib eine fünfstellige Postleitzahl ein.“
 - `POST /v1/mod/ai-searches {postalCode}` → `202 {jobId, status: queued}`:
-  - `422 postal_code_outside_region`, wenn die PLZ nicht zur Region des Moderators gehört (Annahme)
+  - `422 postal_code_unknown`, wenn das Geocoding die PLZ nicht kennt. Jede bekannte PLZ ist erlaubt, es gibt keine Regionen mehr ([ADR 0015](../25-adr/0015-regionen-abgeschafft.md)).
   - `409 {jobId}`, wenn bereits ein Job des Moderators `queued|running` ist
   - `429`, wenn das Tageslimit erreicht ist (`AI_SEARCH_DAILY_LIMIT`, Standard 10 pro Moderator)
 - Der Request kehrt sofort zurück. Die Arbeit läuft im Worker (Enqueue über die Outbox: `ai_search.requested`).
@@ -42,7 +42,7 @@
   - Funde erscheinen in der Übersicht als Entwurf mit der Pill „Automatisch gefunden“
   - Bei `n = 0`: „Keine neuen Feste für {PLZ} gefunden“ plus Anzahl übersprungener Duplikate (Annahme)
 - **Fehlgeschlagen:** Leiste „Suche fehlgeschlagen · Erneut versuchen“. Erneut versuchen startet einen neuen Job (Annahme, nicht gestaltet).
-- Job-Antwort: `{id, postalCode, placeName, status, startedAt, finishedAt, newEventIds[], skipped: {duplicate, outOfRegion, invalid, unverifiedSource}, errorCode?}`.
+- Job-Antwort: `{id, postalCode, placeName, status, startedAt, finishedAt, newEventIds[], skipped: {duplicate, outOfArea, invalid, unverifiedSource}, errorCode?}`.
 
 ### R10-US3 · Worker-Pipeline
 1. **Geocoding:** PLZ → Mittelpunkt über den Geocoding-Port. Der Suchradius ist `AI_SEARCH_RADIUS_KM` (Standard 25).
@@ -51,7 +51,7 @@
    - Zeitraum heute bis heute + 12 Monate
    - Namen der aktiven Kategorien
    
-   **Keine** Moderator-Daten, keine Region-IDs, keine Nutzerdaten.
+   **Keine** Moderator-Daten, keine Nutzerdaten.
 3. **LLM mit Web-Such-Tool:** Das Tool ist providerunabhängig definiert und wird vom LLM aufgerufen.
    - Grenzen: `AI_SEARCH_MAX_TOOL_CALLS` (Standard 8), `AI_SEARCH_TIMEOUT_S` (Standard 300), max. Ausgabetokens.
    - Alle vom Tool gelieferten URLs merkt sich der Job.
@@ -61,12 +61,12 @@
    - `source_url` ist Pflicht, `http(s)`, und muss **unter den URLs sein, die das Such-Tool in diesem Job geliefert hat** (Schutz gegen erfundene Quellen)
    - Die Seite muss per HEAD/GET erreichbar sein (Status < 400, Timeout 5 s)
    - Sonst zählt der Eintrag zu `unverifiedSource`
-7. **Ort:** Fehlen Koordinaten oder sind sie unplausibel, wird die Adresse über Nominatim geocodiert. Die PLZ muss in der Region liegen, sonst `outOfRegion`.
+7. **Ort:** Fehlen Koordinaten oder sind sie unplausibel, wird die Adresse über Nominatim geocodiert. Der Ort muss im Suchumkreis liegen (`AI_SEARCH_RADIUS_KM` plus 10 % Toleranz um den Mittelpunkt der PLZ), sonst `outOfArea`. Ohne bestimmbaren Ort ebenfalls `outOfArea`.
 8. **Kategorie:** Der Name wird auf eine aktive Kategorie gemappt (exakt bzw. Synonyme). Ohne sichere Zuordnung bleibt sie leer.
-9. **Duplikate:** Abgleich gegen bestehende Feste der Region (alle Status außer gelöscht) und gegen **verworfene Quellen**:
+9. **Duplikate:** Abgleich gegen alle bestehenden Feste (alle Status außer gelöscht) und gegen **verworfene Quellen**, bundesweit:
    - Treffer, wenn Namensähnlichkeit (trgm) ≥ 0,5, Zeiträume sich überschneiden und die Entfernung < 2 km beträgt, oder wenn die normalisierte `source_url` bereits vorhanden bzw. verworfen ist
    - Bestehende Feste werden **nicht überschrieben**
-10. **Entwürfe anlegen:** `status=draft`, `source=ai`, `sourceUrl`, `aiJobId`, `foundAt`, `regionId`. Kein direktes Veröffentlichen, niemals.
+10. **Entwürfe anlegen:** `status=draft`, `source=ai`, `sourceUrl`, `aiJobId`, `foundAt`. Kein direktes Veröffentlichen, niemals.
 11. Job auf `completed` bzw. `failed` (mit `errorCode`: `llm_unavailable`, `search_unavailable`, `timeout`, `internal`) setzen. Event `ai_search.completed|failed` in die Outbox.
 
 - Job-Status: `queued → running → completed | failed`. Hängende Jobs (Worker-Absturz) setzt ein Wächter-Job nach `2 × AI_SEARCH_TIMEOUT_S` auf `failed`.
@@ -80,7 +80,7 @@
   - Tabelle der Angaben, fehlende in Rosa als „fehlt“
 - **Veröffentlichen:** nur bei vollständigen Pflichtfeldern (`POST …/publish`), sonst öffnet sich das Formular mit Hinweis. Danach der nächste Fund.
 - **Bearbeiten:** Formular aus R07. Nach dem Speichern der nächste Fund.
-- **Verwerfen:** `DELETE /v1/mod/events/{id}`, die normalisierte `sourceUrl` kommt in `rejected_source` (pro Region). Toast „Verworfen“, nächster Fund.
+- **Verwerfen:** `DELETE /v1/mod/events/{id}`, die normalisierte `sourceUrl` kommt in `rejected_source` (bundesweit). Toast „Verworfen“, nächster Fund.
 - **✕ pausiert:** Toast „Pausiert · offene Funde bleiben als Entwurf“. Die Leiste mit „Prüfen“ bleibt.
 - **Ende (09-05):** „Alle Funde geprüft“, Zusammenfassung (n veröffentlicht, n bearbeitet, n verworfen), „Zur Übersicht“. Die Leiste verschwindet.
 
@@ -104,7 +104,7 @@ Unbekannter Anbieter oder fehlender Schlüssel beenden den Start (fail fast). `f
 ## Daten
 
 - `ai_search_job`: Felder laut Datenmodell + `place_name`, `skipped_*`-Zähler, `error_code`, `log jsonb`, `token_usage`.
-- `rejected_source`: `region_id`, `url_normalized`, `rejected_at`.
+- `rejected_source`: `url_normalized`, `rejected_at`.
 - `event`: `found_at`.
 
 ## Datenschutz
@@ -123,7 +123,7 @@ Unbekannter Anbieter oder fehlender Schlüssel beenden den Start (fail fast). `f
   - Quellenprüfung: URL nicht aus dem Tool → abgelehnt
   - Duplikaterkennung inkl. verworfener Quellen
   - Kategorie-Mapping
-  - Region `409`/`429`/`422`
+  - `409`/`429`/`422` beim Start, Umkreisprüfung
   - Wächter für hängende Jobs
 - Integration: kompletter Job mit Fakes gegen PostGIS/Redis (Entwürfe angelegt, Zähler korrekt), Erreichbarkeitsprüfung gegen einen lokalen HTTP-Stub.
 - Contract: Job-Endpunkte (`202`, `409`).
@@ -145,7 +145,11 @@ Unbekannter Anbieter oder fehlender Schlüssel beenden den Start (fail fast). `f
 - [ ] Kein Entwurf ohne verifizierte `source_url` (Test).
 - [ ] ADRs und Runbooks liegen vor.
 
+## Änderung 05.10.2026: keine Regionen
+
+Nach dem ersten echten Test wurden die Moderationsregionen abgeschafft ([ADR 0015](../25-adr/0015-regionen-abgeschafft.md)). Jeder Moderator darf jede PLZ durchsuchen und alle Funde prüfen; die Spec oben ist entsprechend angepasst.
+
 ## Offene Punkte
 
 - Änderungsvorschläge für bestehende Feste (z. B. neue Öffnungszeiten)? Vorerst werden sie übersprungen.
-- Kostenlimit pro Monat und Region zusätzlich zum Tageslimit?
+- Kostenlimit pro Monat zusätzlich zum Tageslimit?

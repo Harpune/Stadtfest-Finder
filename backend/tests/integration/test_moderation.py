@@ -22,12 +22,10 @@ from stadtfest.adapters.outbound.persistence.favorites import SqlFavoriteReposit
 from stadtfest.adapters.outbound.persistence.models import (
     FavoriteRow,
     OutboxRow,
-    RegionRow,
 )
 from stadtfest.adapters.outbound.persistence.moderation import (
     SqlActiveCategories,
     SqlManagedEventRepository,
-    SqlModRegionDirectory,
 )
 from stadtfest.adapters.outbound.persistence.outbox import SqlEventFavorites, SqlOutboxStore
 from stadtfest.adapters.outbound.storage.urls import ImageUrls
@@ -79,8 +77,6 @@ async def _clear_outbox(sessions: async_sessionmaker[AsyncSession]) -> None:
 async def _new_event(
     sessions: async_sessionmaker[AsyncSession], repo: SqlManagedEventRepository, user: UUID
 ) -> ManagedEvent:
-    ostalb = await SqlModRegionDirectory(sessions).by_key("ostalb")
-    assert ostalb is not None
     categories = await SqlActiveCategories(sessions).active_ids()
     content = EventContent(
         name="Herbstfest Wasseralfingen",
@@ -95,7 +91,7 @@ async def _new_event(
         lon=10.1,
         program=(ProgramEntry(date(2026, 10, 17), "11 Uhr", "Fassanstich"),),
     ).with_defaults()
-    event = ManagedEvent(uuid4(), ostalb.id, EventStatus.DRAFT, content)
+    event = ManagedEvent(uuid4(), EventStatus.DRAFT, content)
     await repo.add(event, user)
     return event
 
@@ -111,7 +107,7 @@ async def test_add_get_and_list(
     assert loaded.content == event.content
     assert loaded.version == 1
     assert loaded.content.program[0].title == "Fassanstich"
-    listed = await repo.list_for_region(event.region_id, frozenset({event.id, uuid4()}))
+    listed = await repo.list_events(frozenset({event.id, uuid4()}))
     assert [row.id for row in listed] == [event.id]
 
 
@@ -160,11 +156,9 @@ async def test_publish_writes_the_outbox_in_the_same_transaction(
 ) -> None:
     await _clear_outbox(sessions)
     event = await _new_event(sessions, repo, user)
-    ostalb = await SqlModRegionDirectory(sessions).by_key("ostalb")
-    assert ostalb is not None
     loaded = await repo.get(event.id)
     assert loaded is not None
-    loaded.publish(ostalb.region, await SqlActiveCategories(sessions).active_ids(), NOW)
+    loaded.publish(await SqlActiveCategories(sessions).active_ids(), NOW)
     await repo.save(loaded, 1, user)
 
     # A failing save (stale version) must not leave an outbox entry behind.
@@ -191,11 +185,9 @@ async def test_relay_consumer_invalidates_the_cache_and_cleans_up_favorites(
     client = Redis.from_url(redis_url, decode_responses=True)
     cache = RedisCache(client, prefix=f"test-{uuid4()}:")
     event = await _new_event(sessions, repo, user)
-    ostalb = await SqlModRegionDirectory(sessions).by_key("ostalb")
-    assert ostalb is not None
     loaded = await repo.get(event.id)
     assert loaded is not None
-    loaded.publish(ostalb.region, await SqlActiveCategories(sessions).active_ids(), NOW)
+    loaded.publish(await SqlActiveCategories(sessions).active_ids(), NOW)
     version = await repo.save(loaded, 1, user)
     subject = f"sub-{uuid4()}"
     await SqlUserRepository(sessions).get_or_create(subject, "", "")
@@ -263,16 +255,3 @@ async def test_purge_removes_old_dispatched_messages_only(
             ).all()
         )
     assert ids == {recent, pending}
-
-
-async def test_region_directory_reads_postal_codes(
-    sessions: async_sessionmaker[AsyncSession],
-) -> None:
-    region = await SqlModRegionDirectory(sessions).by_key("ostalb")
-    async with sessions() as session:
-        codes = await session.scalar(
-            select(RegionRow.postal_codes).where(RegionRow.key == "ostalb")
-        )
-    assert region is not None
-    assert region.region.postal_codes == frozenset(codes or ())
-    assert await SqlModRegionDirectory(sessions).by_key("atlantis") is None

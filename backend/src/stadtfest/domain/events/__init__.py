@@ -1,1 +1,1 @@
-"""Bounded context `events`: events, categories, regions and their public visibility rules."""
+"""Bounded context `events`: events, categories and their public visibility rules."""

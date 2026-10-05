@@ -1,4 +1,4 @@
-"""SqlUserRepository and SqlRegionDirectory against PostgreSQL."""
+"""SqlUserRepository against PostgreSQL."""
 
 import asyncio
 from collections.abc import AsyncIterator
@@ -14,12 +14,11 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from stadtfest.adapters.outbound.persistence.accounts import SqlRegionDirectory, SqlUserRepository
+from stadtfest.adapters.outbound.persistence.accounts import SqlUserRepository
 from stadtfest.adapters.outbound.persistence.models import (
     AiSearchJobRow,
     AppUserRow,
     EventRow,
-    RegionRow,
 )
 from tests.integration.seed_support import load
 
@@ -80,7 +79,6 @@ async def test_delete_personal_data_removes_user_and_audit_references(
             AiSearchJobRow(
                 id=job_id,
                 moderator_id=user.id,
-                region_id=await session.scalar(select(RegionRow.id).limit(1)),
                 postal_code="73430",
             )
         )
@@ -95,11 +93,3 @@ async def test_delete_personal_data_removes_user_and_audit_references(
         # The AI search stays for the statistics, without the moderator (R10).
         job = await session.get_one(AiSearchJobRow, job_id)
         assert job.moderator_id is None
-
-
-async def test_region_lookup(sessions: async_sessionmaker[AsyncSession]) -> None:
-    regions = SqlRegionDirectory(sessions)
-    ostalb = await regions.get_by_key("ostalb")
-    assert ostalb is not None
-    assert ostalb.key == "ostalb"
-    assert await regions.get_by_key("nowhere") is None

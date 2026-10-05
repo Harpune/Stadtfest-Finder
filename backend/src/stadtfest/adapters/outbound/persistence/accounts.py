@@ -1,4 +1,4 @@
-"""PostgreSQL implementation of the identity ports (user accounts, regions)."""
+"""PostgreSQL implementation of the identity ports (user accounts)."""
 
 from __future__ import annotations
 
@@ -12,9 +12,8 @@ from stadtfest.adapters.outbound.persistence.models import (
     AppUserRow,
     EventRow,
     FavoriteRow,
-    RegionRow,
 )
-from stadtfest.application.identity.ports import RegionRecord, UserRecord
+from stadtfest.application.identity.ports import UserRecord
 
 
 def _record(row: AppUserRow) -> UserRecord:
@@ -87,25 +86,3 @@ class SqlUserRepository:
             )
             await session.delete(await session.get_one(AppUserRow, user_id))
             return True
-
-
-class SqlRegionDirectory:
-    """Regions in table `region`."""
-
-    def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
-        """Create the directory.
-
-        Args:
-            sessions: Session factory.
-        """
-        self._sessions = sessions
-
-    async def get_by_key(self, key: str) -> RegionRecord | None:
-        """Return the region with this key or None."""
-        async with self._sessions() as session:
-            row = (
-                await session.execute(
-                    select(RegionRow.id, RegionRow.key, RegionRow.name).where(RegionRow.key == key)
-                )
-            ).one_or_none()
-            return RegionRecord(id=row.id, key=row.key, name=row.name) if row else None

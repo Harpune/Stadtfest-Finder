@@ -20,7 +20,7 @@ NOW = datetime(2026, 10, 2, 9, tzinfo=UTC)
 
 
 def _job() -> AiSearchJob:
-    return AiSearchJob(uuid4(), uuid4(), uuid4(), "73430", "Aalen", NOW)
+    return AiSearchJob(uuid4(), uuid4(), "73430", "Aalen", NOW)
 
 
 def test_job_runs_through_its_states() -> None:

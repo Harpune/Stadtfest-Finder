@@ -76,7 +76,6 @@ def _detail(view: ModEventView, urls: ImageUrls) -> api.ModEventDetail:
     event, c = view.event, view.event.content
     return api.ModEventDetail(
         id=event.id,
-        region_id=event.region_id,
         name=c.name,
         short_name=c.short_name,
         status=api.ModEventStatus(view.status.value),
@@ -150,7 +149,7 @@ async def list_mod_events(
     q: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
     ids: Annotated[str | None, Query(max_length=3700)] = None,
 ) -> api.ModEventList:
-    """Events of the caller's region."""
+    """All events (there are no regions, ADR 0015)."""
     id_set: frozenset[UUID] | None = None
     if ids is not None:
         try:
@@ -177,7 +176,7 @@ async def list_mod_events(
 async def create_mod_event(
     deps: Deps, principal: CurrentPrincipal, body: api.ModEventCreate, response: Response
 ) -> api.ModEventDetail:
-    """Create a draft in the caller's region."""
+    """Create a draft."""
     content = EventContent(name=body.name)
     changes = _changes(body)
     changes.pop("name", None)

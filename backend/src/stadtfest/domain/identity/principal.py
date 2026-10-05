@@ -24,8 +24,7 @@ class Principal:
 
     Attributes:
         subject: Stable user ID at the IdP (`sub` claim).
-        roles: Effective roles. `moderator` is only present together with a region.
-        region_key: Moderation region (e.g. `ostalb`), None for non-moderators.
+        roles: Effective roles.
         given_name: First name from the token, used when the account is created.
         family_name: Last name from the token, used when the account is created.
         expires_at: Expiry of the access token (Unix time, `exp` claim), if known.
@@ -33,7 +32,6 @@ class Principal:
 
     subject: str
     roles: frozenset[Role]
-    region_key: str | None = None
     given_name: str | None = field(default=None, repr=False)
     family_name: str | None = field(default=None, repr=False)
     expires_at: int | None = None
@@ -44,5 +42,5 @@ class Principal:
 
     @property
     def can_moderate(self) -> bool:
-        """Whether the principal may maintain events of its region."""
-        return Role.MODERATOR in self.roles and self.region_key is not None
+        """Whether the principal may maintain events (all of them, there are no regions)."""
+        return Role.MODERATOR in self.roles

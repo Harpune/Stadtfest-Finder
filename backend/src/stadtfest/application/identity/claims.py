@@ -2,25 +2,21 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 
 from stadtfest.application.identity.ports import Claims, InvalidTokenError
 from stadtfest.domain.identity.principal import Principal, Role
 
-logger = logging.getLogger(__name__)
-
 
 @dataclass(frozen=True, slots=True)
 class ClaimMapping:
-    """Names of the role and region claims (`AUTH_ROLES_CLAIM`, `AUTH_REGION_CLAIM`).
+    """Name of the roles claim (`AUTH_ROLES_CLAIM`).
 
     A name is first looked up as a literal key (Zitadel: `urn:zitadel:iam:org:project:roles`),
     then as a dotted path (Keycloak: `realm_access.roles`).
     """
 
     roles_claim: str
-    region_claim: str
 
 
 def _lookup(claims: Claims, name: str) -> object:
@@ -45,14 +41,6 @@ def _role_names(value: object) -> list[str]:
     return []
 
 
-def _region_key(value: object) -> str | None:
-    if isinstance(value, list) and len(value) == 1:
-        value = value[0]
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    return None
-
-
 def _optional_str(value: object) -> str | None:
     return value if isinstance(value, str) else None
 
@@ -65,8 +53,8 @@ def _optional_int(value: object) -> int | None:
 def principal_from_claims(claims: Claims, mapping: ClaimMapping) -> Principal:
     """Build the principal from validated claims.
 
-    Unknown roles are ignored. Every authenticated caller has the role `user`. A moderator
-    without region loses the moderation role; a warning without user data is logged.
+    Unknown roles are ignored. Every authenticated caller has the role `user`. A `region`
+    claim from older IdP setups is ignored (ADR 0015).
 
     Args:
         claims: Claims of a validated access token.
@@ -86,14 +74,9 @@ def principal_from_claims(claims: Claims, mapping: ClaimMapping) -> Principal:
         Role(name) for name in _role_names(_lookup(claims, mapping.roles_claim)) if name in known
     }
     roles.add(Role.USER)
-    region_key = _region_key(_lookup(claims, mapping.region_claim))
-    if Role.MODERATOR in roles and region_key is None:
-        logger.warning("moderator_without_region")
-        roles.discard(Role.MODERATOR)
     return Principal(
         subject=subject,
         roles=frozenset(roles),
-        region_key=region_key if Role.MODERATOR in roles else None,
         given_name=_optional_str(claims.get("given_name")),
         family_name=_optional_str(claims.get("family_name")),
         expires_at=_optional_int(claims.get("exp")),

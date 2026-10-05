@@ -33,7 +33,7 @@ from stadtfest.adapters.outbound.llm.pydantic_ai import (
     PydanticAiEventFinder,
     build_model,
 )
-from stadtfest.adapters.outbound.persistence.accounts import SqlRegionDirectory, SqlUserRepository
+from stadtfest.adapters.outbound.persistence.accounts import SqlUserRepository
 from stadtfest.adapters.outbound.persistence.ai_search import SqlAiSearchRepository, SqlDraftStore
 from stadtfest.adapters.outbound.persistence.catalog import SqlCatalog
 from stadtfest.adapters.outbound.persistence.categories import SqlCategoryRepository
@@ -43,7 +43,6 @@ from stadtfest.adapters.outbound.persistence.images import SqlImageRepository
 from stadtfest.adapters.outbound.persistence.moderation import (
     SqlActiveCategories,
     SqlManagedEventRepository,
-    SqlModRegionDirectory,
 )
 from stadtfest.adapters.outbound.persistence.outbox import SqlEventFavorites, SqlOutboxStore
 from stadtfest.adapters.outbound.queue.arq_jobs import (
@@ -270,9 +269,8 @@ class Container:
             jwks_url=str(settings.auth_jwks_url) if settings.auth_jwks_url else None,
             leeway_seconds=settings.auth_leeway_seconds,
         )
-        claim_mapping = ClaimMapping(settings.auth_roles_claim, settings.auth_region_claim)
+        claim_mapping = ClaimMapping(settings.auth_roles_claim)
         users = SqlUserRepository(sessions)
-        regions = SqlRegionDirectory(sessions)
         idp_admin = _idp_admin(settings, auth_http)
         arq_redis = create_arq_redis(str(settings.redis_url))
         deleted_accounts = RedisDeletedAccounts(redis)
@@ -280,9 +278,8 @@ class Container:
         images = SqlImageRepository(sessions)
         categories = SqlCategoryRepository(sessions)
         managed = SqlManagedEventRepository(sessions)
-        mod_regions = SqlModRegionDirectory(sessions)
         ensure_account = EnsureAccount(users)
-        mod = (managed, mod_regions, clock)
+        mod = (managed, clock)
         outbox = SqlOutboxStore(sessions)
         process_image = ProcessImage(images, storage, PillowImageProcessor(), cache)
         ai_http: list[httpx.AsyncClient] = []
@@ -296,7 +293,6 @@ class Container:
         ai_jobs = SqlAiSearchRepository(sessions)
         run_ai_search = RunAiSearch(
             ai_jobs,
-            mod_regions,
             finder,
             search,
             sources,
@@ -325,8 +321,8 @@ class Container:
             reverse_geocode=ReverseGeocode(geocoding, cache),
             reverse_geocode_event_location=ReverseGeocodeEventLocation(geocoding, cache),
             authenticate=Authenticate(verifier, claim_mapping, deleted_accounts),
-            get_me=GetMe(users, regions),
-            update_me=UpdateMe(users, regions),
+            get_me=GetMe(users),
+            update_me=UpdateMe(users),
             delete_account=DeleteAccount(
                 users,
                 idp_admin,
@@ -371,11 +367,9 @@ class Container:
             order_categories=OrderCategories(categories),
             delete_category=DeleteCategory(categories),
             ai_http=ai_http,
-            start_ai_search=StartAiSearch(
-                ai_jobs, mod_regions, ensure_account, geocoding, clock, ai_settings
-            ),
-            get_ai_search=GetAiSearch(ai_jobs, mod_regions, ensure_account),
-            list_ai_searches=ListAiSearches(ai_jobs, mod_regions, ensure_account),
+            start_ai_search=StartAiSearch(ai_jobs, ensure_account, geocoding, clock, ai_settings),
+            get_ai_search=GetAiSearch(ai_jobs, ensure_account),
+            list_ai_searches=ListAiSearches(ai_jobs, ensure_account),
             run_ai_search=run_ai_search,
             fail_stuck_searches=FailStuckSearches(ai_jobs, ai_settings),
             compact_ai_search_logs=CompactAiSearchLogs(ai_jobs),

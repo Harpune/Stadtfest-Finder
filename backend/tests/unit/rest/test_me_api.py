@@ -3,7 +3,6 @@
 import json
 import time
 from types import SimpleNamespace
-from uuid import uuid4
 
 import pytest
 from fastapi import Depends, FastAPI
@@ -15,7 +14,6 @@ from stadtfest.adapters.inbound.rest.errors import register_error_handlers
 from stadtfest.adapters.inbound.rest.middleware import RequestContextMiddleware
 from stadtfest.application.events.use_cases import ListActiveCategories
 from stadtfest.application.identity.claims import ClaimMapping
-from stadtfest.application.identity.ports import RegionRecord
 from stadtfest.application.identity.use_cases import Authenticate, DeleteAccount, GetMe, UpdateMe
 from stadtfest.bootstrap.logging import configure_logging
 from stadtfest.bootstrap.settings import GeocodingProvider, LogFormat, Settings
@@ -25,7 +23,6 @@ from tests.fakes import (
     FakeCategoryCatalog,
     FakeDeletedAccounts,
     FakeIdpAdmin,
-    FakeRegionDirectory,
     FakeTokenVerifier,
     FakeUserRepository,
 )
@@ -33,7 +30,6 @@ from tests.settings_values import TEST_STORAGE
 
 USER_TOKEN = "user-token"
 MODERATOR_TOKEN = "moderator-token"
-OSTALB = RegionRecord(uuid4(), "ostalb", "Ostalbkreis")
 
 
 @pytest.fixture
@@ -62,13 +58,11 @@ def client(users: FakeUserRepository, idp: FakeIdpAdmin) -> TestClient:
             MODERATOR_TOKEN: {
                 "sub": "sub-mod",
                 "realm_access": {"roles": ["user", "moderator"]},
-                "region": "ostalb",
                 "given_name": "Mia",
                 "family_name": "Moderatorin",
             },
         }
     )
-    regions = FakeRegionDirectory({"ostalb": OSTALB})
     app = FastAPI(dependencies=[Depends(optional_principal)])
     app.add_middleware(RequestContextMiddleware)
     register_error_handlers(app)
@@ -76,9 +70,9 @@ def client(users: FakeUserRepository, idp: FakeIdpAdmin) -> TestClient:
     app.include_router(me.router)
     app.state.container = SimpleNamespace(
         list_active_categories=ListActiveCategories(FakeCategoryCatalog(), FakeCache()),
-        authenticate=Authenticate(verifier, ClaimMapping("realm_access.roles", "region"), deleted),
-        get_me=GetMe(users, regions),
-        update_me=UpdateMe(users, regions),
+        authenticate=Authenticate(verifier, ClaimMapping("realm_access.roles"), deleted),
+        get_me=GetMe(users),
+        update_me=UpdateMe(users),
         delete_account=DeleteAccount(
             users, idp, FakeAccountJobs(), deleted, token_leeway_seconds=30
         ),
@@ -134,10 +128,10 @@ def test_get_me_creates_the_user(client: TestClient, users: FakeUserRepository) 
     assert "email" not in body
 
 
-def test_get_me_returns_moderator_region(client: TestClient) -> None:
+def test_get_me_returns_moderator_role_without_region(client: TestClient) -> None:
     body = client.get("/v1/me", headers=_auth(MODERATOR_TOKEN)).json()
     assert body["roles"] == ["user", "moderator"]
-    assert body["region"] == {"id": str(OSTALB.id), "key": "ostalb", "name": "Ostalbkreis"}
+    assert "region" not in body
 
 
 def test_patch_me_updates_names(client: TestClient) -> None:

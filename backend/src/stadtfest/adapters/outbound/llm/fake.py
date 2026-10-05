@@ -1,6 +1,6 @@
 """Fake LLM for local development and tests: three finds from the fake search pages.
 
-It calls the search tool like a real model would, so the pipeline (source check, region,
+It calls the search tool like a real model would, so the pipeline (source check, search area,
 duplicates) runs unchanged. Dates are relative to today, so finds are never in the past.
 """
 

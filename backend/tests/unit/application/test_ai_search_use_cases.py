@@ -15,18 +15,17 @@ from stadtfest.application.ai_ingestion.use_cases import (
 )
 from stadtfest.application.events.views import CategoryView
 from stadtfest.application.geocoding.ports import Place, PlaceKind
-from stadtfest.application.moderation.ports import ModRegion
 from stadtfest.application.shared.errors import (
     ConflictError,
     ForbiddenError,
     InvalidInputError,
     NotFoundError,
+    ServiceUnavailableError,
     TooManyRequestsError,
 )
 from stadtfest.domain.ai_ingestion.finds import FoundEvent
 from stadtfest.domain.ai_ingestion.job import AiSearchError, AiSearchStatus
 from stadtfest.domain.events.geo import GeoPoint
-from stadtfest.domain.events.region import Region
 from stadtfest.domain.identity.principal import Principal, Role
 from tests.fakes import (
     FakeAccountResolver,
@@ -34,7 +33,6 @@ from tests.fakes import (
     FakeDraftStore,
     FakeEventFinder,
     FakeGeocoding,
-    FakeModRegions,
     FakeSourceChecker,
     FakeWebSearch,
     FixedClock,
@@ -42,12 +40,15 @@ from tests.fakes import (
 
 TODAY = date(2026, 10, 2)
 NOW = datetime(2026, 10, 2, 9, tzinfo=UTC)
-OSTALB = ModRegion(uuid4(), Region("ostalb", "Ostalb", frozenset({"73430", "73433", "73525"})))
-MODERATOR = Principal("sub-mod", frozenset({Role.USER, Role.MODERATOR}), "ostalb")
-OTHER = Principal("sub-other", frozenset({Role.USER, Role.MODERATOR}), "ostalb")
+MODERATOR = Principal("sub-mod", frozenset({Role.USER, Role.MODERATOR}))
+OTHER = Principal("sub-other", frozenset({Role.USER, Role.MODERATOR}))
 USER = Principal("sub-user", frozenset({Role.USER}))
 STADTFEST = CategoryView(uuid4(), "Stadtfest", "🎪", "#FFB547", 0)
 AALEN = Place("73430 Aalen", "Aalen", GeoPoint(48.8375, 10.0933), PlaceKind.POSTCODE, "73430")
+WASSERALFINGEN = Place(
+    "73433 Aalen", "Aalen", GeoPoint(48.8623, 10.1019), PlaceKind.POSTCODE, "73433"
+)
+ULM = Place("89073 Ulm", "Ulm", GeoPoint(48.3984, 9.9916), PlaceKind.POSTCODE, "89073")
 SOURCE = "https://www.aalen.de/stadtfest"
 
 
@@ -74,9 +75,8 @@ def _find(**changes: object) -> FoundEvent:
 class Setup:
     def __init__(self, daily_limit: int = 3) -> None:
         self.jobs = FakeAiSearchRepository()
-        regions = FakeModRegions({"ostalb": OSTALB})
         accounts = FakeAccountResolver()
-        self.geocoding = FakeGeocoding(places=[AALEN], reverse_result=AALEN)
+        self.geocoding = FakeGeocoding(places=[AALEN, WASSERALFINGEN, ULM], reverse_result=AALEN)
         self.search = FakeWebSearch(hits=[SearchHit(SOURCE, "Stadtfest Aalen")])
         self.finder = FakeEventFinder(finds=[_find()])
         self.sources = FakeSourceChecker()
@@ -84,13 +84,12 @@ class Setup:
         self.settings = AiSearchSettings(daily_limit=daily_limit, timeout_seconds=1)
         clock = FixedClock(TODAY)
         self.start = StartAiSearch(
-            self.jobs, regions, accounts, self.geocoding, clock, self.settings, now=lambda: NOW
+            self.jobs, accounts, self.geocoding, clock, self.settings, now=lambda: NOW
         )
-        self.get = GetAiSearch(self.jobs, regions, accounts)
-        self.list = ListAiSearches(self.jobs, regions, accounts)
+        self.get = GetAiSearch(self.jobs, accounts)
+        self.list = ListAiSearches(self.jobs, accounts)
         self.run = RunAiSearch(
             self.jobs,
-            regions,
             self.finder,
             self.search,
             self.sources,
@@ -127,9 +126,18 @@ async def test_start_rules(s: Setup) -> None:
         await s.start(USER, "73430")
     with pytest.raises(InvalidInputError):
         await s.start(MODERATOR, "7343")
-    with pytest.raises(InvalidInputError) as outside:
-        await s.start(MODERATOR, "89073")
-    assert outside.value.code == "postal_code_outside_region"
+    with pytest.raises(InvalidInputError) as unknown:
+        await s.start(MODERATOR, "99999")
+    assert unknown.value.code == "postal_code_unknown"
+    s.geocoding.unavailable = True
+    with pytest.raises(ServiceUnavailableError):
+        await s.start(MODERATOR, "73430")
+
+
+async def test_any_known_postal_code_can_be_searched(s: Setup) -> None:
+    """No regions (ADR 0015): Ulm is as searchable as Aalen."""
+    job = await s.start(MODERATOR, "89073")
+    assert (job.postal_code, job.place_name) == ("89073", "Ulm")
 
 
 async def test_one_running_search_per_moderator(s: Setup) -> None:
@@ -187,7 +195,7 @@ async def test_prompt_has_only_public_parameters(s: Setup) -> None:
     _, prompt = s.finder.prompts[0]
     assert "73430 Aalen" in prompt
     assert "Stadtfest" in prompt
-    for private in ("sub-mod", str(OSTALB.id), "ostalb", str(job.moderator_id)):
+    for private in ("sub-mod", str(job.moderator_id)):
         assert private not in prompt
 
 
@@ -208,7 +216,7 @@ async def test_no_draft_without_a_verified_source(s: Setup) -> None:
     assert s.drafts.stored == []
 
 
-async def test_invalid_out_of_region_and_duplicate_finds_are_counted(s: Setup) -> None:
+async def test_invalid_out_of_area_and_duplicate_finds_are_counted(s: Setup) -> None:
     s.finder.invalid = 2
     s.finder.finds = [
         _find(date_from=date(2026, 9, 1), date_to=date(2026, 9, 2)),  # past
@@ -223,14 +231,13 @@ async def test_invalid_out_of_region_and_duplicate_finds_are_counted(s: Setup) -
     assert (done.skipped.invalid, done.skipped.duplicate) == (3, 2)
     assert len(done.new_event_ids) == 1
 
-    s.geocoding.reverse_result = Place(
-        "89073 Ulm", "Ulm", GeoPoint(48.4, 9.99), PlaceKind.POSTCODE, "89073"
-    )
-    s.finder.finds = [_find(name="Ulmer Fest")]
+    # Ulm is ~50 km from Aalen: outside the 25 km radius (+10 %) of the search.
+    s.geocoding.reverse_result = ULM
+    s.finder.finds = [_find(name="Ulmer Fest", lat=48.3984, lon=9.9916)]
     second = await s.start(OTHER, "73430")
     done = await s.run(second.id)
     assert done is not None
-    assert done.skipped.out_of_region == 1
+    assert done.skipped.out_of_area == 1
 
 
 async def test_implausible_coordinates_are_geocoded_again(s: Setup) -> None:

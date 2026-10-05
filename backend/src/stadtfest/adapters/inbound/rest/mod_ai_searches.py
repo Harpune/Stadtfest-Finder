@@ -30,7 +30,7 @@ def _search(job: AiSearchJob) -> api.AiSearch:
         new_event_ids=list(job.new_event_ids),
         skipped=api.AiSearchSkipped(
             duplicate=job.skipped.duplicate,
-            out_of_region=job.skipped.out_of_region,
+            out_of_area=job.skipped.out_of_area,
             invalid=job.skipped.invalid,
             unverified_source=job.skipped.unverified_source,
         ),

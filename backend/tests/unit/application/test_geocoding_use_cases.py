@@ -52,7 +52,7 @@ async def test_reverse_without_result_is_not_found() -> None:
         await ReverseGeocode(FakeGeocoding(), FakeCache())(GeoPoint(0.0, 0.0))
 
 
-MODERATOR = Principal("m", frozenset({Role.USER, Role.MODERATOR}), "ostalb")
+MODERATOR = Principal("m", frozenset({Role.USER, Role.MODERATOR}))
 PIN_PLACE = Place(
     "73430 Aalen",
     "Aalen",

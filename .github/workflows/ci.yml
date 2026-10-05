@@ -67,6 +67,8 @@ jobs:
           base: base-openapi.yaml  # inside the workspace: the action runs in a container
           revision: api/openapi.yaml
           fail-on: ERR
+          # Accepted breaking changes, each backed by an ADR (e.g. ADR 0015).
+          err-ignore: api/oasdiff-err-ignore.txt
 
   mobile:
     name: Mobile (lint, types, tests)

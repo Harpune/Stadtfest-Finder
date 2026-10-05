@@ -10,20 +10,11 @@ from uuid import UUID
 from stadtfest.domain.events.event import EventStatus
 from stadtfest.domain.events.images import EventImage
 from stadtfest.domain.events.maintenance import ManagedEvent
-from stadtfest.domain.events.region import Region
 from stadtfest.domain.identity.principal import Principal
 
 
 class VersionConflictError(Exception):
     """The event was changed since the caller loaded it (optimistic lock)."""
-
-
-@dataclass(frozen=True, slots=True)
-class ModRegion:
-    """Region of a moderator with its database ID."""
-
-    id: UUID
-    region: Region
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,10 +40,8 @@ class ManagedEventRepository(Protocol):
     Saving writes pending domain events to the outbox in the same transaction (ADR 0005).
     """
 
-    async def list_for_region(
-        self, region_id: UUID, ids: frozenset[UUID] | None
-    ) -> list[ModEventSummary]:
-        """All non-deleted events of the region, optionally restricted to `ids`."""
+    async def list_events(self, ids: frozenset[UUID] | None) -> list[ModEventSummary]:
+        """All non-deleted events, optionally restricted to `ids`."""
         ...
 
     async def get(self, event_id: UUID) -> ManagedEvent | None:
@@ -76,18 +65,6 @@ class ManagedEventRepository(Protocol):
         Raises:
             VersionConflictError: If the event was changed or deleted meanwhile.
         """
-        ...
-
-
-class RegionDirectory(Protocol):
-    """Regions with their postal codes."""
-
-    async def by_key(self, key: str) -> ModRegion | None:
-        """The region with this key, or None."""
-        ...
-
-    async def by_id(self, region_id: UUID) -> ModRegion | None:
-        """The region with this ID, or None."""
         ...
 
 

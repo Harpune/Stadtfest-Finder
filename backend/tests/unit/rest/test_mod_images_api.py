@@ -2,7 +2,7 @@
 
 from datetime import date
 from types import SimpleNamespace
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import pytest
 from fastapi import Depends, FastAPI
@@ -22,10 +22,8 @@ from stadtfest.application.moderation.images import (
     RemoveImage,
     RetryImage,
 )
-from stadtfest.application.moderation.ports import ModRegion
 from stadtfest.application.moderation.use_cases import CreateModEvent, GetModEvent
 from stadtfest.domain.events.images import upload_key
-from stadtfest.domain.events.region import Region
 from tests.fakes import (
     FakeAccountResolver,
     FakeCache,
@@ -33,13 +31,11 @@ from tests.fakes import (
     FakeImageProcessor,
     FakeImageRepository,
     FakeManagedEventRepository,
-    FakeModRegions,
     FakeObjectStorage,
     FakeTokenVerifier,
     FixedClock,
 )
 
-OSTALB = ModRegion(uuid4(), Region("ostalb", "Ostalb", frozenset({"73430"})))
 MOD = {"Authorization": "Bearer mod"}
 USER = {"Authorization": "Bearer user"}
 
@@ -48,7 +44,7 @@ class Api:
     def __init__(self) -> None:
         verifier = FakeTokenVerifier(
             {
-                "mod": {"sub": "m", "realm_access": {"roles": ["moderator"]}, "region": "ostalb"},
+                "mod": {"sub": "m", "realm_access": {"roles": ["moderator"]}},
                 "user": {"sub": "u", "realm_access": {"roles": ["user"]}},
             }
         )
@@ -57,14 +53,14 @@ class Api:
         self.storage = FakeObjectStorage()
         cache = FakeCache()
         accounts = FakeAccountResolver()
-        base = (events, FakeModRegions({"ostalb": OSTALB}), FixedClock(date(2026, 10, 1)))
+        base = (events, FixedClock(date(2026, 10, 1)))
         app = FastAPI(dependencies=[Depends(optional_principal)])
         register_error_handlers(app)
         app.include_router(mod_events.router)
         app.include_router(mod_images.router)
         app.state.container = SimpleNamespace(
             authenticate=Authenticate(
-                verifier, ClaimMapping("realm_access.roles", "region"), FakeDeletedAccounts()
+                verifier, ClaimMapping("realm_access.roles"), FakeDeletedAccounts()
             ),
             image_urls=ImageUrls("https://img.test/bucket/"),
             get_mod_event=GetModEvent(*base),

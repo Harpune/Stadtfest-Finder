@@ -1,7 +1,7 @@
 """Prompt of the AI search: only public parameters (R10-US3 step 2, privacy).
 
 The prompt is built by a pure function from `SearchParameters` only. It never contains
-moderator data, region IDs or user data; a snapshot test guards this.
+moderator data or user data; a snapshot test guards this.
 """
 
 from __future__ import annotations

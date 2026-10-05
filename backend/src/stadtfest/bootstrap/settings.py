@@ -98,7 +98,6 @@ class Settings(BaseSettings):
         default=None, description="JWKS endpoint; discovered from the issuer if unset"
     )
     auth_roles_claim: str = Field(default="realm_access.roles", min_length=1)
-    auth_region_claim: str = Field(default="region", min_length=1)
     auth_leeway_seconds: int = Field(default=30, ge=0, le=300)
     auth_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
     idp_admin_provider: IdpAdminProvider = IdpAdminProvider.FAKE
