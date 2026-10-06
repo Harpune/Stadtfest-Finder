@@ -48,6 +48,14 @@
       ],
       "expo-web-browser",
       [
+        "expo-notifications",
+        {
+          "color": "#FFB547",
+          "defaultChannel": "default",
+          "enableBackgroundRemoteNotifications": false
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Stadtfest-Finder braucht Zugriff auf deine Fotos, damit du Bilder zu Festen hochladen kannst. Es werden nur die ausgewählten Bilder übertragen.",

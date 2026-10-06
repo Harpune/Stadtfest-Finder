@@ -35,6 +35,7 @@ export * from './ModCategoryRow/ModCategoryRow';
 export * from './ModEventRow/ModEventRow';
 export * from './ModTabBar/ModTabBar';
 export * from './MonthGrid/MonthGrid';
+export * from './NotificationRow/NotificationRow';
 export * from './Pills/Pills';
 export * from './PinMap/PinMap';
 export * from './PlaceSuggestion/PlaceSuggestion';

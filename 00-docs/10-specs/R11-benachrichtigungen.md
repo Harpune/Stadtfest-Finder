@@ -132,9 +132,9 @@ Fehlende Credentials für den gewählten Anbieter beenden den Start. `disabled` 
 
 ## Definition of Done
 
-- [ ] Screens 07-01 bis 07-04 umgesetzt, Zähler am Profilbild (roter Punkt) und im Drawer.
-- [ ] Zustellung mit allen drei `PUSH_PROVIDER`-Werten durch Tests belegt, manuell mit `expo` auf einem Gerät geprüft.
-- [ ] VVT, Löschkonzept und `DeleteAccount` erweitert.
+- [x] Screens 07-01 bis 07-04 umgesetzt (Liste mit Ziehen zum Aktualisieren, Einstellungen mit Wohnort, Radius und Vorschau, Hell und Dunkel über die Theme-Tokens), Zähler am Profilbild (Punkt) und im Drawer.
+- [ ] Zustellung mit allen drei `PUSH_PROVIDER`-Werten durch Tests belegt (erledigt), manuell mit `expo` auf einem Gerät geprüft (offen: braucht EAS-Projekt, Firebase-Konfiguration und `EXPO_ACCESS_TOKEN`, siehe [push-expo.md](../40-operations/push-expo.md)).
+- [x] VVT, Löschkonzept und `DeleteAccount` erweitert.
 
 ## Entscheidungen bei der Umsetzung
 
@@ -142,6 +142,7 @@ Fehlende Credentials für den gewählten Anbieter beenden den Start. `disabled` 
 - **Push-Adapter:** `expo`, `direct` (APNs und FCM, für beide Plattformen gleich; APNs braucht HTTP/2, dafür das Paket `h2`) und `disabled`. Neue Abhängigkeiten nach Rückfrage am 06.10.2026: `h2` (Backend), `expo-notifications` (App).
 - **„Neu an deinem Wohnort“ nur beim ersten Veröffentlichen:** `event.published` trägt `firstPublication: true`, wenn das Fest zum ersten Mal öffentlich wird.
 - **Idempotenz** über `dedupe_key`: `remind:<fest>:<Tag>`, `change:<fest>:<Stunde>`, `near:<fest>`, `cancel:<fest>` (Tag und Stunde in Europe/Berlin).
+- **App:** `expo-notifications`; die Berechtigung fragt die App beim ersten Favoriten, in den Einstellungen gibt es „Mitteilungen erlauben“ bzw. den Weg in die Systemeinstellungen. Ohne EAS-Projekt-ID (Expo) bzw. Firebase-Konfiguration (Android) bekommt die App kein Token; die Liste funktioniert trotzdem. „Konto löschen“ steht zusätzlich unten in den Einstellungen.
 - **Listentexte** entstehen beim Lesen aus Art und aktuellen Festdaten, z. B. „{Fest} beginnt morgen: 2.–13. Okt 2026 in Aalen.“, „Neu in Aalen: {Fest} (…)“, „{Fest} (…) fällt aus. Grund: …“.
 
 ## Offene Punkte

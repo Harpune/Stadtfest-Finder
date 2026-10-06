@@ -29,6 +29,7 @@ import {useTheme} from '@/theme';
 
 import {ProfileDrawer} from '../account/ProfileDrawer';
 import {initialsOf, useAuth} from '../auth/AuthProvider';
+import {useUnreadCount} from '../notifications/useNotifications';
 import {todayInBerlin} from '../events/dates';
 import {
   favoriteEntryFrom,
@@ -107,6 +108,7 @@ export function DiscoverScreen() {
   const {state, dispatch} = useDiscover();
   const {location, locate} = useUserLocation();
   const {requestAccountAction, user} = useAuth();
+  const unread = useUnreadCount();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const mapRef = useRef<DiscoverMapHandle>(null);
   const today = todayInBerlin();
@@ -477,6 +479,7 @@ export function DiscoverScreen() {
           <AvatarButton
             onPress={() => setDrawerOpen(true)}
             initials={initialsOf(user) || undefined}
+            hasUnread={unread > 0}
             testID="discover.profile"
           />
         </View>

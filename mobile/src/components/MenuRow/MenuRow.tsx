@@ -16,6 +16,8 @@ export interface MenuRowProps {
   onSwitchChange?: (value: boolean) => void;
   /** Chevron "›" for rows that open another screen. */
   chevron?: boolean;
+  /** Pink counter before the chevron, e.g. unread notifications; hidden at 0. */
+  badge?: number;
   accessibilityHint?: string;
   testID: string;
 }
@@ -29,6 +31,7 @@ export function MenuRow({
   switchValue,
   onSwitchChange,
   chevron = false,
+  badge = 0,
   accessibilityHint,
   testID,
 }: MenuRowProps) {
@@ -47,6 +50,7 @@ export function MenuRow({
       accessibilityRole={hasSwitch ? 'switch' : 'button'}
       accessibilityState={hasSwitch ? {checked: switchValue} : undefined}
       accessibilityHint={accessibilityHint}
+      accessibilityValue={badge > 0 ? {text: String(badge)} : undefined}
       onPress={hasSwitch ? () => onSwitchChange?.(!switchValue) : onPress}
       onLongPress={onLongPress}
       style={({pressed}) => [styles.row, {opacity: pressed ? 0.7 : 1}]}
@@ -58,6 +62,19 @@ export function MenuRow({
       >
         {label}
       </Text>
+      {badge > 0 ? (
+        <View
+          testID={`${testID}.badge`}
+          style={[styles.badge, {backgroundColor: c.secondary}]}
+        >
+          <Text
+            variant="caption"
+            style={[styles.badgeText, {color: c.onSecondary}]}
+          >
+            {badge > 99 ? '99+' : badge}
+          </Text>
+        </View>
+      ) : null}
       {hasSwitch ? (
         <Switch
           value={switchValue}
@@ -89,4 +106,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   label: {flex: 1},
+  badge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {fontWeight: '700'},
 });

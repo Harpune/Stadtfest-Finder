@@ -1,7 +1,7 @@
 /**
  * Profile drawer: guest variant (03-07) with login; signed in (R06) with user row, the
- * timeline "Deine Festsaison" and the footer (dark mode, moderator view, logout).
- * "Gemeinsame Listen" (R13) and "Benachrichtigungen" (R11) are not shown yet.
+ * timeline "Deine Festsaison" and the footer (notifications with unread counter, dark mode,
+ * moderator view, logout). "Gemeinsame Listen" (R13) is not shown yet.
  */
 import {router} from 'expo-router';
 import React, {useEffect, useState} from 'react';
@@ -22,6 +22,7 @@ import {initialsOf, useAuth} from '@/features/auth/AuthProvider';
 import {todayInBerlin} from '@/features/events/dates';
 import {FestSaison} from '@/features/favorites/FestSaison';
 import {useFavorites} from '@/features/favorites/useFavorites';
+import {useUnreadCount} from '@/features/notifications/useNotifications';
 import {strings} from '@/strings/de';
 import {useTheme, useThemePreference} from '@/theme';
 
@@ -39,6 +40,7 @@ export function ProfileDrawer({visible, onClose}: ProfileDrawerProps) {
   const toast = useToast();
   const {setPreference} = useThemePreference();
   const [askName, setAskName] = useState(false);
+  const unread = useUnreadCount();
 
   // First opening without a name (Apple without name sharing): ask for it once.
   const needsName = signedIn && user !== null && user.firstName === '';
@@ -48,6 +50,16 @@ export function ProfileDrawer({visible, onClose}: ProfileDrawerProps) {
 
   const footer = signedIn ? (
     <View style={styles.footer}>
+      <MenuRow
+        label={strings.drawer.notifications}
+        chevron
+        badge={unread}
+        onPress={() => {
+          onClose();
+          router.push('/benachrichtigungen');
+        }}
+        testID="drawer.notifications"
+      />
       <MenuRow
         label={strings.drawer.darkMode}
         switchValue={theme.scheme === 'dark'}
