@@ -17,6 +17,9 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+# Service account keys (FCM V1, Play Store): never commit (push-expo.md)
+*-firebase-adminsdk-*.json
+service-account*.json
 
 # Metro
 .metro-health-check*

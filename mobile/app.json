@@ -18,7 +18,8 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "de.stadtfestfinder.app"
+      "package": "de.stadtfestfinder.app",
+      "googleServicesFile": "./google-services.json"
     },
     "plugins": [
       "expo-router",
@@ -67,6 +68,13 @@
     "scheme": "stadtfest",
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f7e8a72e-07b0-4673-acab-7932b41539b5"
+      }
+    },
+    "owner": "harpune"
   }
 }
