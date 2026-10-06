@@ -32,6 +32,8 @@ FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
 # Apple accepts provider tokens for an hour and rejects renewals more often than every 20 min.
 APNS_TOKEN_SECONDS = 50 * 60
 MAX_PARALLEL = 10
+# Android channel created by the app (`setNotificationChannelAsync("default")`).
+ANDROID_CHANNEL = "default"
 _APNS_INVALID = frozenset({"BadDeviceToken", "Unregistered", "DeviceTokenNotForTopic"})
 _FCM_INVALID = frozenset({"UNREGISTERED"})
 
@@ -199,9 +201,10 @@ class DirectPushSender:
             return token
 
     async def _fcm_send(self, message: PushMessage) -> str | None:
-        android: dict[str, object] = {"priority": "HIGH"}
+        notification: dict[str, object] = {"channel_id": ANDROID_CHANNEL}
         if message.badge is not None:
-            android["notification"] = {"notification_count": message.badge}
+            notification["notification_count"] = message.badge
+        android: dict[str, object] = {"priority": "HIGH", "notification": notification}
         response = await self._post(
             f"https://fcm.googleapis.com/v1/projects/{self._fcm.project_id}/messages:send",
             json={

@@ -242,9 +242,10 @@ function HomeSection({
             autoCapitalize="words"
             testID="settings.home.input"
           />
-          {places.map(place => (
+          {places.map((place, index) => (
             <PlaceSuggestion
-              key={`${place.postalCode}-${place.city}`}
+              // The geocoder may return the same ZIP code twice (e.g. two districts).
+              key={`${place.postalCode}-${place.city}-${index}`}
               label={`${place.postalCode} ${place.city}`}
               onPress={() => {
                 set(

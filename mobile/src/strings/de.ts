@@ -484,7 +484,11 @@ export const strings = {
     cancelDialog: {
       title: 'Fest absagen?',
       text: (name: string, n: number) =>
-        `„${name}“ wird als abgesagt markiert. ${n} Nutzer mit diesem Favoriten werden benachrichtigt.`,
+        `„${name}“ wird als abgesagt markiert. ${
+          n === 1
+            ? '1 Nutzer mit diesem Favoriten wird'
+            : `${n} Nutzer mit diesem Favoriten werden`
+        } benachrichtigt.`,
       reasonPlaceholder: 'Grund (wird in der Benachrichtigung angezeigt)',
       confirm: 'Absagen und benachrichtigen',
     },

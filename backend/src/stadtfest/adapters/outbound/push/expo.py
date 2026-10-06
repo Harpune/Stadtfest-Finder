@@ -23,6 +23,7 @@ RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts"
 SEND_BATCH = 100
 RECEIPT_BATCH = 1000
 _INVALID = "DeviceNotRegistered"
+ANDROID_CHANNEL = "default"
 
 
 class ExpoPushSender:
@@ -96,6 +97,8 @@ def _expo_message(message: PushMessage) -> dict[str, object]:
         "data": message.data,
         "sound": "default",
         "priority": "high",
+        # Android channel created by the app (`setNotificationChannelAsync("default")`).
+        "channelId": ANDROID_CHANNEL,
     }
     if message.badge is not None:
         body["badge"] = message.badge

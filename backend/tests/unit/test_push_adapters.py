@@ -82,6 +82,7 @@ async def test_expo_sends_batches_and_reports_invalid_tokens() -> None:
     assert [len(json.loads(r.content)) for r in requests] == [100, 51]
     first = json.loads(requests[0].content)[0]
     assert first["badge"] == 2
+    assert first["channelId"] == "default"
     assert first["data"]["targetId"] == "e1"
     assert requests[0].headers["authorization"] == "Bearer secret"
 
@@ -179,7 +180,12 @@ async def test_direct_routes_ios_to_apns_and_android_to_fcm(
     fcm = next(r for r in seen if r.url.host == "fcm.googleapis.com")
     assert fcm.url.path == "/v1/projects/stadtfest/messages:send"
     assert fcm.headers["authorization"] == "Bearer fcm-token"
-    assert json.loads(fcm.content)["message"]["data"]["type"] == "cancel"
+    fcm_message = json.loads(fcm.content)["message"]
+    assert fcm_message["data"]["type"] == "cancel"
+    assert fcm_message["android"]["notification"] == {
+        "channel_id": "default",
+        "notification_count": 2,
+    }
     # The OAuth token is fetched once and reused.
     assert sum(r.url.host == "oauth2.test" for r in seen) == 1
 
