@@ -145,6 +145,18 @@ describe('notification list (07-01)', () => {
     expect(calls.filter(c => c.method === 'POST')).toHaveLength(1);
   });
 
+  it('opens the event only once on fast double taps', async () => {
+    listApi([note('a')], 1);
+    await render(<NotificationsScreen now={NOW} />);
+
+    const row = await screen.findByTestId('notifications.item.a');
+    await fireEvent.press(row);
+    await fireEvent.press(row);
+    await fireEvent.press(row);
+
+    expect(router.push).toHaveBeenCalledTimes(1);
+  });
+
   it('marks everything read', async () => {
     const calls = listApi([note('a'), note('b')], 2);
     await render(<NotificationsScreen now={NOW} />);

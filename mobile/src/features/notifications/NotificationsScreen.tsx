@@ -23,6 +23,7 @@ import {
   SectionHeader,
   Text,
 } from '@/components';
+import {navigate} from '@/features/navigation/navigate';
 import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
 
@@ -57,7 +58,7 @@ export function NotificationsScreen({now}: NotificationsScreenProps) {
 
   const open = (item: AppNotification) => {
     if (!item.read) void markRead(item.id);
-    router.push({pathname: '/f/[id]', params: {id: item.target.id}});
+    navigate({pathname: '/f/[id]', params: {id: item.target.id}});
   };
 
   const header = (
@@ -75,7 +76,7 @@ export function NotificationsScreen({now}: NotificationsScreenProps) {
       <IconButton
         icon={<Icon name="settings" size={22} />}
         accessibilityLabel={s.settings}
-        onPress={() => router.push('/benachrichtigungen/einstellungen')}
+        onPress={() => navigate('/benachrichtigungen/einstellungen')}
         variant="surface"
         testID="notifications.settings"
       />

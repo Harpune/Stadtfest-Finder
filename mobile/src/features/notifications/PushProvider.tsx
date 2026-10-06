@@ -6,7 +6,6 @@
  * - a tap on a push opens its target (also on a cold start) and marks it read.
  */
 import {useQuery} from '@tanstack/react-query';
-import {router} from 'expo-router';
 import React, {
   createContext,
   PropsWithChildren,
@@ -17,6 +16,7 @@ import React, {
   useRef,
 } from 'react';
 
+import {navigate} from '@/features/navigation/navigate';
 import {$api} from '@/api/client';
 import {useToast} from '@/components';
 import {useAuth} from '@/features/auth/AuthProvider';
@@ -111,7 +111,7 @@ export function PushProvider({children}: PropsWithChildren) {
       lastOpened.current = {key, at: now};
       if (data.notificationId) void markRead(data.notificationId);
       const target = targetOf(data);
-      if (target) router.push(target as never);
+      if (target) navigate(target as never);
     },
     [markRead],
   );

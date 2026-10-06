@@ -3,7 +3,6 @@
  * timeline "Deine Festsaison" and the footer (notifications with unread counter, dark mode,
  * moderator view, logout). "Gemeinsame Listen" (R13) is not shown yet.
  */
-import {router} from 'expo-router';
 import React, {useEffect, useState} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 
@@ -18,6 +17,7 @@ import {
   Text,
   useToast,
 } from '@/components';
+import {navigate} from '@/features/navigation/navigate';
 import {initialsOf, useAuth} from '@/features/auth/AuthProvider';
 import {todayInBerlin} from '@/features/events/dates';
 import {FestSaison} from '@/features/favorites/FestSaison';
@@ -56,7 +56,7 @@ export function ProfileDrawer({visible, onClose}: ProfileDrawerProps) {
         badge={unread}
         onPress={() => {
           onClose();
-          router.push('/benachrichtigungen');
+          navigate('/benachrichtigungen');
         }}
         testID="drawer.notifications"
       />
@@ -78,7 +78,7 @@ export function ProfileDrawer({visible, onClose}: ProfileDrawerProps) {
           chevron
           onPress={() => {
             onClose();
-            router.push('/mod');
+            navigate('/mod');
           }}
           testID="drawer.moderator"
         />
@@ -180,7 +180,7 @@ function SignedInContent({onClose}: {onClose: () => void}) {
           accessibilityLabel={strings.drawer.openAccount}
           onPress={() => {
             onClose();
-            router.push('/konto');
+            navigate('/konto');
           }}
           style={styles.user}
         >
@@ -205,7 +205,7 @@ function SignedInContent({onClose}: {onClose: () => void}) {
         today={todayInBerlin()}
         onOpen={eventId => {
           onClose();
-          router.push(`/f/${eventId}`);
+          navigate(`/f/${eventId}`);
         }}
         onDiscover={onClose}
         onRetry={() => void favorites.refetch()}

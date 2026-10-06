@@ -2,7 +2,6 @@
  * Category overview (R09-US1/US2, 10-01): chip preview, rows with count, drag and drop for
  * category admins. Moderators without `category_admin` see the list read-only.
  */
-import {router} from 'expo-router';
 import React, {useEffect, useState} from 'react';
 import {ScrollView, StyleSheet, View} from 'react-native';
 
@@ -16,6 +15,7 @@ import {
   Text,
   useToast,
 } from '@/components';
+import {navigate} from '@/features/navigation/navigate';
 import {useAuth} from '@/features/auth/AuthProvider';
 import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
@@ -76,7 +76,7 @@ export function CategoriesScreen() {
             label={strings.mod.categories.add}
             variant="mod"
             size="medium"
-            onPress={() => router.push('/mod/kategorien/neu')}
+            onPress={() => navigate('/mod/kategorien/neu')}
             testID="mod.categories.new"
           />
         ) : null}
@@ -159,7 +159,7 @@ export function CategoriesScreen() {
               }
               inactive={!category.active}
               handle={handle}
-              onPress={() => router.push(`/mod/kategorien/${category.id}`)}
+              onPress={() => navigate(`/mod/kategorien/${category.id}`)}
               testID={`mod.categories.row.${category.id}`}
             />
           )}
