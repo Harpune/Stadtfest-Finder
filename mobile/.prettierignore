@@ -6,3 +6,6 @@ src/api/generated/
 src/theme/generated/
 .rnstorybook/storybook.requires.ts
 pnpm-lock.yaml
+
+# Downloaded from the Firebase console, kept as is (push-expo.md)
+google-services.json
