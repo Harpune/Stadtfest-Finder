@@ -1,7 +1,8 @@
 /**
  * Profile drawer: guest variant (03-07) with login; signed in (R06) with user row, the
- * timeline "Deine Festsaison" and the footer (notifications with unread counter, dark mode,
- * moderator view, logout). "Gemeinsame Listen" (R13) is not shown yet.
+ * bell with the unread counter next to the user (R11), the timeline "Deine Festsaison" and the
+ * footer (dark mode, moderator view, logout). "Gemeinsame Listen" (R13) is not shown yet.
+ * Deviation from the design: the notifications sit with the user, not in the footer.
  */
 import React, {useEffect, useState} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
@@ -12,6 +13,7 @@ import {
   Icon,
   IconButton,
   MenuRow,
+  NotificationBell,
   SideDrawer,
   Skeleton,
   Text,
@@ -40,7 +42,6 @@ export function ProfileDrawer({visible, onClose}: ProfileDrawerProps) {
   const toast = useToast();
   const {setPreference} = useThemePreference();
   const [askName, setAskName] = useState(false);
-  const unread = useUnreadCount();
 
   // First opening without a name (Apple without name sharing): ask for it once.
   const needsName = signedIn && user !== null && user.firstName === '';
@@ -50,16 +51,6 @@ export function ProfileDrawer({visible, onClose}: ProfileDrawerProps) {
 
   const footer = signedIn ? (
     <View style={styles.footer}>
-      <MenuRow
-        label={strings.drawer.notifications}
-        chevron
-        badge={unread}
-        onPress={() => {
-          onClose();
-          navigate('/benachrichtigungen');
-        }}
-        testID="drawer.notifications"
-      />
       <MenuRow
         label={strings.drawer.darkMode}
         switchValue={theme.scheme === 'dark'}
@@ -169,6 +160,7 @@ function GuestContent({onClose}: {onClose: () => void}) {
 
 function SignedInContent({onClose}: {onClose: () => void}) {
   const {user, email} = useAuth();
+  const unread = useUnreadCount();
   const favorites = useFavorites();
   const name = user ? `${user.firstName} ${user.lastName}`.trim() : '';
   return (
@@ -196,6 +188,14 @@ function SignedInContent({onClose}: {onClose: () => void}) {
             ) : null}
           </View>
         </Pressable>
+        <NotificationBell
+          unread={unread}
+          onPress={() => {
+            onClose();
+            navigate('/benachrichtigungen');
+          }}
+          testID="drawer.notifications"
+        />
         <CloseButton onClose={onClose} />
       </View>
       <FestSaison

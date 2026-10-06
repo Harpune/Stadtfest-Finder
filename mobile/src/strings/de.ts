@@ -150,11 +150,14 @@ export const strings = {
     darkModeHint: 'Lange drücken: wieder wie das System',
     darkModeSystem: 'Darstellung folgt wieder dem System',
     moderator: 'Moderator-Ansicht',
-    notifications: 'Benachrichtigungen',
   },
   notifications: {
     title: 'Benachrichtigungen',
     markAllRead: 'Alle als gelesen markieren',
+    bellUnread: (n: number) =>
+      n === 1
+        ? 'Benachrichtigungen, 1 ungelesen'
+        : `Benachrichtigungen, ${n} ungelesen`,
     groupNew: 'Neu',
     groupEarlier: 'Früher',
     settings: 'Einstellungen',

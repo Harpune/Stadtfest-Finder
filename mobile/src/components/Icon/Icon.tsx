@@ -33,7 +33,8 @@ export type IconName =
   | 'grip'
   | 'check'
   | 'chevronRight'
-  | 'settings';
+  | 'settings'
+  | 'bell';
 
 export interface IconProps {
   name: IconName;
@@ -84,6 +85,13 @@ function renderIcon(name: IconName, c: Common) {
         <>
           <Circle cx={11} cy={11} r={7} {...c} />
           <Line x1={20} y1={20} x2={16.2} y2={16.2} {...c} />
+        </>
+      );
+    case 'bell':
+      return (
+        <>
+          <Path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" {...c} />
+          <Path d="M13.73 21a2 2 0 0 1-3.46 0" {...c} />
         </>
       );
     case 'settings':

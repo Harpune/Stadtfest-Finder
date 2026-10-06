@@ -15,9 +15,6 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: {label: 'Benachrichtigungen', chevron: true},
 };
-export const WithBadge: Story = {
-  args: {label: 'Benachrichtigungen', chevron: true, badge: 3},
-};
 export const SwitchOn: Story = {
   args: {label: 'Dunkelmodus', switchValue: true, onSwitchChange: fn()},
 };

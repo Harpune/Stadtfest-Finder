@@ -143,6 +143,7 @@ Fehlende Credentials für den gewählten Anbieter beenden den Start. `disabled` 
 - **„Neu an deinem Wohnort“ nur beim ersten Veröffentlichen:** `event.published` trägt `firstPublication: true`, wenn das Fest zum ersten Mal öffentlich wird.
 - **Idempotenz** über `dedupe_key`: `remind:<fest>:<Tag>`, `change:<fest>:<Stunde>`, `near:<fest>`, `cancel:<fest>` (Tag und Stunde in Europe/Berlin).
 - **App:** `expo-notifications`; die Berechtigung fragt die App beim ersten Favoriten, in den Einstellungen gibt es „Mitteilungen erlauben“ bzw. den Weg in die Systemeinstellungen. Ohne EAS-Projekt-ID (Expo) bzw. Firebase-Konfiguration (Android) bekommt die App kein Token; die Liste funktioniert trotzdem. „Konto löschen“ steht zusätzlich unten in den Einstellungen.
+- **Platz im Drawer (06.10.2026, Wunsch des Product Owners):** Abweichend vom Design (Eintrag im Fußbereich) sitzt eine Glocke mit rosa Zähler in der Nutzer-Zeile oben, neben dem ✕. Benachrichtigungen gehören zum Nutzer, der Fußbereich bleibt für Einstellungen wie den Dunkelmodus.
 - **Listentexte** entstehen beim Lesen aus Art und aktuellen Festdaten, z. B. „{Fest} beginnt morgen: 2.–13. Okt 2026 in Aalen.“, „Neu in Aalen: {Fest} (…)“, „{Fest} (…) fällt aus. Grund: …“.
 
 ## Offene Punkte

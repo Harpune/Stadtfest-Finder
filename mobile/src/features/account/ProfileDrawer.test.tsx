@@ -72,6 +72,18 @@ describe('ProfileDrawer', () => {
     expect(router.push).toHaveBeenCalledWith('/konto');
   });
 
+  it('shows the bell with the unread counter next to the user', async () => {
+    await authSession.start(testTokens());
+    mockMeApi({unread: 3});
+    await renderDrawer();
+    expect(
+      await screen.findByTestId('drawer.notifications.badge'),
+    ).toHaveTextContent('3');
+    await fireEvent.press(screen.getByTestId('drawer.notifications'));
+    expect(onClose).toHaveBeenCalled();
+    expect(router.push).toHaveBeenCalledWith('/benachrichtigungen');
+  });
+
   it('logs out from the footer', async () => {
     await authSession.start(testTokens());
     mockMeApi();
