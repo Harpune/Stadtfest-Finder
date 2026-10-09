@@ -163,7 +163,9 @@ describe('friends list (R12-US3)', () => {
     });
     await render(<FriendsScreen />);
     await fireEvent.press(await screen.findByTestId('friends.empty.add'));
-    await fireEvent.press(await screen.findByTestId('friends.add.reset'));
+    // The button is disabled until the link is loaded.
+    await screen.findByTestId('friends.add.qr');
+    await fireEvent.press(screen.getByTestId('friends.add.reset'));
 
     expect(await screen.findByText('Neuer Link erstellt')).toBeOnTheScreen();
     expect(calls.some(c => c.path === '/v1/me/friend-link/rotate')).toBe(true);
