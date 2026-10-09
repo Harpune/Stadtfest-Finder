@@ -4,7 +4,7 @@
  * footer (dark mode, moderator view, logout). "Gemeinsame Listen" (R13) is not shown yet.
  * Deviation from the design: the notifications sit with the user, not in the footer.
  */
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 
 import {
@@ -32,10 +32,27 @@ import {NameSheet} from './NameSheet';
 
 export interface ProfileDrawerProps {
   visible: boolean;
-  onClose: () => void;
+  /** `animated: false` when an entry opens another screen (that screen slides in alone). */
+  onClose: (options?: {animated: boolean}) => void;
 }
 
-export function ProfileDrawer({visible, onClose}: ProfileDrawerProps) {
+type Close = (options?: {animated: boolean}) => void;
+
+export function ProfileDrawer({
+  visible,
+  onClose: closeDrawer,
+}: ProfileDrawerProps) {
+  const [animateClose, setAnimateClose] = useState(true);
+  useEffect(() => {
+    if (visible) setAnimateClose(true);
+  }, [visible]);
+  const onClose: Close = useCallback(
+    options => {
+      setAnimateClose(options?.animated ?? true);
+      closeDrawer(options);
+    },
+    [closeDrawer],
+  );
   const {status, user, logout, isModerator} = useAuth();
   const signedIn = status === 'signedIn';
   const theme = useTheme();
@@ -68,7 +85,7 @@ export function ProfileDrawer({visible, onClose}: ProfileDrawerProps) {
           tone="primary"
           chevron
           onPress={() => {
-            onClose();
+            onClose({animated: false});
             navigate('/mod');
           }}
           testID="drawer.moderator"
@@ -90,7 +107,8 @@ export function ProfileDrawer({visible, onClose}: ProfileDrawerProps) {
     <>
       <SideDrawer
         visible={visible}
-        onClose={onClose}
+        onClose={() => onClose()}
+        animateClose={animateClose}
         footer={footer}
         testID="drawer"
       >
@@ -105,19 +123,19 @@ export function ProfileDrawer({visible, onClose}: ProfileDrawerProps) {
   );
 }
 
-function CloseButton({onClose}: {onClose: () => void}) {
+function CloseButton({onClose}: {onClose: Close}) {
   return (
     <IconButton
       icon={<Icon name="close" size={22} />}
       accessibilityLabel={strings.common.close}
-      onPress={onClose}
+      onPress={() => onClose()}
       variant="surface"
       testID="drawer.close"
     />
   );
 }
 
-function GuestContent({onClose}: {onClose: () => void}) {
+function GuestContent({onClose}: {onClose: Close}) {
   const {openLogin} = useAuth();
   const theme = useTheme();
   return (
@@ -146,7 +164,7 @@ function GuestContent({onClose}: {onClose: () => void}) {
       <Button
         label={strings.drawer.guestLogin}
         onPress={() => {
-          onClose();
+          onClose({animated: false});
           openLogin();
         }}
         testID="drawer.login"
@@ -158,7 +176,7 @@ function GuestContent({onClose}: {onClose: () => void}) {
   );
 }
 
-function SignedInContent({onClose}: {onClose: () => void}) {
+function SignedInContent({onClose}: {onClose: Close}) {
   const {user, email} = useAuth();
   const unread = useUnreadCount();
   const favorites = useFavorites();
@@ -171,7 +189,7 @@ function SignedInContent({onClose}: {onClose: () => void}) {
           accessibilityRole="button"
           accessibilityLabel={strings.drawer.openAccount}
           onPress={() => {
-            onClose();
+            onClose({animated: false});
             navigate('/konto');
           }}
           style={styles.user}
@@ -192,7 +210,7 @@ function SignedInContent({onClose}: {onClose: () => void}) {
           icon={<Icon name="users" size={22} />}
           accessibilityLabel={strings.friends.open}
           onPress={() => {
-            onClose();
+            onClose({animated: false});
             navigate('/freunde');
           }}
           variant="surface"
@@ -201,7 +219,7 @@ function SignedInContent({onClose}: {onClose: () => void}) {
         <NotificationBell
           unread={unread}
           onPress={() => {
-            onClose();
+            onClose({animated: false});
             navigate('/benachrichtigungen');
           }}
           testID="drawer.notifications"
@@ -214,10 +232,10 @@ function SignedInContent({onClose}: {onClose: () => void}) {
         error={favorites.isError}
         today={todayInBerlin()}
         onOpen={eventId => {
-          onClose();
+          onClose({animated: false});
           navigate(`/f/${eventId}`);
         }}
-        onDiscover={onClose}
+        onDiscover={() => onClose()}
         onRetry={() => void favorites.refetch()}
       />
     </>

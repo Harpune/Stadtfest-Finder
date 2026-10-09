@@ -80,8 +80,17 @@ describe('ProfileDrawer', () => {
       await screen.findByTestId('drawer.notifications.badge'),
     ).toHaveTextContent('3');
     await fireEvent.press(screen.getByTestId('drawer.notifications'));
-    expect(onClose).toHaveBeenCalled();
+    // Only the new screen moves: the drawer closes without sliding out.
+    expect(onClose).toHaveBeenCalledWith({animated: false});
     expect(router.push).toHaveBeenCalledWith('/benachrichtigungen');
+  });
+
+  it('closes animated via the close button', async () => {
+    await authSession.start(testTokens());
+    mockMeApi();
+    await renderDrawer();
+    await fireEvent.press(await screen.findByTestId('drawer.close'));
+    expect(onClose).toHaveBeenCalledWith(undefined);
   });
 
   it('logs out from the footer', async () => {
