@@ -18,6 +18,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {
   Button,
   CategoryPill,
+  ComingAlongHint,
   EmptyState,
   FavoriteButton,
   Gallery,
@@ -39,6 +40,8 @@ import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
 
 import {useAuth} from '../auth/AuthProvider';
+import {comingAlongText, personAvatar} from '../invitations/format';
+import {navigate} from '../navigation/navigate';
 import {buildCategoryLookup} from '../discover/categoryLookup';
 import {offlineStyle} from '../discover/mapStyle';
 import {useCategories} from '../discover/useDiscoverData';
@@ -110,6 +113,9 @@ export function EventDetailScreen({eventId}: {eventId: string}) {
     detail?.category ?? (summary ? categoryOf(summary.categoryId) : undefined);
   const status = base ? eventStatus(base, today) : undefined;
   const cancelled = base?.status === 'cancelled';
+  // Inviting is not possible to cancelled or past events (R14-US1).
+  const invitable = !!base && !cancelled && base.endDate >= today;
+  const comingAlong = detail?.invitationSummary;
   // Distance only with location access, computed on the device (no position is sent).
   const distanceKm =
     position && base ? roundedDistanceKm(position, base) : undefined;
@@ -262,6 +268,25 @@ export function EventDetailScreen({eventId}: {eventId: string}) {
             </View>
           )}
 
+          {comingAlong && comingAlong.people.length > 0 ? (
+            <ComingAlongHint
+              people={comingAlong.people.map(p => personAvatar(p, c))}
+              text={comingAlongText(comingAlong.people)}
+              onPress={() =>
+                comingAlong.role === 'host'
+                  ? navigate({
+                      pathname: '/einladen/[eventId]',
+                      params: {eventId},
+                    })
+                  : navigate({
+                      pathname: '/einladung/[id]',
+                      params: {id: comingAlong.invitationId},
+                    })
+              }
+              testID="detail.comingAlong"
+            />
+          ) : null}
+
           {base ? (
             <InfoBlock rows={infoRows} loading={!detail} testID="detail.info" />
           ) : null}
@@ -406,8 +431,11 @@ export function EventDetailScreen({eventId}: {eventId: string}) {
         <Button
           label={strings.detail.invite}
           variant="secondary"
-          disabled={cancelled || !base}
-          onPress={() => requestAccountAction({type: 'invite', eventId})}
+          disabled={!invitable}
+          onPress={() => {
+            if (!requestAccountAction({type: 'invite', eventId})) return;
+            navigate({pathname: '/einladen/[eventId]', params: {eventId}});
+          }}
           testID="detail.invite"
         />
       </StickyFooter>

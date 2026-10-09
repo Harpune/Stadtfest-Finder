@@ -33,7 +33,14 @@ export type Me = components['schemas']['Me'];
 /** An account action of a guest, executed after the login. */
 export type PendingAction =
   | {type: Exclude<GuestHintKind, 'friend'>; eventId: string}
-  | {type: 'friend'; token: string};
+  | {type: 'friend'; token: string}
+  | {type: 'invitationLink'; token: string};
+
+/** Guest hint shown for a pending action; an invitation link explains inviting (R14-US3). */
+function hintKind(action: PendingAction | null): GuestHintKind {
+  if (!action) return 'favorite';
+  return action.type === 'invitationLink' ? 'invite' : action.type;
+}
 
 export type AuthStatus = 'restoring' | 'guest' | 'signedIn';
 
@@ -182,11 +189,15 @@ export function AuthProvider({
             });
           return;
         case 'friend':
-          // The friend link screen stays open and shows the owner once signed in.
+        case 'invitationLink':
+          // The link screen stays open and shows the preview once signed in.
           return;
         case 'invite':
-          // R14 reopens the invitation here.
-          router.push({pathname: '/f/[id]', params: {id: action.eventId}});
+          // "Einladen" tapped as a guest: open the own invitation (R14-US1).
+          router.push({
+            pathname: '/einladen/[eventId]',
+            params: {eventId: action.eventId},
+          });
           return;
         default:
           toast(strings.login.welcome(me?.firstName ?? ''));
@@ -310,7 +321,7 @@ export function AuthProvider({
       {children}
       <GuestHintSheet
         visible={hintVisible}
-        kind={pendingAction?.type ?? 'favorite'}
+        kind={hintKind(pendingAction)}
         onLogin={openLogin}
         onDismiss={dismissHint}
       />

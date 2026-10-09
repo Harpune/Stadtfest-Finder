@@ -106,3 +106,13 @@
 - [ ] Teilen für angemeldete Nutzer aktiv, Gast-Aktionen `share`/`invite` werden nach dem Login nachgeholt.
 - [ ] Deep Links `/einladung/{id}` und `/e/{token}` funktionieren beim Kalt- und Warmstart.
 - [ ] VVT und `DeleteAccount` erweitert.
+
+## Umsetzungsnotizen (09.10.2026)
+
+- **Teilen:** ist seit der Entscheidung vom 29.09.2026 (R04-US3a) auch für Gäste aktiv. R14 ändert daran nichts; eine nachgeholte Gast-Aktion `share` entfällt. Nachgeholt werden `invite` (öffnet die eigene Einladung) und `invitationLink` (der Link-Screen bleibt offen und zeigt nach dem Login die Vorschau).
+- **Einladungslink:** Die API liefert nur das Token (`{token}`), die App baut `https://{EXPO_PUBLIC_LINK_HOST}/e/{token}` wie beim Freundschaftslink (R12). Ein Token pro Einladung, es bleibt bestehen.
+- **Ziel der Benachrichtigungen:** `invite` öffnet die erhaltene Einladung (`invitation`, ID der Einladung), `rsvp_yes`/`rsvp_no` die eigene Übersicht (`invitationOverview`, ID des Fests).
+- **„… kommen mit“:** Der Hinweis erscheint erst, wenn mindestens eine Person zugesagt hat. Als Eingeladener mit Zusage zählen Host und weitere Zugesagte.
+- **Erinnern:** Ohne Offene zeigt die App „Alle haben geantwortet“ ohne Aufruf. Innerhalb von 24 h antwortet die API mit `429 reminded_recently` und `fields.retryAfter` (Sekunden).
+- **Antworten** sind wie das Einladen nur bei veröffentlichten, nicht vergangenen Festen möglich (`422 event_not_invitable`), also auch nicht bei abgesagten.
+- **Absage-Fan-out:** `event.cancelled` erreicht Favoriten-Inhaber und Zugesagte, dedupliziert.
