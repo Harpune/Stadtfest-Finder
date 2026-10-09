@@ -26,7 +26,9 @@ def _notification(item: NotificationItem) -> api.Notification:
         id=item.id,
         type=api.NotificationType(item.type.value),
         text=item.text,
-        target=api.NotificationTarget(type="event", id=item.event_id),
+        target=api.NotificationTarget(
+            type="friend" if item.type.about_person else "event", id=item.subject_id
+        ),
         read=item.read,
         created_at=item.created_at,
     )

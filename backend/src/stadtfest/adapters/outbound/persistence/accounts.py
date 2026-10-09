@@ -64,7 +64,8 @@ class SqlUserRepository:
 
         Favorites (R06) are removed by `ON DELETE CASCADE`; their events' counters are
         decremented here first. Notifications, notification settings and devices (R11) go the
-        same way. Extended by later increments: friends (R12),
+        same way, as do friendships, the friend link and notifications naming the user as actor
+        (R12). Extended by later increments:
         lists (R13), invitations (R14).
         """
         async with self._sessions.begin() as session:

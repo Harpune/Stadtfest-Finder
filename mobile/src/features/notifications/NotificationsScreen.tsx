@@ -42,6 +42,14 @@ export interface NotificationsScreenProps {
   now?: Date;
 }
 
+// Notification types are extensible (ADR 0017): unknown ones get a neutral look.
+const ICONS: Record<string, string | undefined> = strings.notifications.icons;
+const KINDS: Record<string, string | undefined> = strings.notifications.kinds;
+const iconOf = (type: string) =>
+  ICONS[type] ?? strings.notifications.unknownIcon;
+const kindOf = (type: string) =>
+  KINDS[type] ?? strings.notifications.unknownKind;
+
 export function NotificationsScreen({now}: NotificationsScreenProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -61,7 +69,12 @@ export function NotificationsScreen({now}: NotificationsScreenProps) {
 
   const open = (item: AppNotification) => {
     if (!item.read) void markRead(item.id);
-    navigate({pathname: '/f/[id]', params: {id: item.target.id}});
+    // Unknown target types (ADR 0017) only mark the entry read.
+    const target: string = item.target.type;
+    if (target === 'friend') navigate('/freunde');
+    if (target === 'event') {
+      navigate({pathname: '/f/[id]', params: {id: item.target.id}});
+    }
   };
 
   const header = (
@@ -156,8 +169,8 @@ export function NotificationsScreen({now}: NotificationsScreenProps) {
             testID={`notifications.swipe.${item.id}`}
           >
             <NotificationRow
-              icon={s.icons[item.type]}
-              kind={s.kinds[item.type]}
+              icon={iconOf(item.type)}
+              kind={kindOf(item.type)}
               text={item.text}
               time={formatNotificationTime(item.createdAt, now)}
               unread={!item.read}

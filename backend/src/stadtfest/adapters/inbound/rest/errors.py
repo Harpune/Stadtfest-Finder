@@ -47,6 +47,8 @@ _CODE_MESSAGES: dict[str, str] = {
     "replacement_required": "Wähle eine Ersatzkategorie für die zugeordneten Feste.",
     "invalid_replacement": "Diese Ersatzkategorie ist nicht möglich.",
     "not_retryable": "Dieses Bild lässt sich nicht erneut verarbeiten. Bitte lade es neu hoch.",
+    "self_link": "Das ist dein eigener Freundschaftslink.",
+    "rate_limited": "Zu viele Versuche. Bitte warte etwas und versuche es später erneut.",
 }
 _INTERNAL_ERROR = ("internal_error", "Da ist etwas schiefgelaufen. Bitte versuche es erneut.")
 

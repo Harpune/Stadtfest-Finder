@@ -551,22 +551,25 @@ class PushProvider(RootModel[Literal["expo", "direct", "disabled"]]):
     ]
 
 
-class NotificationType(RootModel[Literal["remind", "near", "change", "cancel"]]):
+class NotificationType(RootModel[Literal["remind", "near", "change", "cancel", "friend_added"]]):
     root: Annotated[
-        Literal["remind", "near", "change", "cancel"],
+        Literal["remind", "near", "change", "cancel", "friend_added"],
         Field(
-            description="`remind`: a favorite starts soon; `near`: new event near the home; `change`: date,\ntimes or place of a favorite changed; `cancel`: a favorite was cancelled.\n"
+            description="`remind`: a favorite starts soon; `near`: new event near the home; `change`: date,\ntimes or place of a favorite changed; `cancel`: a favorite was cancelled;\n`friend_added`: someone accepted the caller's friend link (R12, list only, no push).\nExtensible (ADR 0017): new values may appear without a new API version; clients must\nshow unknown types with a neutral fallback.\n"
         ),
     ]
 
 
 class NotificationTarget(BaseModel):
-    """What a tap opens."""
+    """What a tap opens; `friend` opens the friends list (id = the friend's user ID). The
+    type is extensible (ADR 0017): unknown types open nothing.
+
+    """
 
     model_config = ConfigDict(
         populate_by_name=True,
     )
-    type: Literal["event"]
+    type: Literal["event", "friend"]
     id: UUID
 
 
@@ -679,6 +682,52 @@ class DeviceRegistration(BaseModel):
     ]
     platform: DevicePlatform
     provider: Literal["expo", "direct"]
+
+
+class FriendLink(BaseModel):
+    """The caller's personal friend link (the token alone grants befriending)."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    token: Annotated[str, Field(pattern="^[A-Za-z0-9_-]{22}$")]
+    created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
+
+
+class Owner(BaseModel):
+    """Only first name and last-name initial (privacy, R12)."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    first_name: Annotated[str, Field(alias="firstName")]
+    last_name_initial: Annotated[str, Field(alias="lastNameInitial", max_length=1)]
+
+
+class FriendLinkOwner(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    owner: Annotated[
+        Owner, Field(description="Only first name and last-name initial (privacy, R12).")
+    ]
+
+
+class Friend(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: Annotated[UUID, Field(description="User ID of the friend.")]
+    first_name: Annotated[str, Field(alias="firstName")]
+    last_name: Annotated[str, Field(alias="lastName")]
+    since: AwareDatetime
+
+
+class FriendList(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    items: list[Friend]
 
 
 class Error(BaseModel):

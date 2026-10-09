@@ -98,6 +98,10 @@ export const strings = {
       title: 'Freunde einladen',
       text: 'Mit einem Konto lädst du Freunde ein und siehst, wer zu- oder abgesagt hat.',
     },
+    friend: {
+      title: 'Mit Freunden verbinden',
+      text: 'Melde dich an, um dich über diesen Freundschaftslink zu verbinden.',
+    },
   },
   login: {
     title: 'Willkommen',
@@ -175,8 +179,18 @@ export const strings = {
       near: 'Neu an deinem Wohnort',
       change: 'Änderung',
       cancel: 'Fest abgesagt',
+      friend_added: 'Neuer Freund',
     },
-    icons: {remind: '⏰', near: '📍', change: '✏️', cancel: '⚠️'},
+    icons: {
+      remind: '⏰',
+      near: '📍',
+      change: '✏️',
+      cancel: '⚠️',
+      friend_added: '🤝',
+    },
+    // Types of a newer server version (ADR 0017).
+    unknownKind: 'Benachrichtigung',
+    unknownIcon: '🔔',
     time: {
       justNow: 'Gerade eben',
       minutes: (n: number) => `vor ${n} Min.`,
@@ -184,6 +198,49 @@ export const strings = {
       today: (time: string) => `Heute, ${time}`,
       yesterday: 'Gestern',
     },
+  },
+  friends: {
+    title: 'Freunde',
+    open: 'Freunde',
+    add: '+ Freund hinzufügen',
+    emptyTitle: 'Noch keine Freunde',
+    emptyText: 'Teile deinen Link, damit sich Freunde mit dir verbinden.',
+    loadFailed: 'Freunde konnten nicht geladen werden',
+    retry: 'Erneut versuchen',
+    since: (monthYear: string) => `Befreundet seit ${monthYear}`,
+    remove: 'Entfernen',
+    removeTitle: 'Freund entfernen?',
+    removeText: (name: string) =>
+      `Du und ${name} seid danach nicht mehr befreundet. Gemeinsame Listen und Einladungen bleiben erhalten.`,
+    removeConfirm: 'Entfernen',
+    cancel: 'Abbrechen',
+    removed: (name: string) => `${name} entfernt`,
+    failed: 'Das hat nicht geklappt',
+    addTitle: 'Freund hinzufügen',
+    addText:
+      'Lass deinen QR-Code scannen oder teile deinen Link. Wer ihn öffnet, kann sich mit dir verbinden.',
+    share: 'Link teilen',
+    shareMessage: (url: string) =>
+      `Werde mein Freund im Stadtfest-Finder: ${url}`,
+    reset: 'Link zurücksetzen',
+    resetTitle: 'Link zurücksetzen?',
+    resetText:
+      'Dein bisheriger Link und QR-Code funktionieren danach nicht mehr. Bestehende Freundschaften bleiben.',
+    resetConfirm: 'Zurücksetzen',
+    resetDone: 'Neuer Link erstellt',
+    qrLabel: 'QR-Code deines Freundschaftslinks',
+    acceptTitle: 'Freundschaft',
+    acceptText: (name: string) => `${name} möchte sich mit dir verbinden.`,
+    accept: 'Annehmen',
+    decline: 'Ablehnen',
+    accepted: (firstName: string) =>
+      `Du bist jetzt mit ${firstName} befreundet`,
+    invalidLink: 'Dieser Link ist nicht mehr gültig',
+    invalidLinkText:
+      'Vielleicht wurde er zurückgesetzt. Bitte um einen neuen Link.',
+    selfLink: 'Das ist dein eigener Freundschaftslink',
+    rateLimited:
+      'Zu viele Versuche. Bitte warte etwas und versuche es später erneut.',
   },
   notificationSettings: {
     title: 'Einstellungen',

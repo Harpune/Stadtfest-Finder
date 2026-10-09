@@ -1,0 +1,21 @@
+# Login form of the local Keycloak, from the entry screen "Mit E-Mail fortfahren" on.
+# env: USERNAME, PASSWORD (dev realm users, infra/dev/keycloak).
+appId: de.stadtfestfinder.app
+---
+- tapOn:
+    id: login.email
+- tapOn:
+    text: 'Fortfahren|Continue'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: username
+    timeout: 60000
+- tapOn:
+    id: username
+- inputText: ${USERNAME}
+- tapOn:
+    id: password
+- inputText: ${PASSWORD}
+- tapOn:
+    id: kc-login

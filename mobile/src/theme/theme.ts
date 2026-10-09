@@ -16,6 +16,7 @@ function colorsFor(scheme: ColorScheme) {
     ...c.surface,
     mod: c.moderator,
     category: color.category,
+    friend: color.friend,
   };
 }
 

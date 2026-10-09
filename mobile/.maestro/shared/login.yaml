@@ -1,0 +1,13 @@
+# Login via the profile drawer. env: USERNAME, PASSWORD.
+appId: de.stadtfestfinder.app
+---
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.login
+- runFlow:
+    file: idp-login.yaml
+- extendedWaitUntil:
+    visible:
+      id: discover.profile
+    timeout: 60000

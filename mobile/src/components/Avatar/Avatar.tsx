@@ -10,11 +10,13 @@ export interface AvatarProps {
   /** Initials, e.g. "LH"; without them a person icon is shown. */
   initials?: string;
   size?: number;
+  /** Background, e.g. a color of the friend palette; light initials on it. */
+  color?: string;
   testID?: string;
 }
 
 /** Round avatar with initials (drawer user row, account page). */
-export function Avatar({initials, size = 32, testID}: AvatarProps) {
+export function Avatar({initials, size = 32, color, testID}: AvatarProps) {
   const theme = useTheme();
   return (
     <View
@@ -25,14 +27,15 @@ export function Avatar({initials, size = 32, testID}: AvatarProps) {
           width: size,
           height: size,
           borderRadius: size / 2,
-          backgroundColor: theme.colors.surfaceVariant,
+          backgroundColor: color ?? theme.colors.surfaceVariant,
         },
       ]}
     >
       {initials ? (
         <Text
           variant={size >= 40 ? 'bodyStrong' : 'meta'}
-          style={{color: theme.colors.onSurface}}
+          // Friend colors are mid-tone in both schemes: white initials on them.
+          style={{color: color ? '#FFFFFF' : theme.colors.onSurface}}
         >
           {initials}
         </Text>

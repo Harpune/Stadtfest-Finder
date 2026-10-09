@@ -434,6 +434,140 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/friend-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Own friend link
+         * @description The caller's personal friend link token; created on the first call. The app builds the
+         *     URL `https://{link host}/freund/{token}` and the QR code from it.
+         */
+        get: operations["getFriendLink"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/friend-link/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset the friend link
+         * @description Creates a new token; the old one stops working immediately.
+         */
+        post: operations["rotateFriendLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/friend-links/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Friend link token (128 random bits, base64url, no personal data). */
+                token: components["parameters"]["FriendToken"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Who shared a friend link
+         * @description First name and last-name initial of the link owner, only for signed-in users.
+         *     At most 20 lookups and accepts per user and hour (`429`), against guessing tokens.
+         */
+        get: operations["getFriendLinkOwner"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/friend-links/{token}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Friend link token (128 random bits, base64url, no personal data). */
+                token: components["parameters"]["FriendToken"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Become friends via a link
+         * @description Creates the friendship in both directions and notifies the link owner
+         *     (`friend_added`). Idempotent if the friendship exists. The own link is `422 self_link`;
+         *     unknown or reset tokens are `404`. Counts towards the lookup limit (`429`).
+         */
+        post: operations["acceptFriendLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/friends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Own friends
+         * @description Ordered by first and last name.
+         */
+        get: operations["listFriends"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/friends/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User ID of the friend. */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a friend
+         * @description Ends the friendship in both directions, without a notification. Idempotent. Shared
+         *     lists and invitations stay.
+         */
+        delete: operations["removeFriend"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/mod/events": {
         parameters: {
             query?: never;
@@ -1263,14 +1397,20 @@ export interface components {
         PushProvider: "expo" | "direct" | "disabled";
         /**
          * @description `remind`: a favorite starts soon; `near`: new event near the home; `change`: date,
-         *     times or place of a favorite changed; `cancel`: a favorite was cancelled.
+         *     times or place of a favorite changed; `cancel`: a favorite was cancelled;
+         *     `friend_added`: someone accepted the caller's friend link (R12, list only, no push).
+         *     Extensible (ADR 0017): new values may appear without a new API version; clients must
+         *     show unknown types with a neutral fallback.
          * @enum {string}
          */
-        NotificationType: "remind" | "near" | "change" | "cancel";
-        /** @description What a tap opens. */
+        NotificationType: "remind" | "near" | "change" | "cancel" | "friend_added";
+        /**
+         * @description What a tap opens; `friend` opens the friends list (id = the friend's user ID). The
+         *     type is extensible (ADR 0017): unknown types open nothing.
+         */
         NotificationTarget: {
             /** @enum {string} */
-            type: "event";
+            type: "event" | "friend";
             /** Format: uuid */
             id: string;
         };
@@ -1339,6 +1479,33 @@ export interface components {
             /** @enum {string} */
             provider: "expo" | "direct";
         };
+        /** @description The caller's personal friend link (the token alone grants befriending). */
+        FriendLink: {
+            token: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        FriendLinkOwner: {
+            /** @description Only first name and last-name initial (privacy, R12). */
+            owner: {
+                firstName: string;
+                lastNameInitial: string;
+            };
+        };
+        Friend: {
+            /**
+             * Format: uuid
+             * @description User ID of the friend.
+             */
+            id: string;
+            firstName: string;
+            lastName: string;
+            /** Format: date-time */
+            since: string;
+        };
+        FriendList: {
+            items: components["schemas"]["Friend"][];
+        };
         /** @description Common error format for all non-2xx responses. */
         Error: {
             /**
@@ -1383,6 +1550,8 @@ export interface components {
         };
     };
     parameters: {
+        /** @description Friend link token (128 random bits, base64url, no personal data). */
+        FriendToken: string;
         /** @description Category ID. */
         CategoryId: string;
         /** @description Image ID. */
@@ -2031,6 +2200,151 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description The token is no longer registered for the caller. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getFriendLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The friend link. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FriendLink"];
+                };
+            };
+            401: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    rotateFriendLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The new friend link. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FriendLink"];
+                };
+            };
+            401: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getFriendLinkOwner: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Friend link token (128 random bits, base64url, no personal data). */
+                token: components["parameters"]["FriendToken"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The owner of the link. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FriendLinkOwner"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    acceptFriendLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Friend link token (128 random bits, base64url, no personal data). */
+                token: components["parameters"]["FriendToken"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The new (or existing) friend. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Friend"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    listFriends: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The friends. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FriendList"];
+                };
+            };
+            401: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    removeFriend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User ID of the friend. */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The friendship is gone. */
             204: {
                 headers: {
                     [name: string]: unknown;

@@ -14,3 +14,6 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {};
 export const Large: Story = {args: {size: 64}};
 export const WithoutName: Story = {args: {initials: undefined}};
+export const Friend: Story = {
+  args: {initials: 'TK', size: 40, color: '#5B7FD6'},
+};

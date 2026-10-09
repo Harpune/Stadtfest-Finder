@@ -1,0 +1,77 @@
+# Friends (R12): user A shares the friend link, user B opens it (guest -> login -> accept),
+# both see each other in the friends list. Requires the local stack (`make dev`) with
+# Keycloak and the dev realm; the two users must not be friends yet. Tag `typing`: see
+# login.yaml.
+appId: de.stadtfestfinder.app
+name: Freunde per Link
+tags:
+  - typing
+env:
+  USER_A: moderator@example.test # dev realm users (infra/dev/keycloak)
+  USER_B: nutzer@example.test
+  PASSWORD: stadtfest-dev
+---
+- runFlow:
+    file: shared/launch.yaml
+    env:
+      LOCATION: never
+
+# User A: log in, open "Freunde", copy the own link
+- runFlow:
+    file: shared/login.yaml
+    env:
+      USERNAME: ${USER_A}
+      PASSWORD: ${PASSWORD}
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.friends
+- extendedWaitUntil:
+    visible:
+      id: friends.screen
+    timeout: 10000
+- tapOn:
+    id: 'friends\.(add|empty\.add)'
+- extendedWaitUntil:
+    visible:
+      id: friends.add.url
+    timeout: 10000
+- copyTextFrom:
+    id: friends.add.url
+- back
+- tapOn:
+    id: friends.back
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.logout
+
+# User B: open the link as guest, log in, accept
+- openLink: ${maestro.copiedText}
+- runFlow:
+    when:
+      visible: 'Öffnen|Open'
+    commands:
+      - tapOn: 'Öffnen|Open'
+- extendedWaitUntil:
+    visible: 'Mit Freunden verbinden'
+    timeout: 15000
+- tapOn:
+    id: guestHint.login
+- runFlow:
+    file: shared/idp-login.yaml
+    env:
+      USERNAME: ${USER_B}
+      PASSWORD: ${PASSWORD}
+- extendedWaitUntil:
+    visible:
+      id: friend.accept.confirm
+    timeout: 60000
+- assertVisible: '.*möchte sich mit dir verbinden.*'
+- tapOn:
+    id: friend.accept.confirm
+- extendedWaitUntil:
+    visible:
+      id: friends.screen
+    timeout: 10000
+- assertVisible: '.*Befreundet seit.*'

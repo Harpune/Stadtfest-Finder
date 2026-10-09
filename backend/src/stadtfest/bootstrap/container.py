@@ -17,6 +17,7 @@ from stadtfest.adapters.outbound.auth.idp_admin import (
 )
 from stadtfest.adapters.outbound.auth.jwks import JwksTokenVerifier
 from stadtfest.adapters.outbound.cache.deleted_accounts import RedisDeletedAccounts
+from stadtfest.adapters.outbound.cache.rate_limiter import RedisRateLimiter
 from stadtfest.adapters.outbound.cache.redis_cache import RedisCache
 from stadtfest.adapters.outbound.cache.redis_client import RedisProbe, create_redis
 from stadtfest.adapters.outbound.clock.berlin_clock import BerlinClock
@@ -39,6 +40,7 @@ from stadtfest.adapters.outbound.persistence.catalog import SqlCatalog
 from stadtfest.adapters.outbound.persistence.categories import SqlCategoryRepository
 from stadtfest.adapters.outbound.persistence.database import DatabaseProbe, create_engine
 from stadtfest.adapters.outbound.persistence.favorites import SqlFavoriteRepository
+from stadtfest.adapters.outbound.persistence.friends import SqlFriendRepository
 from stadtfest.adapters.outbound.persistence.images import SqlImageRepository
 from stadtfest.adapters.outbound.persistence.moderation import (
     SqlActiveCategories,
@@ -86,6 +88,14 @@ from stadtfest.application.ai_ingestion.use_cases import (
     ListAiSearches,
     RunAiSearch,
     StartAiSearch,
+)
+from stadtfest.application.collections.friends import (
+    AcceptFriendLink,
+    GetFriendLink,
+    ListFriends,
+    LookUpFriendLink,
+    RemoveFriend,
+    RotateFriendLink,
 )
 from stadtfest.application.collections.use_cases import (
     AddFavorite,
@@ -234,6 +244,12 @@ class Container:
     remove_favorite: RemoveFavorite
     list_favorites: ListFavorites
     is_favorite: IsFavorite
+    get_friend_link: GetFriendLink
+    rotate_friend_link: RotateFriendLink
+    look_up_friend_link: LookUpFriendLink
+    accept_friend_link: AcceptFriendLink
+    list_friends: ListFriends
+    remove_friend: RemoveFriend
     list_mod_events: ListModEvents
     get_mod_event: GetModEvent
     create_mod_event: CreateModEvent
@@ -340,6 +356,8 @@ class Container:
         arq_redis = create_arq_redis(str(settings.redis_url))
         deleted_accounts = RedisDeletedAccounts(redis)
         favorites = SqlFavoriteRepository(sessions, image_urls)
+        friends = SqlFriendRepository(sessions)
+        limiter = RedisRateLimiter(redis)
         images = SqlImageRepository(sessions)
         categories = SqlCategoryRepository(sessions)
         managed = SqlManagedEventRepository(sessions)
@@ -419,6 +437,12 @@ class Container:
             remove_favorite=RemoveFavorite(favorites),
             list_favorites=ListFavorites(favorites, clock),
             is_favorite=IsFavorite(favorites),
+            get_friend_link=GetFriendLink(friends, ensure_account),
+            rotate_friend_link=RotateFriendLink(friends, ensure_account),
+            look_up_friend_link=LookUpFriendLink(friends, ensure_account, limiter),
+            accept_friend_link=AcceptFriendLink(friends, ensure_account, limiter),
+            list_friends=ListFriends(friends, ensure_account),
+            remove_friend=RemoveFriend(friends, ensure_account),
             list_mod_events=ListModEvents(*mod),
             get_mod_event=GetModEvent(*mod),
             create_mod_event=CreateModEvent(*mod, ensure_account),

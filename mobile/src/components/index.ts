@@ -17,6 +17,7 @@ export * from './EventMarker/EventMarker';
 export * from './FavoriteButton/FavoriteButton';
 export * from './FilterButton/FilterButton';
 export * from './FilterSheet/FilterSheet';
+export * from './FriendRow/FriendRow';
 export * from './Gallery/Gallery';
 export * from './GuestHintSheet/GuestHintSheet';
 export * from './Icon/Icon';

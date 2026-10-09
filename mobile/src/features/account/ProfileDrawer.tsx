@@ -188,6 +188,16 @@ function SignedInContent({onClose}: {onClose: () => void}) {
             ) : null}
           </View>
         </Pressable>
+        <IconButton
+          icon={<Icon name="users" size={22} />}
+          accessibilityLabel={strings.friends.open}
+          onPress={() => {
+            onClose();
+            navigate('/freunde');
+          }}
+          variant="surface"
+          testID="drawer.friends"
+        />
         <NotificationBell
           unread={unread}
           onPress={() => {

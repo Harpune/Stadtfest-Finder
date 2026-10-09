@@ -108,6 +108,14 @@ export const designTokens = {
       "markt": "#8B9CFF",
       "palette5": "#7ED957",
       "palette6": "#C792EA"
+    },
+    "friend": {
+      "blue": "#5B7FD6",
+      "pink": "#C8508A",
+      "green": "#3E9A84",
+      "ochre": "#B07A2E",
+      "violet": "#7B62D0",
+      "rust": "#C85A3E"
     }
   },
   "font": {

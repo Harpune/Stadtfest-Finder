@@ -201,6 +201,25 @@ describe('notification list (07-01)', () => {
     expect(screen.getByText('Früher')).toBeOnTheScreen();
   });
 
+  it('shows types of a newer server with a neutral fallback', async () => {
+    listApi(
+      [
+        note('x', {
+          type: 'list_added' as AppNotification['type'],
+          text: 'Tim hat dich zu einer Liste hinzugefügt.',
+          target: {type: 'list' as 'event', id: 'l1'},
+        }),
+      ],
+      1,
+    );
+    await render(<NotificationsScreen now={NOW} />);
+
+    expect(await screen.findByText('Benachrichtigung')).toBeOnTheScreen();
+    expect(screen.getByText('🔔')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('notifications.item.x'));
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
   it('shows the empty state', async () => {
     listApi([], 0);
     await render(<NotificationsScreen now={NOW} />);

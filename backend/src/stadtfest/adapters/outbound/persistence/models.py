@@ -205,6 +205,10 @@ class NotificationRow(Base):
     user_id: Mapped[UUID] = mapped_column(ForeignKey("app_user.id", ondelete="CASCADE"))
     type: Mapped[str]
     event_id: Mapped[UUID | None] = mapped_column(ForeignKey("event.id", ondelete="CASCADE"))
+    # Who caused it, e.g. the friend who accepted the link (R12).
+    actor_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("app_user.id", ondelete="CASCADE")
+    )
     dedupe_key: Mapped[str]
     read: Mapped[bool] = mapped_column(default=False)
     pushed: Mapped[bool] = mapped_column(default=False)
@@ -245,3 +249,29 @@ class DeviceRow(Base):
     provider: Mapped[str]
     created_at: Mapped[datetime] = mapped_column(server_default="now()")
     last_seen_at: Mapped[datetime] = mapped_column(server_default="now()")
+
+
+class FriendshipRow(Base):
+    """Table `friendship` (R12): symmetric, one row per direction."""
+
+    __tablename__ = "friendship"
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("app_user.id", ondelete="CASCADE"), primary_key=True
+    )
+    friend_id: Mapped[UUID] = mapped_column(
+        ForeignKey("app_user.id", ondelete="CASCADE"), primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default="now()")
+
+
+class FriendLinkRow(Base):
+    """Table `friend_link` (R12): one rotatable token per user."""
+
+    __tablename__ = "friend_link"
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("app_user.id", ondelete="CASCADE"), primary_key=True
+    )
+    token: Mapped[str] = mapped_column(unique=True)
+    created_at: Mapped[datetime] = mapped_column(server_default="now()")
