@@ -73,9 +73,9 @@
 
 ## Definition of Done
 
-- [ ] Screens 05-01 bis 05-04 und die Drawer-Karte umgesetzt, dunkel und hell.
-- [ ] Autorisierung per Test belegt.
-- [ ] VVT und `DeleteAccount` erweitert.
+- [ ] Screens 05-01 bis 05-04 und die Drawer-Karte umgesetzt, dunkel und hell (Farben nur aus Theme-Tokens). Offen: Prüfung auf dem Gerät.
+- [x] Autorisierung per Test belegt (`404` für Nicht-Mitglieder in allen Use Cases, nur Freunde hinzufügbar).
+- [x] VVT und `DeleteAccount` erweitert.
 
 ## Entscheidungen bei der Umsetzung
 
