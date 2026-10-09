@@ -530,6 +530,29 @@ paths:
           $ref: "#/components/responses/Error"
         default:
           $ref: "#/components/responses/Error"
+  /v1/me/notifications/{notificationId}:
+    parameters:
+      - name: notificationId
+        in: path
+        required: true
+        description: Notification ID.
+        schema:
+          type: string
+          format: uuid
+    delete:
+      operationId: deleteNotification
+      tags: [notifications]
+      summary: Delete a notification
+      description: |
+        Removes the entry from the caller's list (swipe in the app). Idempotent: also `204`
+        if it no longer exists; notifications of other users are left alone.
+      responses:
+        "204":
+          description: The notification is gone.
+        "401":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
   /v1/me/notifications/read-all:
     post:
       operationId: markAllNotificationsRead

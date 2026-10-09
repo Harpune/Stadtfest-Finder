@@ -255,3 +255,18 @@ async def test_account_deletion_removes_notifications_settings_and_devices(
                 select(func.count()).select_from(table).where(table.user_id == lena)
             )
             assert remaining == 0
+
+
+async def test_delete_only_removes_the_own_notification(
+    sessions: async_sessionmaker[AsyncSession], users: SqlUserRepository
+) -> None:
+    store = SqlNotificationStore(sessions)
+    _, lena = await _user(users)
+    _, tim = await _user(users)
+    event_id, _ = await _published_event(sessions)
+    [mine] = await store.add([lena], NotificationType.CANCEL, event_id, f"x:{uuid4()}", NOW)
+
+    await store.delete(tim, mine)
+    assert len(await store.page(lena, None, 10)) == 1
+    await store.delete(lena, mine)
+    assert await store.page(lena, None, 10) == []

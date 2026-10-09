@@ -31,6 +31,7 @@
 - Ist ein referenziertes Fest gelöscht, entfällt der Eintrag in der Antwort.
 - Ein Tipp markiert den Eintrag als gelesen (`POST /v1/me/notifications/{id}/read`, optimistisch) und öffnet das Ziel (Detailseite, ab R14 auch Einladungen).
 - `POST /v1/me/notifications/read-all`: Alle Punkte und Zähler verschwinden.
+- **Löschen (Wunsch des Product Owners, 06.10.2026):** Ein Eintrag wird durch Wischen nach links gelöscht (`DELETE /v1/me/notifications/{id}`, idempotent, optimistisch, Toast „Benachrichtigung gelöscht“). Screenreader erreichen dieselbe Funktion über die Aktion „Löschen“.
 - Leerzustand „Noch keine Benachrichtigungen“ (Annahme).
 
 ### R11-US2 · Einstellungen

@@ -58,6 +58,7 @@ from stadtfest.application.moderation.use_cases import (
 )
 from stadtfest.application.notifications.ports import PushProvider
 from stadtfest.application.notifications.use_cases import (
+    DeleteNotification,
     GetNotificationSettings,
     ListNotifications,
     MarkAllNotificationsRead,
@@ -114,6 +115,7 @@ class RestDependencies(Protocol):
     list_notifications: ListNotifications
     mark_notification_read: MarkNotificationRead
     mark_all_notifications_read: MarkAllNotificationsRead
+    delete_notification: DeleteNotification
     get_notification_settings: GetNotificationSettings
     update_notification_settings: UpdateNotificationSettings
     register_device: RegisterDevice

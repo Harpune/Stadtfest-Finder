@@ -168,6 +168,15 @@ class SqlNotificationStore:
                 .values(read=True)
             )
 
+    async def delete(self, user_id: UUID, notification_id: UUID) -> None:
+        """Delete the user's notification."""
+        async with self._sessions.begin() as session:
+            await session.execute(
+                delete(NotificationRow).where(
+                    NotificationRow.id == notification_id, NotificationRow.user_id == user_id
+                )
+            )
+
     async def unpushed(self, ids: Sequence[UUID]) -> list[StoredNotification]:
         """The given notifications not pushed yet (events still live)."""
         if not ids:

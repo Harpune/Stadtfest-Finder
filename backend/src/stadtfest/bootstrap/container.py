@@ -146,6 +146,7 @@ from stadtfest.application.moderation.use_cases import (
 from stadtfest.application.notifications.ports import PushProvider, PushSender
 from stadtfest.application.notifications.use_cases import (
     CheckPushReceipts,
+    DeleteNotification,
     GetNotificationSettings,
     ListNotifications,
     MarkAllNotificationsRead,
@@ -272,6 +273,7 @@ class Container:
     list_notifications: ListNotifications
     mark_notification_read: MarkNotificationRead
     mark_all_notifications_read: MarkAllNotificationsRead
+    delete_notification: DeleteNotification
     get_notification_settings: GetNotificationSettings
     update_notification_settings: UpdateNotificationSettings
     register_device: RegisterDevice
@@ -462,6 +464,7 @@ class Container:
             list_notifications=ListNotifications(notifications, ensure_account),
             mark_notification_read=MarkNotificationRead(notifications, ensure_account),
             mark_all_notifications_read=MarkAllNotificationsRead(notifications, ensure_account),
+            delete_notification=DeleteNotification(notifications, ensure_account),
             get_notification_settings=GetNotificationSettings(
                 notification_settings, ensure_account
             ),

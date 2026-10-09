@@ -13,6 +13,7 @@ from stadtfest.application.notifications.ports import Device, DevicePlatform, Pu
 from stadtfest.application.notifications.use_cases import (
     FANOUT_BATCH,
     CheckPushReceipts,
+    DeleteNotification,
     GetNotificationSettings,
     HomeInput,
     ListNotifications,
@@ -366,3 +367,15 @@ async def test_purge_after_retention(s: Setup) -> None:
     result = await PurgeNotifications(s.store, s.devices, lambda: NOW)()
     assert (result.notifications, result.devices) == (1, 1)
     assert set(s.devices.devices) == {"fresh"}
+
+
+async def test_delete_only_own_notifications(s: Setup) -> None:
+    await s.notify()(NotificationType.CANCEL, FEST, [LENA_ID, TIM_ID])
+    lena_note = next(n for n in s.store.rows if n.user_id == LENA_ID)
+    delete = DeleteNotification(s.store, s.accounts)
+
+    await delete(TIM, lena_note.id)  # someone else's: left alone, no error
+    assert lena_note in s.store.rows
+    await delete(LENA, lena_note.id)
+    await delete(LENA, lena_note.id)  # idempotent
+    assert [n.user_id for n in s.store.rows] == [TIM_ID]

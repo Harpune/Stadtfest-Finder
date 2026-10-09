@@ -53,6 +53,7 @@ export * from './SortableList/SortableList';
 export * from './Spinner/Spinner';
 export * from './StatusText/StatusText';
 export * from './StickyFooter/StickyFooter';
+export * from './SwipeToDelete/SwipeToDelete';
 export * from './SwitchRow/SwitchRow';
 export * from './Text/Text';
 export * from './TextField/TextField';

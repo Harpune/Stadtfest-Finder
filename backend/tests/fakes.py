@@ -841,6 +841,9 @@ class FakeNotificationStore:
             dataclasses.replace(n, read=True) if n.user_id == user_id else n for n in self.rows
         ]
 
+    async def delete(self, user_id: UUID, notification_id: UUID) -> None:
+        self.rows = [n for n in self.rows if not (n.id == notification_id and n.user_id == user_id)]
+
     async def unpushed(self, ids: Sequence[UUID]) -> list[StoredNotification]:
         return [n for n in self.rows if n.id in set(ids) and n.id not in self.pushed]
 

@@ -20,6 +20,7 @@ import {
   Icon,
   IconButton,
   NotificationRow,
+  SwipeToDelete,
   SectionHeader,
   Text,
 } from '@/components';
@@ -30,6 +31,7 @@ import {useTheme} from '@/theme';
 import {formatNotificationTime} from './time';
 import {
   AppNotification,
+  useDeleteNotification,
   useMarkRead,
   useNotificationList,
   useUnreadCount,
@@ -46,6 +48,7 @@ export function NotificationsScreen({now}: NotificationsScreenProps) {
   const list = useNotificationList();
   const unread = useUnreadCount();
   const markRead = useMarkRead();
+  const deleteNotification = useDeleteNotification();
   const s = strings.notifications;
 
   const sections = useMemo(() => {
@@ -147,16 +150,22 @@ export function NotificationsScreen({now}: NotificationsScreenProps) {
           />
         )}
         renderItem={({item}) => (
-          <NotificationRow
-            icon={s.icons[item.type]}
-            kind={s.kinds[item.type]}
-            text={item.text}
-            time={formatNotificationTime(item.createdAt, now)}
-            unread={!item.read}
-            tone={item.type === 'cancel' ? 'alert' : 'default'}
-            onPress={() => open(item)}
-            testID={`notifications.item.${item.id}`}
-          />
+          <SwipeToDelete
+            label={s.delete}
+            onDelete={() => void deleteNotification(item)}
+            testID={`notifications.swipe.${item.id}`}
+          >
+            <NotificationRow
+              icon={s.icons[item.type]}
+              kind={s.kinds[item.type]}
+              text={item.text}
+              time={formatNotificationTime(item.createdAt, now)}
+              unread={!item.read}
+              tone={item.type === 'cancel' ? 'alert' : 'default'}
+              onPress={() => open(item)}
+              testID={`notifications.item.${item.id}`}
+            />
+          </SwipeToDelete>
         )}
         onEndReached={() => {
           if (list.hasNextPage && !list.isFetchingNextPage) {

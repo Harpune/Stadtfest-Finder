@@ -175,6 +175,19 @@ class MarkNotificationRead:
             raise NotFoundError
 
 
+class DeleteNotification:
+    """Remove one of the caller's notifications from the list (swipe, idempotent)."""
+
+    def __init__(self, store: NotificationStore, accounts: AccountResolver) -> None:
+        """Create the use case."""
+        self._store = store
+        self._accounts = accounts
+
+    async def __call__(self, principal: Principal, notification_id: UUID) -> None:
+        """Delete it; other users' notifications are left alone."""
+        await self._store.delete(await self._accounts(principal), notification_id)
+
+
 class MarkAllNotificationsRead:
     """Mark all of the caller's notifications as read."""
 

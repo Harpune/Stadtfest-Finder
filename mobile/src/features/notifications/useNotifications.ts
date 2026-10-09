@@ -126,3 +126,44 @@ export function useMarkRead() {
     [queryClient, toast],
   );
 }
+
+/**
+ * Deletes a notification optimistically (swipe): the row disappears at once, the counter
+ * drops if it was unread; on failure both return with a toast.
+ */
+export function useDeleteNotification() {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  return useCallback(
+    async (item: AppNotification) => {
+      await queryClient.cancelQueries({queryKey: NOTIFICATIONS_KEY});
+      const pages = queryClient.getQueryData<Pages>(LIST_KEY);
+      const unread = queryClient.getQueryData<number>(UNREAD_KEY) ?? 0;
+      if (pages) {
+        queryClient.setQueryData<Pages>(LIST_KEY, {
+          ...pages,
+          pages: pages.pages.map(page => ({
+            ...page,
+            items: page.items.filter(entry => entry.id !== item.id),
+          })),
+        });
+      }
+      if (!item.read) {
+        queryClient.setQueryData(UNREAD_KEY, Math.max(unread - 1, 0));
+      }
+      const result = await fetchClient
+        .DELETE('/v1/me/notifications/{notificationId}', {
+          params: {path: {notificationId: item.id}},
+        })
+        .catch(() => null);
+      if (!result?.response.ok) {
+        queryClient.setQueryData(LIST_KEY, pages);
+        queryClient.setQueryData(UNREAD_KEY, unread);
+        toast(strings.notifications.failed);
+        return;
+      }
+      toast(strings.notifications.deleted);
+    },
+    [queryClient, toast],
+  );
+}

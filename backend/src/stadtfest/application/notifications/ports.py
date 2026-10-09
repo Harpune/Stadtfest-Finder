@@ -97,6 +97,10 @@ class NotificationStore(Protocol):
         """Mark all notifications of the user as read."""
         ...
 
+    async def delete(self, user_id: UUID, notification_id: UUID) -> None:
+        """Delete one of the user's notifications; no-op if it does not exist."""
+        ...
+
     async def unpushed(self, ids: Sequence[UUID]) -> list[StoredNotification]:
         """The given notifications that were not pushed yet."""
         ...

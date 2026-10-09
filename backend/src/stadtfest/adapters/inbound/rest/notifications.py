@@ -55,6 +55,17 @@ async def mark_all_read(deps: Deps, principal: CurrentPrincipal) -> Response:
     return Response(status_code=204)
 
 
+@router.delete(
+    "/notifications/{notification_id}", operation_id="deleteNotification", status_code=204
+)
+async def delete_notification(
+    deps: Deps, principal: CurrentPrincipal, notification_id: UUID
+) -> Response:
+    """Delete one notification (idempotent)."""
+    await deps.delete_notification(principal, notification_id)
+    return Response(status_code=204)
+
+
 @router.post(
     "/notifications/{notification_id}/read",
     operation_id="markNotificationRead",

@@ -154,6 +154,8 @@ export const strings = {
   notifications: {
     title: 'Benachrichtigungen',
     markAllRead: 'Alle als gelesen markieren',
+    delete: 'Löschen',
+    deleted: 'Benachrichtigung gelöscht',
     bellUnread: (n: number) =>
       n === 1
         ? 'Benachrichtigungen, 1 ungelesen'

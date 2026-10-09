@@ -108,7 +108,9 @@ describe('notification list (07-01)', () => {
           headers: {'X-Unread-Count': String(unread)},
         };
       }
-      if (call.method === 'POST') return {status: 204};
+      if (call.method === 'POST' || call.method === 'DELETE') {
+        return {status: 204};
+      }
       return undefined;
     });
   }
@@ -155,6 +157,32 @@ describe('notification list (07-01)', () => {
     await fireEvent.press(row);
 
     expect(router.push).toHaveBeenCalledTimes(1);
+  });
+
+  it('deletes an entry by swipe (accessibility action) and lowers the counter', async () => {
+    const calls = listApi([note('a'), note('b', {read: true})], 1);
+    calls.length = 0;
+    await render(<NotificationsScreen now={NOW} />);
+
+    await fireEvent(
+      await screen.findByTestId('notifications.swipe.a.content'),
+      'accessibilityAction',
+      {nativeEvent: {actionName: 'delete'}},
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('notifications.item.a')).toBeNull(),
+    );
+    expect(screen.getByTestId('notifications.item.b')).toBeOnTheScreen();
+    expect(
+      calls.some(
+        c => c.method === 'DELETE' && c.path === '/v1/me/notifications/a',
+      ),
+    ).toBe(true);
+    expect(
+      await screen.findByText('Benachrichtigung gelöscht'),
+    ).toBeOnTheScreen();
+    expect(screen.queryByTestId('notifications.readAll')).toBeNull();
   });
 
   it('marks everything read', async () => {
