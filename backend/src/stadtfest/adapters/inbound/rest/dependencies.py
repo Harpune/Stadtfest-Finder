@@ -21,6 +21,29 @@ from stadtfest.application.collections.friends import (
     RemoveFriend,
     RotateFriendLink,
 )
+from stadtfest.application.collections.invitations import (
+    AcceptInvitationLink,
+    CreateInvitationLink,
+    GetHostInvitation,
+    GetInvitationSummary,
+    GetReceivedInvitation,
+    InviteFriends,
+    ListReceivedInvitations,
+    LookUpInvitationLink,
+    RemindInvitees,
+    RespondToInvitation,
+)
+from stadtfest.application.collections.lists import (
+    AddListEvent,
+    AddListMember,
+    CreateSharedList,
+    DeleteSharedList,
+    GetSharedList,
+    ListSharedLists,
+    RemoveListEvent,
+    RemoveListMember,
+    RenameSharedList,
+)
 from stadtfest.application.collections.use_cases import (
     AddFavorite,
     IsFavorite,
@@ -103,6 +126,25 @@ class RestDependencies(Protocol):
     accept_friend_link: AcceptFriendLink
     list_friends: ListFriends
     remove_friend: RemoveFriend
+    list_shared_lists: ListSharedLists
+    create_shared_list: CreateSharedList
+    get_shared_list: GetSharedList
+    rename_shared_list: RenameSharedList
+    delete_shared_list: DeleteSharedList
+    add_list_member: AddListMember
+    remove_list_member: RemoveListMember
+    add_list_event: AddListEvent
+    remove_list_event: RemoveListEvent
+    get_host_invitation: GetHostInvitation
+    invite_friends: InviteFriends
+    create_invitation_link: CreateInvitationLink
+    remind_invitees: RemindInvitees
+    respond_to_invitation: RespondToInvitation
+    list_received_invitations: ListReceivedInvitations
+    get_received_invitation: GetReceivedInvitation
+    look_up_invitation_link: LookUpInvitationLink
+    accept_invitation_link: AcceptInvitationLink
+    get_invitation_summary: GetInvitationSummary
     list_mod_events: ListModEvents
     get_mod_event: GetModEvent
     create_mod_event: CreateModEvent

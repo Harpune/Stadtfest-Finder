@@ -11,9 +11,8 @@ from uuid import UUID
 
 from stadtfest.domain.identity.principal import Principal
 from stadtfest.domain.notifications.notification import (
-    EventFacts,
+    Facts,
     NotificationType,
-    PersonFacts,
 )
 from stadtfest.domain.notifications.settings import NotificationSettings
 
@@ -40,7 +39,7 @@ class StoredNotification:
     id: UUID
     user_id: UUID
     type: NotificationType
-    # The event, or for `friend_added` the person (`NotificationType.about_person`).
+    # The event, person or list, see `NotificationType.subject`.
     subject_id: UUID
     read: bool
     created_at: datetime
@@ -51,7 +50,7 @@ class ListedNotification:
     """A notification with the current data of its subject (for the text)."""
 
     notification: StoredNotification
-    facts: EventFacts | PersonFacts
+    facts: Facts
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,8 +71,11 @@ class NotificationStore(Protocol):
         subject_id: UUID,
         key: str,
         created_at: datetime,
+        actor_id: UUID | None = None,
     ) -> list[UUID]:
         """Insert one unread notification per user unless `(user, key)` exists.
+
+        `actor_id` names who caused it where the subject is not a person (`list_added`).
 
         Returns:
             IDs of the inserted notifications.
@@ -106,8 +108,8 @@ class NotificationStore(Protocol):
         """Delete one of the user's notifications; no-op if it does not exist."""
         ...
 
-    async def unpushed(self, ids: Sequence[UUID]) -> list[StoredNotification]:
-        """The given notifications that were not pushed yet."""
+    async def unpushed(self, ids: Sequence[UUID]) -> list[ListedNotification]:
+        """The given notifications that were not pushed yet, with their facts (target)."""
         ...
 
     async def mark_pushed(self, ids: Sequence[UUID]) -> None:
@@ -140,6 +142,10 @@ class Recipients(Protocol):
 
     async def favorite_holders(self, event_id: UUID) -> list[UUID]:
         """Users with the event as favorite."""
+        ...
+
+    async def accepted_invitees(self, event_id: UUID) -> list[UUID]:
+        """Users who accepted an invitation to the event (R14-US7)."""
         ...
 
     async def near_home(self, event_id: UUID) -> list[UUID]:

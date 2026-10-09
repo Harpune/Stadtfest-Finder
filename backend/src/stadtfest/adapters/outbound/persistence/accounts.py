@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, exists, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -12,6 +12,8 @@ from stadtfest.adapters.outbound.persistence.models import (
     AppUserRow,
     EventRow,
     FavoriteRow,
+    ListMemberRow,
+    SharedListRow,
 )
 from stadtfest.application.identity.ports import UserRecord
 
@@ -65,8 +67,9 @@ class SqlUserRepository:
         Favorites (R06) are removed by `ON DELETE CASCADE`; their events' counters are
         decremented here first. Notifications, notification settings and devices (R11) go the
         same way, as do friendships, the friend link and notifications naming the user as actor
-        (R12). Extended by later increments:
-        lists (R13), invitations (R14).
+        (R12). Memberships of shared lists cascade, `created_by` / `added_by` become null and
+        lists without members are deleted (R13). Own invitations as host (with their
+        invitees and notifications) and own invitee rows cascade (R14).
         """
         async with self._sessions.begin() as session:
             user_id = await session.scalar(
@@ -87,4 +90,11 @@ class SqlUserRepository:
                 .values(favorite_count=func.greatest(EventRow.favorite_count - 1, 0))
             )
             await session.delete(await session.get_one(AppUserRow, user_id))
+            await session.flush()
+            # Memberships went with the account; lists nobody is left in go too (R13).
+            await session.execute(
+                delete(SharedListRow).where(
+                    ~exists().where(ListMemberRow.list_id == SharedListRow.id)
+                )
+            )
             return True

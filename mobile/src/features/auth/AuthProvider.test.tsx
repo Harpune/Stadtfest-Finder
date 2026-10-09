@@ -148,15 +148,15 @@ describe('AuthProvider login', () => {
     expect(await screen.findByText('Willkommen, Lena!')).toBeOnTheScreen();
   });
 
-  it('reopens the event for a pending invitation', async () => {
+  it('opens the own invitation for a pending "Einladen"', async () => {
     mockMeApi();
     await renderProbe();
     await fireEvent.press(screen.getByTestId('invite'));
     await fireEvent.press(screen.getByTestId('login'));
     await waitFor(() =>
       expect(router.push).toHaveBeenCalledWith({
-        pathname: '/f/[id]',
-        params: {id: 'e2'},
+        pathname: '/einladen/[eventId]',
+        params: {eventId: 'e2'},
       }),
     );
   });

@@ -72,6 +72,18 @@ export function NotificationsScreen({now}: NotificationsScreenProps) {
     // Unknown target types (ADR 0017) only mark the entry read.
     const target: string = item.target.type;
     if (target === 'friend') navigate('/freunde');
+    if (target === 'list') {
+      navigate({pathname: '/listen/[id]', params: {id: item.target.id}});
+    }
+    if (target === 'invitation') {
+      navigate({pathname: '/einladung/[id]', params: {id: item.target.id}});
+    }
+    if (target === 'invitationOverview') {
+      navigate({
+        pathname: '/einladen/[eventId]',
+        params: {eventId: item.target.id},
+      });
+    }
     if (target === 'event') {
       navigate({pathname: '/f/[id]', params: {id: item.target.id}});
     }

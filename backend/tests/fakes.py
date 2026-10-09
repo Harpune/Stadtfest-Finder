@@ -6,7 +6,7 @@ import asyncio
 import copy
 import dataclasses
 import json
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
@@ -22,6 +22,12 @@ from stadtfest.application.ai_ingestion.ports import (
     WebSearchUnavailableError,
 )
 from stadtfest.application.collections.friends import FriendLinkView, FriendView, LinkTarget
+from stadtfest.application.collections.invitations import (
+    InvitationPersonView,
+    InvitationView,
+    InviteeView,
+)
+from stadtfest.application.collections.lists import ListEventView, ListMemberView, SharedListView
 from stadtfest.application.collections.ports import FavoriteView
 from stadtfest.application.events.criteria import PageCursor, SearchCriteria
 from stadtfest.application.events.views import (
@@ -71,6 +77,7 @@ from stadtfest.application.outbox.ports import OutboxMessage
 from stadtfest.application.shared.ports import JsonValue
 from stadtfest.domain.ai_ingestion.finds import FoundEvent
 from stadtfest.domain.ai_ingestion.job import AiSearchEventType, AiSearchJob, AiSearchStatus
+from stadtfest.domain.collections.invitations import InvitationEventType, InviteeStatus
 from stadtfest.domain.events.category import CATEGORY_CHANGED, CategoryDraft
 from stadtfest.domain.events.geo import GeoPoint
 from stadtfest.domain.events.images import (
@@ -83,7 +90,7 @@ from stadtfest.domain.events.images import (
 from stadtfest.domain.events.maintenance import DomainEvent, ManagedEvent
 from stadtfest.domain.identity.principal import Principal
 from stadtfest.domain.notifications.notification import (
-    EventFacts,
+    Facts,
     NotificationType,
     PersonFacts,
 )
@@ -789,7 +796,8 @@ class FakeDraftStore:
 class FakeNotificationStore:
     """Notifications with their idempotency keys; facts per event or person ID."""
 
-    events: dict[UUID, EventFacts | PersonFacts] = field(default_factory=dict)
+    events: dict[UUID, Facts] = field(default_factory=dict)
+    actors: dict[UUID, UUID | None] = field(default_factory=dict)
     deleted_events: set[UUID] = field(default_factory=set)
     rows: list[StoredNotification] = field(default_factory=list)
     keys: set[tuple[UUID, str]] = field(default_factory=set)
@@ -807,7 +815,9 @@ class FakeNotificationStore:
         subject_id: UUID,
         key: str,
         created_at: datetime,
+        actor_id: UUID | None = None,
     ) -> list[UUID]:
+        self.actors[subject_id] = actor_id
         ids = []
         for user_id in user_ids:
             if (user_id, key) in self.keys:
@@ -849,8 +859,12 @@ class FakeNotificationStore:
     async def delete(self, user_id: UUID, notification_id: UUID) -> None:
         self.rows = [n for n in self.rows if not (n.id == notification_id and n.user_id == user_id)]
 
-    async def unpushed(self, ids: Sequence[UUID]) -> list[StoredNotification]:
-        return [n for n in self.rows if n.id in set(ids) and n.id not in self.pushed]
+    async def unpushed(self, ids: Sequence[UUID]) -> list[ListedNotification]:
+        return [
+            ListedNotification(n, self.events.get(n.subject_id, PersonFacts("", "")))
+            for n in self.rows
+            if n.id in set(ids) and n.id not in self.pushed
+        ]
 
     async def mark_pushed(self, ids: Sequence[UUID]) -> None:
         self.pushed.update(ids)
@@ -880,10 +894,14 @@ class FakeSettingsStore:
 class FakeRecipients:
     holders: dict[UUID, list[UUID]] = field(default_factory=dict)
     near: dict[UUID, list[UUID]] = field(default_factory=dict)
+    accepted: dict[UUID, list[UUID]] = field(default_factory=dict)
     due: dict[date, dict[UUID, list[UUID]]] = field(default_factory=dict)
 
     async def favorite_holders(self, event_id: UUID) -> list[UUID]:
         return list(self.holders.get(event_id, []))
+
+    async def accepted_invitees(self, event_id: UUID) -> list[UUID]:
+        return list(self.accepted.get(event_id, []))
 
     async def near_home(self, event_id: UUID) -> list[UUID]:
         return list(self.near.get(event_id, []))
@@ -1019,3 +1037,246 @@ class FakeRateLimiter:
     async def hit(self, key: str, limit: int, window_seconds: int) -> bool:
         self.counts[key] = self.counts.get(key, 0) + 1
         return self.counts[key] <= limit
+
+
+# --- shared lists (R13) ------------------------------------------------------------------
+
+
+@dataclass
+class FakeSharedListRepository:
+    """Lists with member IDs and event IDs; public events and people by ID."""
+
+    names: dict[UUID, str] = field(default_factory=dict)
+    members: dict[UUID, list[UUID]] = field(default_factory=dict)
+    events: dict[UUID, list[UUID]] = field(default_factory=dict)
+    public_events: dict[UUID, EventSummaryView] = field(default_factory=dict)
+    people: dict[UUID, tuple[str, str]] = field(default_factory=dict)
+    added_events: list[tuple[UUID, list[UUID], UUID]] = field(default_factory=list)
+
+    def _view(self, list_id: UUID) -> SharedListView:
+        events = sorted(
+            (self.public_events[e] for e in self.events[list_id] if e in self.public_events),
+            key=lambda e: (e.start_date, e.name),
+        )
+        return SharedListView(
+            list_id,
+            self.names[list_id],
+            [ListMemberView(m, *self.people.get(m, ("", ""))) for m in self.members[list_id]],
+            [
+                ListEventView(e, "Stadtfest", "🎪", datetime(2026, 10, 9, tzinfo=UTC))
+                for e in events
+            ],
+        )
+
+    async def lists_of(self, user_id: UUID) -> list[SharedListView]:
+        return [self._view(i) for i, members in self.members.items() if user_id in members]
+
+    async def get(self, list_id: UUID) -> SharedListView | None:
+        return self._view(list_id) if list_id in self.names else None
+
+    async def is_member(self, list_id: UUID, user_id: UUID) -> bool:
+        return user_id in self.members.get(list_id, [])
+
+    async def create(
+        self, list_id: UUID, name: str, creator: UUID, members: Sequence[UUID], now: datetime
+    ) -> None:
+        self.names[list_id] = name
+        self.members[list_id] = [creator, *members]
+        self.events[list_id] = []
+        if members:
+            self.added_events.append((list_id, list(members), creator))
+
+    async def rename(self, list_id: UUID, name: str) -> None:
+        self.names[list_id] = name
+
+    async def delete(self, list_id: UUID) -> None:
+        for table in (self.names, self.members, self.events):
+            table.pop(list_id, None)
+
+    async def add_member(self, list_id: UUID, user_id: UUID, by: UUID, now: datetime) -> None:
+        if user_id not in self.members[list_id]:
+            self.members[list_id].append(user_id)
+            self.added_events.append((list_id, [user_id], by))
+
+    async def remove_member(self, list_id: UUID, user_id: UUID) -> None:
+        if list_id not in self.members:
+            return
+        self.members[list_id] = [m for m in self.members[list_id] if m != user_id]
+        if not self.members[list_id]:
+            await self.delete(list_id)
+
+    async def add_event(self, list_id: UUID, event_id: UUID, by: UUID, now: datetime) -> bool:
+        if event_id not in self.public_events:
+            return False
+        if event_id not in self.events[list_id]:
+            self.events[list_id].append(event_id)
+        return True
+
+    async def remove_event(self, list_id: UUID, event_id: UUID) -> None:
+        self.events[list_id] = [e for e in self.events[list_id] if e != event_id]
+
+
+# --- invitations (R14) -------------------------------------------------------------------
+
+
+@dataclass
+class _FakeInvitation:
+    id: UUID
+    event_id: UUID
+    host_id: UUID
+    created_at: datetime
+    message: str | None = None
+    token: str | None = None
+    last_reminder_at: datetime | None = None
+    # user ID -> (status, invited_at, responded_at), in invitation order
+    invitees: dict[UUID, tuple[InviteeStatus, datetime, datetime | None]] = field(
+        default_factory=dict
+    )
+
+
+@dataclass
+class FakeInvitationRepository:
+    """Invitations in memory; public events and people by ID; records domain events."""
+
+    public_events: dict[UUID, EventSummaryView] = field(default_factory=dict)
+    people: dict[UUID, tuple[str, str]] = field(default_factory=dict)
+    rows: dict[UUID, _FakeInvitation] = field(default_factory=dict)
+    favorites: set[tuple[UUID, UUID]] = field(default_factory=set)
+    events_written: list[tuple[str, dict[str, object]]] = field(default_factory=list)
+
+    def _person(self, user_id: UUID) -> InvitationPersonView:
+        return InvitationPersonView(user_id, *self.people.get(user_id, ("", "")))
+
+    def _view(self, row: _FakeInvitation) -> InvitationView | None:
+        event = self.public_events.get(row.event_id)
+        if event is None:
+            return None
+        return InvitationView(
+            id=row.id,
+            event=event,
+            host=self._person(row.host_id),
+            message=row.message,
+            created_at=row.created_at,
+            last_reminder_at=row.last_reminder_at,
+            invitees=[
+                InviteeView(self._person(user), status, invited, responded)
+                for user, (status, invited, responded) in row.invitees.items()
+            ],
+        )
+
+    def _views(self, rows: Iterable[_FakeInvitation]) -> list[InvitationView]:
+        return [v for v in (self._view(r) for r in rows) if v is not None]
+
+    def _ensure(self, event_id: UUID, host_id: UUID, now: datetime) -> _FakeInvitation:
+        for row in self.rows.values():
+            if row.event_id == event_id and row.host_id == host_id:
+                return row
+        row = _FakeInvitation(uuid4(), event_id, host_id, now)
+        self.rows[row.id] = row
+        return row
+
+    async def event(self, event_id: UUID) -> EventSummaryView | None:
+        return self.public_events.get(event_id)
+
+    async def get(self, invitation_id: UUID) -> InvitationView | None:
+        row = self.rows.get(invitation_id)
+        return self._view(row) if row else None
+
+    async def of_host(self, event_id: UUID, host_id: UUID) -> InvitationView | None:
+        found = [r for r in self.rows.values() if r.event_id == event_id and r.host_id == host_id]
+        views = self._views(found)
+        return views[0] if views else None
+
+    async def accepted_for(self, event_id: UUID, user_id: UUID) -> InvitationView | None:
+        found = [
+            r
+            for r in self.rows.values()
+            if r.event_id == event_id
+            and r.invitees.get(user_id, (None,))[0] is InviteeStatus.ACCEPTED
+        ]
+        views = self._views(sorted(found, key=lambda r: r.created_at))
+        return views[0] if views else None
+
+    async def received_by(self, user_id: UUID) -> list[InvitationView]:
+        found = [r for r in self.rows.values() if user_id in r.invitees]
+        return self._views(sorted(found, key=lambda r: r.created_at, reverse=True))
+
+    async def by_token(self, token: str) -> InvitationView | None:
+        found = [r for r in self.rows.values() if r.token == token]
+        views = self._views(found)
+        return views[0] if views else None
+
+    async def invite(
+        self,
+        event_id: UUID,
+        host_id: UUID,
+        user_ids: Sequence[UUID],
+        message: str | None,
+        now: datetime,
+    ) -> UUID:
+        row = self._ensure(event_id, host_id, now)
+        if message is not None:
+            row.message = message
+        added = [u for u in user_ids if u not in row.invitees]
+        for user in added:
+            row.invitees[user] = (InviteeStatus.OPEN, now, None)
+        if added:
+            self.events_written.append(
+                (
+                    InvitationEventType.INVITEES_ADDED.value,
+                    {"invitationId": row.id, "hostId": host_id, "userIds": added},
+                )
+            )
+        return row.id
+
+    async def link_token(self, event_id: UUID, host_id: UUID, token: str, now: datetime) -> str:
+        row = self._ensure(event_id, host_id, now)
+        row.token = row.token or token
+        return row.token
+
+    async def remind(self, invitation_id: UUID, now: datetime) -> int:
+        row = self.rows[invitation_id]
+        row.last_reminder_at = now
+        open_ids = [u for u, (s, _, _) in row.invitees.items() if s is InviteeStatus.OPEN]
+        if open_ids:
+            self.events_written.append(
+                (
+                    InvitationEventType.REMINDED.value,
+                    {"invitationId": row.id, "hostId": row.host_id, "userIds": open_ids},
+                )
+            )
+        return len(open_ids)
+
+    async def respond(
+        self, invitation_id: UUID, user_id: UUID, status: InviteeStatus, now: datetime
+    ) -> None:
+        row = self.rows[invitation_id]
+        old, invited, _ = row.invitees[user_id]
+        row.invitees[user_id] = (status, invited, None if status is InviteeStatus.OPEN else now)
+        if status is InviteeStatus.ACCEPTED:
+            self.favorites.add((user_id, row.event_id))
+        if old is not status and status is not InviteeStatus.OPEN:
+            self.events_written.append(
+                (
+                    InvitationEventType.RESPONDED.value,
+                    {
+                        "invitationId": row.id,
+                        "hostId": row.host_id,
+                        "userId": user_id,
+                        "status": status.value,
+                    },
+                )
+            )
+
+    async def join(self, invitation_id: UUID, user_id: UUID, now: datetime) -> None:
+        self.rows[invitation_id].invitees.setdefault(user_id, (InviteeStatus.OPEN, now, None))
+
+    async def purge(self, ended_before: datetime) -> int:
+        ended = [
+            i
+            for i, r in self.rows.items()
+            if (e := self.public_events.get(r.event_id)) and e.end_date < ended_before.date()
+        ]
+        for invitation_id in ended:
+            del self.rows[invitation_id]
+        return len(ended)

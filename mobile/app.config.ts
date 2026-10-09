@@ -20,6 +20,9 @@ export default ({config}: ConfigContext): ExpoConfig => ({
           {scheme: 'https', host: LINK_HOST, pathPrefix: '/f/'},
           // Friend links (R12).
           {scheme: 'https', host: LINK_HOST, pathPrefix: '/freund/'},
+          // Invitations (R14): invitation links and received invitations.
+          {scheme: 'https', host: LINK_HOST, pathPrefix: '/e/'},
+          {scheme: 'https', host: LINK_HOST, pathPrefix: '/einladung/'},
         ],
         category: ['BROWSABLE', 'DEFAULT'],
       },

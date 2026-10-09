@@ -56,14 +56,16 @@ class ConflictError(ApplicationError):
 class TooManyRequestsError(ApplicationError):
     """A per-user limit is reached (e.g. the daily AI search limit)."""
 
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, fields: dict[str, str] | None = None) -> None:
         """Create the error.
 
         Args:
             code: Machine-readable error code, e.g. `daily_limit`.
+            fields: Optional details, e.g. `retryAfter` in seconds.
         """
         super().__init__(code)
         self.code = code
+        self.fields = fields
 
 
 class ServiceUnavailableError(ApplicationError):

@@ -80,3 +80,7 @@ class NotificationSettings:
                 return self.change
             case NotificationType.FRIEND_ADDED:
                 return False  # list only (R12-US2)
+            case NotificationType.LIST_ADDED | NotificationType.INVITE:
+                return self.invite  # social notifications follow `invite` (R13-US2, R14)
+            case NotificationType.RSVP_YES | NotificationType.RSVP_NO:
+                return self.rsvp

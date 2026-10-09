@@ -39,6 +39,8 @@ from stadtfest.domain.events.geo import GeoPoint
 from stadtfest.domain.identity.principal import Principal, Role
 from stadtfest.domain.notifications.notification import (
     EventFacts,
+    InvitationFacts,
+    ListFacts,
     NotificationType,
     PersonFacts,
 )
@@ -60,6 +62,7 @@ LENA = Principal("sub-lena", frozenset({Role.USER}))
 TIM = Principal("sub-tim", frozenset({Role.USER}))
 LENA_ID = uuid5(NAMESPACE_URL, LENA.subject)
 TIM_ID = uuid5(NAMESPACE_URL, TIM.subject)
+MIA = uuid4()
 NOW = datetime(2026, 10, 1, 7, 0, tzinfo=UTC)
 FEST = uuid4()
 FACTS = EventFacts("Reichsstädter Tage", "Aalen", date(2026, 10, 2), date(2026, 10, 13))
@@ -264,6 +267,12 @@ async def test_cancel_reaches_all_favorite_holders(s: Setup) -> None:
     assert await s.consumer()("event.cancelled", {"eventId": str(FEST)}) == 0  # redelivery
 
 
+async def test_cancel_also_reaches_accepted_invitees_once(s: Setup) -> None:
+    s.recipients.holders[FEST] = [LENA_ID, TIM_ID]
+    s.recipients.accepted[FEST] = [TIM_ID, MIA]
+    assert await s.consumer()("event.cancelled", {"eventId": str(FEST)}) == 3
+
+
 async def test_other_events_are_ignored(s: Setup) -> None:
     s.recipients.holders[FEST] = [LENA_ID]
     consumer = s.consumer()
@@ -398,3 +407,61 @@ async def test_friend_added_is_listed_with_the_name_but_never_pushed(s: Setup) -
     assert listing.items[0].subject_id == TIM_ID
     assert await s.push()(s.jobs.pushes[0]) == 0
     assert s.sender.sent == []
+
+
+async def test_list_added_names_list_and_actor_and_follows_the_invite_setting(s: Setup) -> None:
+    list_id = uuid4()
+    s.store.events[list_id] = ListFacts("Weihnachtsmarkt-Tour", "Lena")
+    s.device(TIM_ID, "tim-phone")
+    s.device(LENA_ID, "lena-phone")
+    s.settings.stored[LENA_ID] = NotificationSettings(invite=False)
+    payload = {"listId": str(list_id), "userIds": [str(TIM_ID), str(LENA_ID)], "actorId": str(MIA)}
+
+    assert await s.consumer()("list.members_added", payload) == 2
+
+    listing = await ListNotifications(s.store, s.accounts)(TIM, None, 20)
+    assert listing.items[0].text == (
+        "Lena hat dich zur Liste \u201aWeihnachtsmarkt-Tour\u2018 hinzugefügt."
+    )
+    assert listing.items[0].subject_id == list_id
+    assert s.store.actors[list_id] == MIA
+    await s.push()(s.jobs.pushes[0])
+    [message] = s.sender.sent  # Lena turned invitations off
+    assert message.token == "tim-phone"
+    assert message.data["targetType"] == "list"
+
+
+async def test_invitation_events_notify_invitees_and_the_host(s: Setup) -> None:
+    invitation = uuid4()
+    s.store.events[invitation] = InvitationFacts(FEST, "Reichsstädter Tage", "Lena", "Berg")
+    s.device(TIM_ID, "tim-phone")
+    s.device(LENA_ID, "lena-phone")
+    added = {"invitationId": str(invitation), "hostId": str(LENA_ID), "userIds": [str(TIM_ID)]}
+
+    assert await s.consumer()("invitation.invitees_added", added) == 1
+    assert await s.consumer()("invitation.reminded", added) == 0  # same day: deduplicated
+    listing = await ListNotifications(s.store, s.accounts)(TIM, None, 20)
+    assert listing.items[0].text == "Lena Berg lädt dich zu Reichsstädter Tage ein."
+    assert (listing.items[0].target_type, listing.items[0].target_id) == ("invitation", invitation)
+    await s.push()(s.jobs.pushes[0])
+    assert s.sender.sent[0].data["targetType"] == "invitation"
+
+    responded = {
+        "invitationId": str(invitation),
+        "hostId": str(LENA_ID),
+        "userId": str(TIM_ID),
+        "status": "accepted",
+    }
+    assert await s.consumer()("invitation.responded", responded) == 1
+    assert await s.consumer()("invitation.responded", {**responded, "status": "open"}) == 0
+    [rsvp] = [n for n in s.store.rows if n.user_id == LENA_ID]
+    assert rsvp.type is NotificationType.RSVP_YES
+    assert s.store.actors[invitation] == TIM_ID
+    await s.push()(s.jobs.pushes[-1])
+    host_push = s.sender.sent[-1]
+    assert host_push.token == "lena-phone"
+    # The host opens the own overview: target is the event.
+    assert (host_push.data["targetType"], host_push.data["targetId"]) == (
+        "invitationOverview",
+        str(FEST),
+    )

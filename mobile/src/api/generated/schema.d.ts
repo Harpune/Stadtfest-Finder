@@ -568,6 +568,355 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Own shared lists
+         * @description Lists the caller is a member of, ordered by the next upcoming event, then name.
+         */
+        get: operations["listSharedLists"];
+        put?: never;
+        /**
+         * Create a shared list
+         * @description The caller becomes a member; `memberIds` must be friends of the caller
+         *     (`422 not_a_friend`). New members get `list_added`.
+         */
+        post: operations["createSharedList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/lists/{listId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * A shared list
+         * @description Members and events (chronological, incl. past and cancelled). Non-members get `404`.
+         */
+        get: operations["getSharedList"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a shared list
+         * @description Any member may delete the list for everyone.
+         */
+        delete: operations["deleteSharedList"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename a shared list
+         * @description Any member may rename (1-60 characters after trimming).
+         */
+        patch: operations["renameSharedList"];
+        trace?: never;
+    };
+    "/v1/lists/{listId}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a member
+         * @description Only friends of the caller (`422 not_a_friend`). Idempotent; a new member gets
+         *     `list_added`.
+         */
+        post: operations["addSharedListMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/lists/{listId}/members/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+                /** @description User ID of the member; the caller's own ID leaves the list. */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a member or leave
+         * @description Removes another member, or with the caller's own ID leaves the list. When the last
+         *     member leaves, the list is deleted. Idempotent.
+         */
+        delete: operations["removeSharedListMember"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/lists/{listId}/events/{eventId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+                /** @description Event ID. */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Add an event
+         * @description Only publicly visible events (otherwise `404`). Idempotent.
+         */
+        put: operations["addSharedListEvent"];
+        post?: never;
+        /**
+         * Remove an event
+         * @description Idempotent.
+         */
+        delete: operations["removeSharedListEvent"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/events/{eventId}/invitation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Own invitation to an event
+         * @description The caller's invitation as host with all invitees, or `404` if there is none yet.
+         */
+        get: operations["getHostInvitation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/events/{eventId}/invitation/invitees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite friends
+         * @description Creates the caller's invitation if needed (one per host and event) and adds friends
+         *     (`422 not_a_friend`); already invited users are ignored. `message` replaces the old
+         *     message only if set. Past and cancelled events are `422 event_not_invitable`. Every
+         *     new invitee gets `invite`.
+         */
+        post: operations["inviteFriends"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/events/{eventId}/invitation/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invitation link for friends without the app
+         * @description Creates the invitation if needed and returns its link token (one per invitation). The
+         *     app builds the URL `https://{link host}/e/{token}`.
+         */
+        post: operations["createInvitationLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invitations/{invitationId}/reminders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invitation ID. */
+                invitationId: components["parameters"]["InvitationId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remind open invitees
+         * @description Host only. Sends `invite` again to everyone who has not answered; at most once per
+         *     24 hours (`429` with `fields.retryAfter` in seconds).
+         */
+        post: operations["remindInvitees"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invitations/{invitationId}/response": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invitation ID. */
+                invitationId: components["parameters"]["InvitationId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Accept, decline or reset
+         * @description Invitees only (`404` otherwise). `accepted` also marks the event as favorite;
+         *     `declined` keeps an existing favorite; `open` resets the answer. The host gets
+         *     `rsvp_yes` / `rsvp_no`. Not possible once the event has ended (`422`).
+         */
+        put: operations["respondToInvitation"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Received invitations
+         * @description Newest first.
+         */
+        get: operations["listReceivedInvitations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/invitations/{invitationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invitation ID. */
+                invitationId: components["parameters"]["InvitationId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * A received invitation
+         * @description Host, message, event, other invitees and the own status; `404` for non-invitees.
+         */
+        get: operations["getReceivedInvitation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invitation-links/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invitation link token (128 random bits, base64url). */
+                token: components["parameters"]["InvitationToken"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Preview of an invitation link
+         * @description Host (first name + initial) and event, for signed-in users. `own` is true for the
+         *     caller's own link. Counts towards the friend link limit (`429`).
+         */
+        get: operations["getInvitationLinkPreview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invitation-links/{token}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invitation link token (128 random bits, base64url). */
+                token: components["parameters"]["InvitationToken"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept an invitation link
+         * @description Becomes friends with the host (if not yet) and an invitee with status `open`.
+         *     Idempotent. The own link is `422 self_link`; past or cancelled events
+         *     `422 event_not_invitable`.
+         */
+        post: operations["acceptInvitationLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/mod/events": {
         parameters: {
             query?: never;
@@ -1173,6 +1522,11 @@ export interface components {
             distanceKm?: number | null;
             /** @description Whether the caller marked the event as favorite. Only present with a token. */
             isFavorite?: boolean;
+            /**
+             * @description With a token (R14-US6): as host the invitees who accepted, as accepted invitee the
+             *     host and the other accepted invitees; otherwise null or missing.
+             */
+            invitationSummary?: components["schemas"]["InvitationSummary"] | null;
         };
         /** @description A favorite with its event, as shown in the timeline (R06-US2). */
         FavoriteEntry: components["schemas"]["EventSummary"] & {
@@ -1398,19 +1752,24 @@ export interface components {
         /**
          * @description `remind`: a favorite starts soon; `near`: new event near the home; `change`: date,
          *     times or place of a favorite changed; `cancel`: a favorite was cancelled;
-         *     `friend_added`: someone accepted the caller's friend link (R12, list only, no push).
+         *     `friend_added`: someone accepted the caller's friend link (R12, list only, no push);
+         *     `list_added`: someone added the caller to a shared list (R13, pushed if `invite`);
+         *     `invite`: a friend invites the caller to an event (R14, `invite`); `rsvp_yes` /
+         *     `rsvp_no`: an invitee of the caller accepted / declined (R14, `rsvp`).
          *     Extensible (ADR 0017): new values may appear without a new API version; clients must
          *     show unknown types with a neutral fallback.
          * @enum {string}
          */
-        NotificationType: "remind" | "near" | "change" | "cancel" | "friend_added";
+        NotificationType: "remind" | "near" | "change" | "cancel" | "friend_added" | "list_added" | "invite" | "rsvp_yes" | "rsvp_no";
         /**
-         * @description What a tap opens; `friend` opens the friends list (id = the friend's user ID). The
-         *     type is extensible (ADR 0017): unknown types open nothing.
+         * @description What a tap opens; `friend` opens the friends list (id = the friend's user ID), `list`
+         *     a shared list, `invitation` a received invitation (id = invitation ID),
+         *     `invitationOverview` the caller's own invitation to an event (id = event ID). The type
+         *     is extensible (ADR 0017): unknown types open nothing.
          */
         NotificationTarget: {
             /** @enum {string} */
-            type: "event" | "friend";
+            type: "event" | "friend" | "list" | "invitation" | "invitationOverview";
             /** Format: uuid */
             id: string;
         };
@@ -1506,6 +1865,119 @@ export interface components {
         FriendList: {
             items: components["schemas"]["Friend"][];
         };
+        /** @description A member as the other members see them (name for joint planning). */
+        ListMember: {
+            /** Format: uuid */
+            id: string;
+            firstName: string;
+            lastName: string;
+        };
+        /** @description An event of a shared list. */
+        ListEvent: components["schemas"]["EventSummary"] & {
+            categoryName: string;
+            emoji: string;
+            /** Format: date-time */
+            addedAt: string;
+        };
+        SharedListSummary: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            eventCount: number;
+            members: components["schemas"]["ListMember"][];
+            /** @description The next event that has not ended, if any. */
+            nextEvent?: components["schemas"]["ListEvent"] | null;
+        };
+        SharedList: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            members: components["schemas"]["ListMember"][];
+            /** @description Chronological, including past and cancelled events. */
+            events: components["schemas"]["ListEvent"][];
+        };
+        SharedListName: string;
+        SharedListCreate: {
+            name: components["schemas"]["SharedListName"];
+            memberIds: string[];
+        };
+        SharedListRename: {
+            name: components["schemas"]["SharedListName"];
+        };
+        SharedListMemberAdd: {
+            /** Format: uuid */
+            userId: string;
+        };
+        InvitationPerson: {
+            /** Format: uuid */
+            id: string;
+            firstName: string;
+            lastName: string;
+        };
+        /** @enum {string} */
+        InviteeStatus: "open" | "accepted" | "declined";
+        Invitee: {
+            person: components["schemas"]["InvitationPerson"];
+            status: components["schemas"]["InviteeStatus"];
+            /** Format: date-time */
+            invitedAt: string;
+            /** Format: date-time */
+            respondedAt?: string | null;
+        };
+        InvitationMessage: string;
+        /** @description The caller's invitation as host. */
+        HostInvitation: {
+            /** Format: uuid */
+            id: string;
+            event: components["schemas"]["EventSummary"];
+            message?: string | null;
+            invitees: components["schemas"]["Invitee"][];
+            /** Format: date-time */
+            lastReminderAt?: string | null;
+        };
+        /** @description An invitation the caller received. */
+        ReceivedInvitation: {
+            /** Format: uuid */
+            id: string;
+            event: components["schemas"]["EventSummary"];
+            host: components["schemas"]["InvitationPerson"];
+            message?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            status: components["schemas"]["InviteeStatus"];
+            /** @description The other invitees with their status. */
+            others: components["schemas"]["Invitee"][];
+        };
+        InviteRequest: {
+            userIds: string[];
+            message?: components["schemas"]["InvitationMessage"];
+        };
+        InvitationLink: {
+            token: string;
+        };
+        ReminderResult: {
+            reminded: number;
+        };
+        InvitationResponse: {
+            status: components["schemas"]["InviteeStatus"];
+        };
+        InvitationLinkPreview: {
+            host: {
+                firstName: string;
+                lastNameInitial: string;
+            };
+            event: components["schemas"]["EventSummary"];
+            /** @description The caller is the host (the app opens the own overview). */
+            own: boolean;
+        };
+        InvitationSummary: {
+            /** Format: uuid */
+            invitationId: string;
+            /** @enum {string} */
+            role: "host" | "guest";
+            /** @description Who comes along (accepted invitees, for guests also the host). */
+            people: components["schemas"]["InvitationPerson"][];
+        };
         /** @description Common error format for all non-2xx responses. */
         Error: {
             /**
@@ -1550,6 +2022,12 @@ export interface components {
         };
     };
     parameters: {
+        /** @description Invitation ID. */
+        InvitationId: string;
+        /** @description Invitation link token (128 random bits, base64url). */
+        InvitationToken: string;
+        /** @description Shared list ID. */
+        ListId: string;
         /** @description Friend link token (128 random bits, base64url, no personal data). */
         FriendToken: string;
         /** @description Category ID. */
@@ -2352,6 +2830,488 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    listSharedLists: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The lists. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedListSummary"][];
+                };
+            };
+            401: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    createSharedList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SharedListCreate"];
+            };
+        };
+        responses: {
+            /** @description The new list. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedList"];
+                };
+            };
+            401: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getSharedList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedList"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteSharedList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The list is gone. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    renameSharedList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SharedListRename"];
+            };
+        };
+        responses: {
+            /** @description The renamed list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedList"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    addSharedListMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SharedListMemberAdd"];
+            };
+        };
+        responses: {
+            /** @description The user is a member. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    removeSharedListMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+                /** @description User ID of the member; the caller's own ID leaves the list. */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The user is no member. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    addSharedListEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+                /** @description Event ID. */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event is in the list. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    removeSharedListEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+                /** @description Event ID. */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event is not in the list. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getHostInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The invitation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostInvitation"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    inviteFriends: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteRequest"];
+            };
+        };
+        responses: {
+            /** @description The invitation. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostInvitation"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    createInvitationLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Event ID. */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The link token. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationLink"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    remindInvitees: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invitation ID. */
+                invitationId: components["parameters"]["InvitationId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Number of reminded invitees. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReminderResult"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    respondToInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invitation ID. */
+                invitationId: components["parameters"]["InvitationId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationResponse"];
+            };
+        };
+        responses: {
+            /** @description The invitation as the invitee sees it. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceivedInvitation"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    listReceivedInvitations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The received invitations. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceivedInvitation"][];
+                };
+            };
+            401: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getReceivedInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invitation ID. */
+                invitationId: components["parameters"]["InvitationId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The invitation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceivedInvitation"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getInvitationLinkPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invitation link token (128 random bits, base64url). */
+                token: components["parameters"]["InvitationToken"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The preview. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationLinkPreview"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    acceptInvitationLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invitation link token (128 random bits, base64url). */
+                token: components["parameters"]["InvitationToken"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The received invitation. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceivedInvitation"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

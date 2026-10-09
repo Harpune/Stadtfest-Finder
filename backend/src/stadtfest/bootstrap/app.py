@@ -15,6 +15,8 @@ from stadtfest.adapters.inbound.rest import (
     friends,
     geocoding,
     health,
+    invitations,
+    lists,
     me,
     mod_ai_searches,
     mod_categories,
@@ -76,6 +78,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(favorites.router)
     app.include_router(notifications.router)
     app.include_router(friends.router)
+    app.include_router(lists.router)
+    app.include_router(invitations.router)
     app.include_router(config.router)
     app.include_router(mod_events.router)
     app.include_router(mod_images.router)

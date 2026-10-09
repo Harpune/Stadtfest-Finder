@@ -11,6 +11,7 @@ from uuid import UUID
 from arq import Retry
 
 from stadtfest.application.ai_ingestion.use_cases import CompactAiSearchLogs, FailStuckSearches
+from stadtfest.application.collections.invitations import PurgeInvitations
 from stadtfest.application.identity.ports import IdpUnavailableError
 from stadtfest.application.identity.use_cases import DeleteIdpUser
 from stadtfest.application.moderation.images import PurgeImages
@@ -234,6 +235,19 @@ async def send_reminders(ctx: dict[str, Any]) -> int:
     return await use_case()
 
 
+async def purge_invitations(ctx: dict[str, Any]) -> int:
+    """Daily: invitations six months after the event ended (Löschkonzept).
+
+    Args:
+        ctx: arq job context with the container.
+
+    Returns:
+        Number of deleted invitations.
+    """
+    use_case: PurgeInvitations = ctx["container"].purge_invitations
+    return await use_case()
+
+
 async def purge_notifications(ctx: dict[str, Any]) -> int:
     """Daily: notifications after 12 months, devices after 90 idle days (Löschkonzept).
 
@@ -259,5 +273,6 @@ JOBS: list[Callable[..., Awaitable[object]]] = [
     push_notifications,
     check_push_receipts,
     send_reminders,
+    purge_invitations,
     purge_notifications,
 ]

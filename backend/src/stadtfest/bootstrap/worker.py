@@ -17,6 +17,7 @@ from stadtfest.adapters.inbound.worker.jobs import (
     compact_ai_search_logs,
     fail_stuck_searches,
     purge_images,
+    purge_invitations,
     purge_notifications,
     purge_outbox,
     run_outbox_relay,
@@ -67,6 +68,7 @@ def build_worker_settings(settings: Settings) -> type:
             cron(fail_stuck_searches, minute={0, 10, 20, 30, 40, 50}, unique=True),
             cron(compact_ai_search_logs, weekday="sun", hour={4}, minute={15}, unique=True),
             cron(purge_notifications, hour={3}, minute={50}, unique=True),
+            cron(purge_invitations, hour={3}, minute={55}, unique=True),
             cron(send_reminders, hour={9}, minute={0}, unique=True),
         ]
         redis_settings = RedisSettings.from_dsn(str(settings.redis_url))
