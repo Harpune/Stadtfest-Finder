@@ -61,6 +61,10 @@ export function NotificationsScreen({now}: NotificationsScreenProps) {
 
   const open = (item: AppNotification) => {
     if (!item.read) void markRead(item.id);
+    if (item.target.type === 'friend') {
+      navigate('/freunde');
+      return;
+    }
     navigate({pathname: '/f/[id]', params: {id: item.target.id}});
   };
 

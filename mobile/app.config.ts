@@ -16,7 +16,11 @@ export default ({config}: ConfigContext): ExpoConfig => ({
       {
         action: 'VIEW',
         autoVerify: true,
-        data: [{scheme: 'https', host: LINK_HOST, pathPrefix: '/f/'}],
+        data: [
+          {scheme: 'https', host: LINK_HOST, pathPrefix: '/f/'},
+          // Friend links (R12).
+          {scheme: 'https', host: LINK_HOST, pathPrefix: '/freund/'},
+        ],
         category: ['BROWSABLE', 'DEFAULT'],
       },
     ],

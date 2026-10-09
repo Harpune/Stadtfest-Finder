@@ -59,6 +59,8 @@ export function targetOf(data: PushData): string | null {
   switch (data.targetType) {
     case 'event':
       return `/f/${data.targetId}`;
+    case 'friend':
+      return '/freunde';
     case 'aiSearch':
       return data.type === 'ai_search_completed'
         ? `/mod/pruefen/${data.targetId}`

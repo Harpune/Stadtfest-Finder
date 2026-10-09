@@ -49,6 +49,10 @@
     "category": {
       "stadtfest": { "$value": "#FFB547" }, "volksfest": { "$value": "#FF6B8B" }, "weihnachtsmarkt": { "$value": "#5EEAD4" }, "markt": { "$value": "#8B9CFF" },
       "palette5": { "$value": "#7ED957" }, "palette6": { "$value": "#C792EA" }
+    },
+    "friend": {
+      "blue": { "$value": "#5B7FD6" }, "pink": { "$value": "#C8508A" }, "green": { "$value": "#3E9A84" },
+      "ochre": { "$value": "#B07A2E" }, "violet": { "$value": "#7B62D0" }, "rust": { "$value": "#C85A3E" }
     }
   },
   "font": {

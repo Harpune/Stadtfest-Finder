@@ -1,6 +1,8 @@
-import React, {PropsWithChildren} from 'react';
+import React, {PropsWithChildren, useRef} from 'react';
 import {StyleSheet, View} from 'react-native';
-import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import ReanimatedSwipeable, {
+  SwipeableMethods,
+} from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import {useTheme} from '@/theme';
 
@@ -29,13 +31,19 @@ export function SwipeToDelete({
 }: PropsWithChildren<SwipeToDeleteProps>) {
   const theme = useTheme();
   const c = theme.colors;
+  const swipeable = useRef<SwipeableMethods>(null);
   return (
     <ReanimatedSwipeable
+      ref={swipeable}
       testID={testID}
       friction={1.5}
       rightThreshold={THRESHOLD}
       overshootRight={false}
-      onSwipeableOpen={onDelete}
+      onSwipeableOpen={() => {
+        onDelete();
+        // Rows that stay (e.g. a cancelled confirmation) slide back.
+        swipeable.current?.close();
+      }}
       renderRightActions={() => (
         <View
           style={[

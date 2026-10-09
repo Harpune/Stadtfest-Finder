@@ -64,15 +64,17 @@
 
 ## Definition of Done
 
-- [ ] Freundes-Screens gestaltet, umgesetzt und als Screenshots ergänzt.
-- [ ] Deep Link `/freund/{token}` funktioniert beim Kalt- und Warmstart.
-- [ ] VVT und `DeleteAccount` erweitert.
+- [ ] Freundes-Screens gestaltet und umgesetzt (Liste, „Freund hinzufügen“ mit QR-Code und Link, „Freundschaft“ zum Annehmen; Einstieg über das Personen-Symbol neben der Glocke im Drawer). Offen: Screenshots `11-xx` nach `15-design/screenshots/`.
+- [x] Deep Link `stadtfest://freund/{token}` geprüft auf dem Pixel 8 (Warmstart). App Links `https://…/freund/{token}` brauchen einen neuen Build (Intent-Filter in `app.config.ts`) und die Fallback-Seite (`infra/deeplinks`).
+- [x] VVT und `DeleteAccount` erweitert.
 
 ## Entscheidungen bei der Umsetzung
 
 - **QR-Code:** `react-native-qrcode-svg` (über das vorhandene `react-native-svg`), freigegeben am 09.10.2026.
 - **URL:** Die API liefert nur `{token, createdAt}`; die App baut die URL `https://{EXPO_PUBLIC_LINK_HOST}/freund/{token}` wie bei geteilten Festen. So gibt es nur eine Stelle für die Link-Domain. Der Android-Intent-Filter und die Caddy-Fallback-Seite kennen den Pfad `/freund/`.
 - **Benachrichtigung:** `friend_added` speichert den Freund als `actor_user_id`; der Text „{Vorname} {Nachname} ist jetzt mit dir befreundet“ entsteht beim Lesen. Das Ereignis `friendship.created` geht über die Outbox (gleiche Transaktion wie die Freundschaft). Kein Push.
+- **Einstieg:** Personen-Symbol in der Nutzer-Zeile des Drawers neben der Glocke (wie die Benachrichtigungen beim Nutzer, Wunsch des Product Owners vom 06.10.2026).
+- **Annehmen** ist eine eigene Seite „Freundschaft“ statt eines Sheets: sie ist das Ziel des Deep Links und bleibt nach dem Login als Gast stehen.
 - **Rate-Limit:** Nachschlagen und Annehmen zählen gemeinsam (20 pro Nutzer und Stunde, `429 rate_limited`).
 
 ## Offene Punkte

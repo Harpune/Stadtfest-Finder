@@ -30,10 +30,10 @@ import {readIdTokenClaims} from './tokens';
 
 export type Me = components['schemas']['Me'];
 
-export interface PendingAction {
-  type: GuestHintKind;
-  eventId: string;
-}
+/** An account action of a guest, executed after the login. */
+export type PendingAction =
+  | {type: Exclude<GuestHintKind, 'friend'>; eventId: string}
+  | {type: 'friend'; token: string};
 
 export type AuthStatus = 'restoring' | 'guest' | 'signedIn';
 
@@ -180,6 +180,9 @@ export function AuthProvider({
                 queryKey: ['get', '/v1/me/favorites'],
               });
             });
+          return;
+        case 'friend':
+          // The friend link screen stays open and shows the owner once signed in.
           return;
         case 'invite':
           // R14 reopens the invitation here.
