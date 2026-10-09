@@ -32,6 +32,8 @@ from stadtfest.adapters.outbound.persistence.models import (
     DeviceRow,
     EventRow,
     FavoriteRow,
+    InvitationRow,
+    InviteeRow,
     NotificationRow,
     NotificationSettingsRow,
     SharedListRow,
@@ -44,11 +46,13 @@ from stadtfest.application.notifications.ports import (
     PushProvider,
     StoredNotification,
 )
+from stadtfest.domain.collections.invitations import InviteeStatus
 from stadtfest.domain.events.event import EventStatus
 from stadtfest.domain.events.geo import GeoPoint
 from stadtfest.domain.notifications.notification import (
     EventFacts,
     Facts,
+    InvitationFacts,
     ListFacts,
     NotificationType,
     PersonFacts,
@@ -65,6 +69,7 @@ def _stored(row: NotificationRow) -> StoredNotification:
         SubjectKind.EVENT: row.event_id,
         SubjectKind.PERSON: row.actor_user_id,
         SubjectKind.LIST: row.list_id,
+        SubjectKind.INVITATION: row.invitation_id,
     }[notification_type.subject]
     assert subject is not None  # noqa: S101  # every type has its subject column set
     return StoredNotification(
@@ -78,6 +83,7 @@ def _stored(row: NotificationRow) -> StoredNotification:
 
 
 _Actor = aliased(AppUserRow)
+_InvitedEvent = aliased(EventRow)
 
 
 def _visible() -> ColumnElement[bool]:
@@ -95,10 +101,50 @@ def _with_subjects[*Ts](query: Select[*Ts]) -> Select[*Ts]:
         query.outerjoin(EventRow, EventRow.id == NotificationRow.event_id)
         .outerjoin(_Actor, _Actor.id == NotificationRow.actor_user_id)
         .outerjoin(SharedListRow, SharedListRow.id == NotificationRow.list_id)
+        .outerjoin(InvitationRow, InvitationRow.id == NotificationRow.invitation_id)
+        .outerjoin(_InvitedEvent, _InvitedEvent.id == InvitationRow.event_id)
     )
 
 
-_PageRow = Row[NotificationRow, str, str, date | None, date | None, str | None, str, str, str]
+_PageRow = Row[
+    NotificationRow,
+    str,
+    str,
+    date | None,
+    date | None,
+    str | None,
+    str,
+    str,
+    UUID | None,
+]
+
+
+def _listed_query() -> Select[
+    NotificationRow,
+    str,
+    str,
+    date | None,
+    date | None,
+    str | None,
+    str,
+    str,
+    UUID | None,
+]:
+    """Notifications with the current data of their subject (for text and target)."""
+    return _with_subjects(
+        select(
+            NotificationRow,
+            # The subject's name: event, invited event or list (only one is joined).
+            func.coalesce(EventRow.name, _InvitedEvent.name, SharedListRow.name).label("name"),
+            EventRow.city,
+            EventRow.start_date,
+            EventRow.end_date,
+            EventRow.cancel_reason,
+            _Actor.first_name.label("actor_first_name"),
+            _Actor.last_name.label("actor_last_name"),
+            InvitationRow.event_id.label("invited_event_id"),
+        )
+    )
 
 
 def _listed(row: _PageRow) -> ListedNotification:
@@ -108,7 +154,15 @@ def _listed(row: _PageRow) -> ListedNotification:
         case SubjectKind.PERSON:
             facts = PersonFacts(row.actor_first_name or "", row.actor_last_name or "")
         case SubjectKind.LIST:
-            facts = ListFacts(row.list_name or "", row.actor_first_name or "")
+            facts = ListFacts(row.name or "", row.actor_first_name or "")
+        case SubjectKind.INVITATION:
+            assert row.invited_event_id is not None  # noqa: S101  # invitation FK cascades
+            facts = InvitationFacts(
+                row.invited_event_id,
+                row.name or "",
+                row.actor_first_name or "",
+                row.actor_last_name or "",
+            )
         case SubjectKind.EVENT:
             facts = EventFacts(row.name, row.city, row.start_date, row.end_date, row.cancel_reason)
     return ListedNotification(stored, facts)
@@ -141,6 +195,8 @@ class SqlNotificationStore:
                 subject["actor_user_id"] = subject_id
             case SubjectKind.LIST:
                 subject["list_id"] = subject_id
+            case SubjectKind.INVITATION:
+                subject["invitation_id"] = subject_id
         values = [
             {
                 "id": uuid.uuid4(),
@@ -168,19 +224,7 @@ class SqlNotificationStore:
     ) -> list[ListedNotification]:
         """Newest first, with the current data of the event or person."""
         query = (
-            _with_subjects(
-                select(
-                    NotificationRow,
-                    EventRow.name,
-                    EventRow.city,
-                    EventRow.start_date,
-                    EventRow.end_date,
-                    EventRow.cancel_reason,
-                    _Actor.first_name.label("actor_first_name"),
-                    _Actor.last_name.label("actor_last_name"),
-                    SharedListRow.name.label("list_name"),
-                )
-            )
+            _listed_query()
             .where(NotificationRow.user_id == user_id, _visible())
             .order_by(NotificationRow.created_at.desc(), NotificationRow.id.desc())
             .limit(limit)
@@ -244,17 +288,18 @@ class SqlNotificationStore:
                 )
             )
 
-    async def unpushed(self, ids: Sequence[UUID]) -> list[StoredNotification]:
-        """The given notifications not pushed yet (events still live)."""
+    async def unpushed(self, ids: Sequence[UUID]) -> list[ListedNotification]:
+        """The given notifications not pushed yet (events still live), with their facts."""
         if not ids:
             return []
         query = (
-            _with_subjects(select(NotificationRow))
+            _listed_query()
             .where(NotificationRow.id.in_(ids), NotificationRow.pushed.is_(False), _visible())
             .order_by(NotificationRow.created_at, NotificationRow.id)
         )
         async with self._sessions() as session:
-            return [_stored(row) for row in await session.scalars(query)]
+            rows = (await session.execute(query)).all()
+        return [_listed(row) for row in rows]
 
     async def mark_pushed(self, ids: Sequence[UUID]) -> None:
         """Set `pushed`."""
@@ -372,6 +417,22 @@ class SqlRecipients:
                     select(FavoriteRow.user_id)
                     .where(FavoriteRow.event_id == event_id)
                     .order_by(FavoriteRow.user_id)
+                )
+            )
+
+    async def accepted_invitees(self, event_id: UUID) -> list[UUID]:
+        """Users who accepted an invitation to the event."""
+        async with self._sessions() as session:
+            return list(
+                await session.scalars(
+                    select(InviteeRow.user_id)
+                    .join(InvitationRow, InvitationRow.id == InviteeRow.invitation_id)
+                    .where(
+                        InvitationRow.event_id == event_id,
+                        InviteeRow.status == InviteeStatus.ACCEPTED.value,
+                    )
+                    .distinct()
+                    .order_by(InviteeRow.user_id)
                 )
             )
 

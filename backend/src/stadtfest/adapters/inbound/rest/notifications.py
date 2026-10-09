@@ -26,7 +26,7 @@ def _notification(item: NotificationItem) -> api.Notification:
         id=item.id,
         type=api.NotificationType(item.type.value),
         text=item.text,
-        target=api.NotificationTarget(type=item.type.subject.value, id=item.subject_id),
+        target=api.NotificationTarget(type=item.target_type, id=item.target_id),
         read=item.read,
         created_at=item.created_at,
     )

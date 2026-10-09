@@ -25,6 +25,7 @@ class SubjectKind(StrEnum):
     EVENT = "event"
     PERSON = "friend"
     LIST = "list"
+    INVITATION = "invitation"
 
 
 class NotificationType(StrEnum):
@@ -36,6 +37,9 @@ class NotificationType(StrEnum):
     CANCEL = "cancel"
     FRIEND_ADDED = "friend_added"
     LIST_ADDED = "list_added"
+    INVITE = "invite"
+    RSVP_YES = "rsvp_yes"
+    RSVP_NO = "rsvp_no"
 
     @property
     def subject(self) -> SubjectKind:
@@ -45,6 +49,8 @@ class NotificationType(StrEnum):
                 return SubjectKind.PERSON
             case NotificationType.LIST_ADDED:
                 return SubjectKind.LIST
+            case NotificationType.INVITE | NotificationType.RSVP_YES | NotificationType.RSVP_NO:
+                return SubjectKind.INVITATION
             case _:
                 return SubjectKind.EVENT
 
@@ -61,7 +67,12 @@ def is_relevant_change(changed_fields: tuple[str, ...] | list[str]) -> bool:
     return not CHANGE_TRIGGERS.isdisjoint(changed_fields)
 
 
-def dedupe_key(notification_type: NotificationType, subject_id: UUID, at: datetime) -> str:
+def dedupe_key(
+    notification_type: NotificationType,
+    subject_id: UUID,
+    at: datetime,
+    actor_id: UUID | None = None,
+) -> str:
     """Idempotency key, unique per user (R11-US3).
 
     The subject is the event, for `friend_added` the new friend.
@@ -70,6 +81,8 @@ def dedupe_key(notification_type: NotificationType, subject_id: UUID, at: dateti
     - `change`: at most one per event and hour, so several edits are combined
     - `near` and `cancel`: once per event (`near` only on the first publication)
     - `friend_added`: once per friend, `list_added`: once per list
+    - `invite`: at most one per invitation and Berlin day (first invite or reminder)
+    - `rsvp_*`: per invitation, invitee and hour (changing the answer back and forth)
     """
     local = at.astimezone(BERLIN)
     match notification_type:
@@ -77,6 +90,10 @@ def dedupe_key(notification_type: NotificationType, subject_id: UUID, at: dateti
             return f"remind:{subject_id}:{local:%Y-%m-%d}"
         case NotificationType.CHANGE:
             return f"change:{subject_id}:{local:%Y-%m-%dT%H}"
+        case NotificationType.INVITE:
+            return f"invite:{subject_id}:{local:%Y-%m-%d}"
+        case NotificationType.RSVP_YES | NotificationType.RSVP_NO:
+            return f"{notification_type.value}:{subject_id}:{actor_id}:{local:%Y-%m-%dT%H}"
         case (
             NotificationType.NEAR
             | NotificationType.CANCEL
@@ -108,6 +125,9 @@ PUSH_TEXTS: dict[NotificationType | PushOnlyType, PushText] = {
     NotificationType.LIST_ADDED: PushText(
         "Gemeinsame Liste", "Du wurdest zu einer gemeinsamen Liste hinzugefügt."
     ),
+    NotificationType.INVITE: PushText("Einladung", "Neue Einladung zu einem Fest."),
+    NotificationType.RSVP_YES: PushText("Zusage", "Jemand hat deine Einladung angenommen."),
+    NotificationType.RSVP_NO: PushText("Absage", "Jemand hat deine Einladung abgelehnt."),
     PushOnlyType.AI_SEARCH_COMPLETED: PushText(
         "Suche abgeschlossen", "Die automatische Suche ist fertig."
     ),
@@ -134,6 +154,16 @@ class PersonFacts:
 
     first_name: str
     last_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class InvitationFacts:
+    """Event of an invitation and the person who invited or answered."""
+
+    event_id: UUID
+    event_name: str
+    actor_first_name: str
+    actor_last_name: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,7 +209,20 @@ def _starts_in(days: int) -> str:
             return f"in {days} Tagen"
 
 
-type Facts = EventFacts | PersonFacts | ListFacts
+type Facts = EventFacts | PersonFacts | ListFacts | InvitationFacts
+
+
+def target_of(
+    notification_type: NotificationType, subject_id: UUID, facts: Facts
+) -> tuple[str, UUID]:
+    """What a tap opens (API target type and ID).
+
+    `rsvp_*` opens the host's overview of the event; everything else its subject.
+    """
+    if notification_type in {NotificationType.RSVP_YES, NotificationType.RSVP_NO}:
+        assert isinstance(facts, InvitationFacts)  # noqa: S101  # invitation types
+        return "invitationOverview", facts.event_id
+    return notification_type.subject.value, subject_id
 
 
 def render_text(
@@ -191,6 +234,15 @@ def render_text(
     if isinstance(facts, PersonFacts):
         name = f"{facts.first_name} {facts.last_name}".strip()
         return f"{name} ist jetzt mit dir befreundet."
+    if isinstance(facts, InvitationFacts):
+        match notification_type:
+            case NotificationType.RSVP_YES:
+                return f"{facts.actor_first_name} hat für {facts.event_name} zugesagt."
+            case NotificationType.RSVP_NO:
+                return f"{facts.actor_first_name} hat für {facts.event_name} abgesagt."
+            case _:
+                host = f"{facts.actor_first_name} {facts.actor_last_name}".strip()
+                return f"{host} lädt dich zu {facts.event_name} ein."
     if isinstance(facts, ListFacts):
         who = facts.actor_first_name or "Jemand"
         return f"{who} hat dich zur Liste {_LOW}{facts.list_name}{_HIGH} hinzugefügt."
@@ -212,5 +264,5 @@ def render_text(
         case NotificationType.CANCEL:
             reason = f" Grund: {event.cancel_reason}" if event.cancel_reason else ""
             return f"{event.name} ({period}) fällt aus.{reason}"
-        case NotificationType.FRIEND_ADDED | NotificationType.LIST_ADDED:
-            raise ValueError(f"{notification_type} needs PersonFacts or ListFacts")
+        case _:
+            raise ValueError(f"{notification_type} needs other facts")

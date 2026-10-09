@@ -21,6 +21,18 @@ from stadtfest.application.collections.friends import (
     RemoveFriend,
     RotateFriendLink,
 )
+from stadtfest.application.collections.invitations import (
+    AcceptInvitationLink,
+    CreateInvitationLink,
+    GetHostInvitation,
+    GetInvitationSummary,
+    GetReceivedInvitation,
+    InviteFriends,
+    ListReceivedInvitations,
+    LookUpInvitationLink,
+    RemindInvitees,
+    RespondToInvitation,
+)
 from stadtfest.application.collections.lists import (
     AddListEvent,
     AddListMember,
@@ -123,6 +135,16 @@ class RestDependencies(Protocol):
     remove_list_member: RemoveListMember
     add_list_event: AddListEvent
     remove_list_event: RemoveListEvent
+    get_host_invitation: GetHostInvitation
+    invite_friends: InviteFriends
+    create_invitation_link: CreateInvitationLink
+    remind_invitees: RemindInvitees
+    respond_to_invitation: RespondToInvitation
+    list_received_invitations: ListReceivedInvitations
+    get_received_invitation: GetReceivedInvitation
+    look_up_invitation_link: LookUpInvitationLink
+    accept_invitation_link: AcceptInvitationLink
+    get_invitation_summary: GetInvitationSummary
     list_mod_events: ListModEvents
     get_mod_event: GetModEvent
     create_mod_event: CreateModEvent

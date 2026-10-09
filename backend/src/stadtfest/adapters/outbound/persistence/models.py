@@ -211,6 +211,10 @@ class NotificationRow(Base):
     )
     # The shared list of `list_added` (R13).
     list_id: Mapped[UUID | None] = mapped_column(ForeignKey("shared_list.id", ondelete="CASCADE"))
+    # The invitation of `invite` / `rsvp_*` (R14).
+    invitation_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("invitation.id", ondelete="CASCADE")
+    )
     dedupe_key: Mapped[str]
     read: Mapped[bool] = mapped_column(default=False)
     pushed: Mapped[bool] = mapped_column(default=False)
@@ -318,3 +322,33 @@ class ListEventRow(Base):
     )
     added_by: Mapped[UUID | None] = mapped_column(ForeignKey("app_user.id", ondelete="SET NULL"))
     added_at: Mapped[datetime] = mapped_column(server_default="now()")
+
+
+class InvitationRow(Base):
+    """Table `invitation` (R14): one per host and event."""
+
+    __tablename__ = "invitation"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    event_id: Mapped[UUID] = mapped_column(ForeignKey("event.id", ondelete="CASCADE"))
+    host_id: Mapped[UUID] = mapped_column(ForeignKey("app_user.id", ondelete="CASCADE"))
+    message: Mapped[str | None]
+    link_token: Mapped[str | None] = mapped_column(unique=True)
+    created_at: Mapped[datetime] = mapped_column(server_default="now()")
+    last_reminder_at: Mapped[datetime | None]
+
+
+class InviteeRow(Base):
+    """Table `invitee` (R14)."""
+
+    __tablename__ = "invitee"
+
+    invitation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("invitation.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("app_user.id", ondelete="CASCADE"), primary_key=True
+    )
+    status: Mapped[str] = mapped_column(default="open")
+    invited_at: Mapped[datetime] = mapped_column(server_default="now()")
+    responded_at: Mapped[datetime | None]

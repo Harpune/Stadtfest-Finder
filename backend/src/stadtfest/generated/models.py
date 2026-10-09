@@ -253,44 +253,6 @@ class ProgramItem(BaseModel):
     subtitle: str | None = None
 
 
-class EventDetail(BaseModel):
-    """Full public event detail."""
-
-    model_config = ConfigDict(
-        populate_by_name=True,
-    )
-    id: UUID
-    name: str
-    short_name: Annotated[str, Field(alias="shortName")]
-    status: PublicEventStatus
-    cancel_reason: Annotated[str | None, Field(alias="cancelReason")] = None
-    category: CategoryRef
-    start_date: Annotated[date_aliased, Field(alias="startDate")]
-    end_date: Annotated[date_aliased, Field(alias="endDate")]
-    opening_hours: Annotated[list[str], Field(alias="openingHours")]
-    price: str | None = None
-    place: str
-    address: str
-    city: str
-    postal_code: Annotated[str, Field(alias="postalCode", pattern="^[0-9]{5}$")]
-    lat: float
-    lon: float
-    description: str | None = None
-    program: list[ProgramItem]
-    transit: str | None = None
-    parking: str | None = None
-    website_url: Annotated[AnyUrl | None, Field(alias="websiteUrl")] = None
-    images: list[Image]
-    distance_km: Annotated[float | None, Field(alias="distanceKm")] = None
-    is_favorite: Annotated[
-        bool | None,
-        Field(
-            alias="isFavorite",
-            description="Whether the caller marked the event as favorite. Only present with a token.",
-        ),
-    ] = None
-
-
 class FavoriteEntry(EventSummary):
     """A favorite with its event, as shown in the timeline (R06-US2)."""
 
@@ -552,26 +514,50 @@ class PushProvider(RootModel[Literal["expo", "direct", "disabled"]]):
 
 
 class NotificationType(
-    RootModel[Literal["remind", "near", "change", "cancel", "friend_added", "list_added"]]
+    RootModel[
+        Literal[
+            "remind",
+            "near",
+            "change",
+            "cancel",
+            "friend_added",
+            "list_added",
+            "invite",
+            "rsvp_yes",
+            "rsvp_no",
+        ]
+    ]
 ):
     root: Annotated[
-        Literal["remind", "near", "change", "cancel", "friend_added", "list_added"],
+        Literal[
+            "remind",
+            "near",
+            "change",
+            "cancel",
+            "friend_added",
+            "list_added",
+            "invite",
+            "rsvp_yes",
+            "rsvp_no",
+        ],
         Field(
-            description="`remind`: a favorite starts soon; `near`: new event near the home; `change`: date,\ntimes or place of a favorite changed; `cancel`: a favorite was cancelled;\n`friend_added`: someone accepted the caller's friend link (R12, list only, no push);\n`list_added`: someone added the caller to a shared list (R13, pushed if `invite`).\nExtensible (ADR 0017): new values may appear without a new API version; clients must\nshow unknown types with a neutral fallback.\n"
+            description="`remind`: a favorite starts soon; `near`: new event near the home; `change`: date,\ntimes or place of a favorite changed; `cancel`: a favorite was cancelled;\n`friend_added`: someone accepted the caller's friend link (R12, list only, no push);\n`list_added`: someone added the caller to a shared list (R13, pushed if `invite`);\n`invite`: a friend invites the caller to an event (R14, `invite`); `rsvp_yes` /\n`rsvp_no`: an invitee of the caller accepted / declined (R14, `rsvp`).\nExtensible (ADR 0017): new values may appear without a new API version; clients must\nshow unknown types with a neutral fallback.\n"
         ),
     ]
 
 
 class NotificationTarget(BaseModel):
     """What a tap opens; `friend` opens the friends list (id = the friend's user ID), `list`
-    a shared list. The type is extensible (ADR 0017): unknown types open nothing.
+    a shared list, `invitation` a received invitation (id = invitation ID),
+    `invitationOverview` the caller's own invitation to an event (id = event ID). The type
+    is extensible (ADR 0017): unknown types open nothing.
 
     """
 
     model_config = ConfigDict(
         populate_by_name=True,
     )
-    type: Literal["event", "friend", "list"]
+    type: Literal["event", "friend", "list", "invitation", "invitationOverview"]
     id: UUID
 
 
@@ -809,6 +795,123 @@ class SharedListMemberAdd(BaseModel):
     user_id: Annotated[UUID, Field(alias="userId")]
 
 
+class InvitationPerson(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    first_name: Annotated[str, Field(alias="firstName")]
+    last_name: Annotated[str, Field(alias="lastName")]
+
+
+class InviteeStatus(RootModel[Literal["open", "accepted", "declined"]]):
+    root: Literal["open", "accepted", "declined"]
+
+
+class Invitee(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    person: InvitationPerson
+    status: InviteeStatus
+    invited_at: Annotated[AwareDatetime, Field(alias="invitedAt")]
+    responded_at: Annotated[AwareDatetime | None, Field(alias="respondedAt")] = None
+
+
+class InvitationMessage(RootModel[str]):
+    root: Annotated[str, Field(max_length=280)]
+
+
+class HostInvitation(BaseModel):
+    """The caller's invitation as host."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    event: EventSummary
+    message: str | None = None
+    invitees: list[Invitee]
+    last_reminder_at: Annotated[AwareDatetime | None, Field(alias="lastReminderAt")] = None
+
+
+class ReceivedInvitation(BaseModel):
+    """An invitation the caller received."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    event: EventSummary
+    host: InvitationPerson
+    message: str | None = None
+    created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
+    status: InviteeStatus
+    others: Annotated[list[Invitee], Field(description="The other invitees with their status.")]
+
+
+class InviteRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+    )
+    user_ids: Annotated[list[UUID], Field(alias="userIds", max_length=50, min_length=1)]
+    message: InvitationMessage | None = None
+
+
+class InvitationLink(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    token: Annotated[str, Field(pattern="^[A-Za-z0-9_-]{22}$")]
+
+
+class ReminderResult(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    reminded: Annotated[int, Field(ge=0)]
+
+
+class InvitationResponse(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+    )
+    status: InviteeStatus
+
+
+class Host(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    first_name: Annotated[str, Field(alias="firstName")]
+    last_name_initial: Annotated[str, Field(alias="lastNameInitial", max_length=1)]
+
+
+class InvitationLinkPreview(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    host: Host
+    event: EventSummary
+    own: Annotated[
+        bool, Field(description="The caller is the host (the app opens the own overview).")
+    ]
+
+
+class InvitationSummary(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    invitation_id: Annotated[UUID, Field(alias="invitationId")]
+    role: Literal["host", "guest"]
+    people: Annotated[
+        list[InvitationPerson],
+        Field(description="Who comes along (accepted invitees, for guests also the host)."),
+    ]
+
+
 class Error(BaseModel):
     """Common error format for all non-2xx responses."""
 
@@ -854,6 +957,51 @@ class ReadinessStatus(BaseModel):
         dict[str, Literal["ok", "unavailable"]],
         Field(description="Status per dependency, e.g. `database`, `redis`."),
     ]
+
+
+class EventDetail(BaseModel):
+    """Full public event detail."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    name: str
+    short_name: Annotated[str, Field(alias="shortName")]
+    status: PublicEventStatus
+    cancel_reason: Annotated[str | None, Field(alias="cancelReason")] = None
+    category: CategoryRef
+    start_date: Annotated[date_aliased, Field(alias="startDate")]
+    end_date: Annotated[date_aliased, Field(alias="endDate")]
+    opening_hours: Annotated[list[str], Field(alias="openingHours")]
+    price: str | None = None
+    place: str
+    address: str
+    city: str
+    postal_code: Annotated[str, Field(alias="postalCode", pattern="^[0-9]{5}$")]
+    lat: float
+    lon: float
+    description: str | None = None
+    program: list[ProgramItem]
+    transit: str | None = None
+    parking: str | None = None
+    website_url: Annotated[AnyUrl | None, Field(alias="websiteUrl")] = None
+    images: list[Image]
+    distance_km: Annotated[float | None, Field(alias="distanceKm")] = None
+    is_favorite: Annotated[
+        bool | None,
+        Field(
+            alias="isFavorite",
+            description="Whether the caller marked the event as favorite. Only present with a token.",
+        ),
+    ] = None
+    invitation_summary: Annotated[
+        InvitationSummary | None,
+        Field(
+            alias="invitationSummary",
+            description="With a token (R14-US6): as host the invitees who accepted, as accepted invitee the\nhost and the other accepted invitees; otherwise null or missing.\n",
+        ),
+    ] = None
 
 
 class ModEventDetail(BaseModel):

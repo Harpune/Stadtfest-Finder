@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Query
 
 from stadtfest.adapters.inbound.rest.auth import optional_principal
 from stadtfest.adapters.inbound.rest.dependencies import Deps
+from stadtfest.application.collections.invitations import InvitationSummaryView
 from stadtfest.application.events.criteria import (
     DEFAULT_RADIUS_KM,
     MAX_RADIUS_KM,
@@ -167,9 +168,29 @@ def _category_ref(category: CategoryView) -> api.CategoryRef:
     )
 
 
-def _detail(event: EventDetailView, is_favorite: bool | None) -> api.EventDetail:
-    # Not passed at all without a token, so that `isFavorite` is left out of the response.
-    extra = {"is_favorite": is_favorite} if is_favorite is not None else {}
+def _invitation_summary(view: InvitationSummaryView | None) -> api.InvitationSummary | None:
+    if view is None:
+        return None
+    return api.InvitationSummary(
+        invitation_id=view.invitation_id,
+        role=view.role.value,
+        people=[
+            api.InvitationPerson(id=p.id, first_name=p.first_name, last_name=p.last_name)
+            for p in view.people
+        ],
+    )
+
+
+def _detail(
+    event: EventDetailView,
+    is_favorite: bool | None,
+    summary: InvitationSummaryView | None = None,
+) -> api.EventDetail:
+    # Not passed at all without a token, so that `isFavorite` and `invitationSummary` are
+    # left out of public responses.
+    extra: dict[str, object] = {}
+    if is_favorite is not None:
+        extra = {"is_favorite": is_favorite, "invitation_summary": _invitation_summary(summary)}
     return api.EventDetail(
         **extra,
         id=event.id,
@@ -246,5 +267,8 @@ async def get_event(
     reference = GeoPoint(lat, lon) if lat is not None and lon is not None else None
     event = await deps.get_public_event(event_id, reference)
     # `isFavorite` only with a token (R06-US1); public responses stay user-neutral.
-    is_favorite = await deps.is_favorite(principal, event_id) if principal else None
-    return _detail(event, is_favorite)
+    if principal is None:
+        return _detail(event, None)
+    is_favorite = await deps.is_favorite(principal, event_id)
+    summary = await deps.get_invitation_summary(principal, event_id)
+    return _detail(event, is_favorite, summary)

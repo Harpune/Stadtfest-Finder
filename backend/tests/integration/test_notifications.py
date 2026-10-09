@@ -124,9 +124,9 @@ async def test_add_is_idempotent_per_key_and_pages_newest_first(
     assert await store.unread_counts([lena, stranger]) == {lena: 1, stranger: 0}
     await store.mark_all_read(lena)
     assert await store.unread_count(lena) == 0
-    assert [n.id for n in await store.unpushed([*first, *later])] == [*first, *later]
+    assert [n.notification.id for n in await store.unpushed([*first, *later])] == [*first, *later]
     await store.mark_pushed(first)
-    assert [n.id for n in await store.unpushed([*first, *later])] == later
+    assert [n.notification.id for n in await store.unpushed([*first, *later])] == later
 
 
 async def test_settings_round_trip_with_home_center(

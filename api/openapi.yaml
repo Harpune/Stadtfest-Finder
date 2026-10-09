@@ -52,6 +52,11 @@ tags:
     description: |
       Shared event lists with friends (R13, context `collections`). Only members see a list
       (others get `404`); all members have the same rights.
+  - name: invitations
+    description: |
+      Invitations to an event (R14, context `collections`): one invitation per host and event
+      with any number of friends. The message is user free text, visible only to host and
+      invitees, never logged.
   - name: config
     description: Public app configuration.
 paths:
@@ -994,6 +999,253 @@ paths:
           $ref: "#/components/responses/Error"
         default:
           $ref: "#/components/responses/Error"
+  /v1/events/{eventId}/invitation:
+    parameters:
+      - name: eventId
+        in: path
+        required: true
+        description: Event ID.
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getHostInvitation
+      tags: [invitations]
+      summary: Own invitation to an event
+      description: The caller's invitation as host with all invitees, or `404` if there is none yet.
+      responses:
+        "200":
+          description: The invitation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostInvitation"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/events/{eventId}/invitation/invitees:
+    parameters:
+      - name: eventId
+        in: path
+        required: true
+        description: Event ID.
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: inviteFriends
+      tags: [invitations]
+      summary: Invite friends
+      description: |
+        Creates the caller's invitation if needed (one per host and event) and adds friends
+        (`422 not_a_friend`); already invited users are ignored. `message` replaces the old
+        message only if set. Past and cancelled events are `422 event_not_invitable`. Every
+        new invitee gets `invite`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteRequest"
+      responses:
+        "201":
+          description: The invitation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostInvitation"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/events/{eventId}/invitation/link:
+    parameters:
+      - name: eventId
+        in: path
+        required: true
+        description: Event ID.
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: createInvitationLink
+      tags: [invitations]
+      summary: Invitation link for friends without the app
+      description: |
+        Creates the invitation if needed and returns its link token (one per invitation). The
+        app builds the URL `https://{link host}/e/{token}`.
+      responses:
+        "200":
+          description: The link token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationLink"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/invitations/{invitationId}/reminders:
+    parameters:
+      - $ref: "#/components/parameters/InvitationId"
+    post:
+      operationId: remindInvitees
+      tags: [invitations]
+      summary: Remind open invitees
+      description: |
+        Host only. Sends `invite` again to everyone who has not answered; at most once per
+        24 hours (`429` with `fields.retryAfter` in seconds).
+      responses:
+        "202":
+          description: Number of reminded invitees.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReminderResult"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/invitations/{invitationId}/response:
+    parameters:
+      - $ref: "#/components/parameters/InvitationId"
+    put:
+      operationId: respondToInvitation
+      tags: [invitations]
+      summary: Accept, decline or reset
+      description: |
+        Invitees only (`404` otherwise). `accepted` also marks the event as favorite;
+        `declined` keeps an existing favorite; `open` resets the answer. The host gets
+        `rsvp_yes` / `rsvp_no`. Not possible once the event has ended (`422`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvitationResponse"
+      responses:
+        "200":
+          description: The invitation as the invitee sees it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceivedInvitation"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/me/invitations:
+    get:
+      operationId: listReceivedInvitations
+      tags: [invitations]
+      summary: Received invitations
+      description: Newest first.
+      responses:
+        "200":
+          description: The received invitations.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReceivedInvitation"
+        "401":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/me/invitations/{invitationId}:
+    parameters:
+      - $ref: "#/components/parameters/InvitationId"
+    get:
+      operationId: getReceivedInvitation
+      tags: [invitations]
+      summary: A received invitation
+      description: Host, message, event, other invitees and the own status; `404` for non-invitees.
+      responses:
+        "200":
+          description: The invitation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceivedInvitation"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/invitation-links/{token}:
+    parameters:
+      - $ref: "#/components/parameters/InvitationToken"
+    get:
+      operationId: getInvitationLinkPreview
+      tags: [invitations]
+      summary: Preview of an invitation link
+      description: |
+        Host (first name + initial) and event, for signed-in users. `own` is true for the
+        caller's own link. Counts towards the friend link limit (`429`).
+      responses:
+        "200":
+          description: The preview.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationLinkPreview"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/invitation-links/{token}/accept:
+    parameters:
+      - $ref: "#/components/parameters/InvitationToken"
+    post:
+      operationId: acceptInvitationLink
+      tags: [invitations]
+      summary: Accept an invitation link
+      description: |
+        Becomes friends with the host (if not yet) and an invitee with status `open`.
+        Idempotent. The own link is `422 self_link`; past or cancelled events
+        `422 event_not_invitable`.
+      responses:
+        "201":
+          description: The received invitation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceivedInvitation"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
   /v1/mod/events:
     get:
       operationId: listModEvents
@@ -1703,6 +1955,22 @@ components:
       schema:
         type: string
   parameters:
+    InvitationId:
+      name: invitationId
+      in: path
+      required: true
+      description: Invitation ID.
+      schema:
+        type: string
+        format: uuid
+    InvitationToken:
+      name: token
+      in: path
+      required: true
+      description: Invitation link token (128 random bits, base64url).
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9_-]{22}$"
     ListId:
       name: listId
       in: path
@@ -2211,6 +2479,13 @@ components:
         isFavorite:
           type: boolean
           description: Whether the caller marked the event as favorite. Only present with a token.
+        invitationSummary:
+          description: |
+            With a token (R14-US6): as host the invitees who accepted, as accepted invitee the
+            host and the other accepted invitees; otherwise null or missing.
+          oneOf:
+            - $ref: "#/components/schemas/InvitationSummary"
+            - type: "null"
     FavoriteEntry:
       description: A favorite with its event, as shown in the timeline (R06-US2).
       allOf:
@@ -2650,20 +2925,24 @@ components:
         `remind`: a favorite starts soon; `near`: new event near the home; `change`: date,
         times or place of a favorite changed; `cancel`: a favorite was cancelled;
         `friend_added`: someone accepted the caller's friend link (R12, list only, no push);
-        `list_added`: someone added the caller to a shared list (R13, pushed if `invite`).
+        `list_added`: someone added the caller to a shared list (R13, pushed if `invite`);
+        `invite`: a friend invites the caller to an event (R14, `invite`); `rsvp_yes` /
+        `rsvp_no`: an invitee of the caller accepted / declined (R14, `rsvp`).
         Extensible (ADR 0017): new values may appear without a new API version; clients must
         show unknown types with a neutral fallback.
-      enum: [remind, near, change, cancel, friend_added, list_added]
+      enum: [remind, near, change, cancel, friend_added, list_added, invite, rsvp_yes, rsvp_no]
     NotificationTarget:
       type: object
       description: |
         What a tap opens; `friend` opens the friends list (id = the friend's user ID), `list`
-        a shared list. The type is extensible (ADR 0017): unknown types open nothing.
+        a shared list, `invitation` a received invitation (id = invitation ID),
+        `invitationOverview` the caller's own invitation to an event (id = event ID). The type
+        is extensible (ADR 0017): unknown types open nothing.
       required: [type, id]
       properties:
         type:
           type: string
-          enum: [event, friend, list]
+          enum: [event, friend, list, invitation, invitationOverview]
         id:
           type: string
           format: uuid
@@ -2944,6 +3223,148 @@ components:
         userId:
           type: string
           format: uuid
+    InvitationPerson:
+      type: object
+      required: [id, firstName, lastName]
+      properties:
+        id:
+          type: string
+          format: uuid
+        firstName:
+          type: string
+        lastName:
+          type: string
+    InviteeStatus:
+      type: string
+      enum: [open, accepted, declined]
+    Invitee:
+      type: object
+      required: [person, status, invitedAt]
+      properties:
+        person:
+          $ref: "#/components/schemas/InvitationPerson"
+        status:
+          $ref: "#/components/schemas/InviteeStatus"
+        invitedAt:
+          type: string
+          format: date-time
+        respondedAt:
+          type: ["string", "null"]
+          format: date-time
+    InvitationMessage:
+      type: string
+      maxLength: 280
+    HostInvitation:
+      type: object
+      description: The caller's invitation as host.
+      required: [id, event, invitees]
+      properties:
+        id:
+          type: string
+          format: uuid
+        event:
+          $ref: "#/components/schemas/EventSummary"
+        message:
+          type: ["string", "null"]
+        invitees:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invitee"
+        lastReminderAt:
+          type: ["string", "null"]
+          format: date-time
+    ReceivedInvitation:
+      type: object
+      description: An invitation the caller received.
+      required: [id, event, host, createdAt, status, others]
+      properties:
+        id:
+          type: string
+          format: uuid
+        event:
+          $ref: "#/components/schemas/EventSummary"
+        host:
+          $ref: "#/components/schemas/InvitationPerson"
+        message:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/InviteeStatus"
+        others:
+          type: array
+          description: The other invitees with their status.
+          items:
+            $ref: "#/components/schemas/Invitee"
+    InviteRequest:
+      type: object
+      required: [userIds]
+      additionalProperties: false
+      properties:
+        userIds:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: string
+            format: uuid
+        message:
+          $ref: "#/components/schemas/InvitationMessage"
+    InvitationLink:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          pattern: "^[A-Za-z0-9_-]{22}$"
+    ReminderResult:
+      type: object
+      required: [reminded]
+      properties:
+        reminded:
+          type: integer
+          minimum: 0
+    InvitationResponse:
+      type: object
+      required: [status]
+      additionalProperties: false
+      properties:
+        status:
+          $ref: "#/components/schemas/InviteeStatus"
+    InvitationLinkPreview:
+      type: object
+      required: [host, event, own]
+      properties:
+        host:
+          type: object
+          required: [firstName, lastNameInitial]
+          properties:
+            firstName:
+              type: string
+            lastNameInitial:
+              type: string
+              maxLength: 1
+        event:
+          $ref: "#/components/schemas/EventSummary"
+        own:
+          type: boolean
+          description: The caller is the host (the app opens the own overview).
+    InvitationSummary:
+      type: object
+      required: [invitationId, role, people]
+      properties:
+        invitationId:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [host, guest]
+        people:
+          type: array
+          description: Who comes along (accepted invitees, for guests also the host).
+          items:
+            $ref: "#/components/schemas/InvitationPerson"
     Error:
       type: object
       description: Common error format for all non-2xx responses.

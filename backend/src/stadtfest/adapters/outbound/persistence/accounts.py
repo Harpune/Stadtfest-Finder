@@ -68,8 +68,8 @@ class SqlUserRepository:
         decremented here first. Notifications, notification settings and devices (R11) go the
         same way, as do friendships, the friend link and notifications naming the user as actor
         (R12). Memberships of shared lists cascade, `created_by` / `added_by` become null and
-        lists without members are deleted (R13). Extended by later increments:
-        lists (R13), invitations (R14).
+        lists without members are deleted (R13). Own invitations as host (with their
+        invitees and notifications) and own invitee rows cascade (R14).
         """
         async with self._sessions.begin() as session:
             user_id = await session.scalar(

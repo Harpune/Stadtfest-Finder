@@ -108,8 +108,8 @@ class NotificationStore(Protocol):
         """Delete one of the user's notifications; no-op if it does not exist."""
         ...
 
-    async def unpushed(self, ids: Sequence[UUID]) -> list[StoredNotification]:
-        """The given notifications that were not pushed yet."""
+    async def unpushed(self, ids: Sequence[UUID]) -> list[ListedNotification]:
+        """The given notifications that were not pushed yet, with their facts (target)."""
         ...
 
     async def mark_pushed(self, ids: Sequence[UUID]) -> None:
@@ -142,6 +142,10 @@ class Recipients(Protocol):
 
     async def favorite_holders(self, event_id: UUID) -> list[UUID]:
         """Users with the event as favorite."""
+        ...
+
+    async def accepted_invitees(self, event_id: UUID) -> list[UUID]:
+        """Users who accepted an invitation to the event (R14-US7)."""
         ...
 
     async def near_home(self, event_id: UUID) -> list[UUID]:
