@@ -8,12 +8,27 @@ from datetime import date, datetime
 from uuid import UUID
 
 from geoalchemy2 import Geography, Geometry
-from sqlalchemy import ColumnElement, Integer, and_, cast, delete, func, select, tuple_, update
+from sqlalchemy import (
+    ColumnElement,
+    Integer,
+    and_,
+    cast,
+    delete,
+    func,
+    or_,
+    select,
+    tuple_,
+    update,
+)
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.engine import Row
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.orm import aliased
+from sqlalchemy.sql import Select
 
 from stadtfest.adapters.outbound.persistence.models import (
     AiSearchJobRow,
+    AppUserRow,
     DeviceRow,
     EventRow,
     FavoriteRow,
@@ -30,27 +45,60 @@ from stadtfest.application.notifications.ports import (
 )
 from stadtfest.domain.events.event import EventStatus
 from stadtfest.domain.events.geo import GeoPoint
-from stadtfest.domain.notifications.notification import EventFacts, NotificationType
+from stadtfest.domain.notifications.notification import (
+    EventFacts,
+    NotificationType,
+    PersonFacts,
+)
 from stadtfest.domain.notifications.settings import Home, NotificationSettings
 
 _DEFAULTS = NotificationSettings()
 
 
 def _stored(row: NotificationRow) -> StoredNotification:
-    assert row.event_id is not None  # noqa: S101  # R11 types always reference an event
+    notification_type = NotificationType(row.type)
+    subject = row.actor_user_id if notification_type.about_person else row.event_id
+    assert subject is not None  # noqa: S101  # every type has its subject column set
     return StoredNotification(
         id=row.id,
         user_id=row.user_id,
-        type=NotificationType(row.type),
-        event_id=row.event_id,
+        type=notification_type,
+        subject_id=subject,
         read=row.read,
         created_at=row.created_at,
     )
 
 
+_Actor = aliased(AppUserRow)
+
+
+def _visible() -> ColumnElement[bool]:
+    """Notifications of deleted events are hidden (R11-US1); person ones always show."""
+    return or_(NotificationRow.event_id.is_(None), EventRow.deleted_at.is_(None))
+
+
 def _live_event() -> ColumnElement[bool]:
-    """Notifications of deleted events are hidden (R11-US1)."""
+    """Events that were not deleted (recipients of event notifications)."""
     return EventRow.deleted_at.is_(None)
+
+
+def _with_subjects[*Ts](query: Select[*Ts]) -> Select[*Ts]:
+    return query.outerjoin(EventRow, EventRow.id == NotificationRow.event_id).outerjoin(
+        _Actor, _Actor.id == NotificationRow.actor_user_id
+    )
+
+
+_PageRow = Row[NotificationRow, str, str, date | None, date | None, str | None, str, str]
+
+
+def _listed(row: _PageRow) -> ListedNotification:
+    stored = _stored(row.NotificationRow)
+    facts: EventFacts | PersonFacts
+    if stored.type.about_person:
+        facts = PersonFacts(row.actor_first_name or "", row.actor_last_name or "")
+    else:
+        facts = EventFacts(row.name, row.city, row.start_date, row.end_date, row.cancel_reason)
+    return ListedNotification(stored, facts)
 
 
 class SqlNotificationStore:
@@ -64,19 +112,20 @@ class SqlNotificationStore:
         self,
         user_ids: Sequence[UUID],
         notification_type: NotificationType,
-        event_id: UUID,
+        subject_id: UUID,
         key: str,
         created_at: datetime,
     ) -> list[UUID]:
         """Insert one notification per user, skipping existing `(user, key)` pairs."""
         if not user_ids:
             return []
+        column = "actor_user_id" if notification_type.about_person else "event_id"
         values = [
             {
                 "id": uuid.uuid4(),
                 "user_id": user_id,
                 "type": notification_type.value,
-                "event_id": event_id,
+                column: subject_id,
                 "dedupe_key": key,
                 "created_at": created_at,
             }
@@ -96,18 +145,21 @@ class SqlNotificationStore:
     async def page(
         self, user_id: UUID, after: PageCursor | None, limit: int
     ) -> list[ListedNotification]:
-        """Newest first, with the current event data."""
+        """Newest first, with the current data of the event or person."""
         query = (
-            select(
-                NotificationRow,
-                EventRow.name,
-                EventRow.city,
-                EventRow.start_date,
-                EventRow.end_date,
-                EventRow.cancel_reason,
+            _with_subjects(
+                select(
+                    NotificationRow,
+                    EventRow.name,
+                    EventRow.city,
+                    EventRow.start_date,
+                    EventRow.end_date,
+                    EventRow.cancel_reason,
+                    _Actor.first_name.label("actor_first_name"),
+                    _Actor.last_name.label("actor_last_name"),
+                )
             )
-            .join(EventRow, EventRow.id == NotificationRow.event_id)
-            .where(NotificationRow.user_id == user_id, _live_event())
+            .where(NotificationRow.user_id == user_id, _visible())
             .order_by(NotificationRow.created_at.desc(), NotificationRow.id.desc())
             .limit(limit)
         )
@@ -118,13 +170,7 @@ class SqlNotificationStore:
             )
         async with self._sessions() as session:
             rows = (await session.execute(query)).all()
-        return [
-            ListedNotification(
-                _stored(row.NotificationRow),
-                EventFacts(row.name, row.city, row.start_date, row.end_date, row.cancel_reason),
-            )
-            for row in rows
-        ]
+        return [_listed(row) for row in rows]
 
     async def unread_count(self, user_id: UUID) -> int:
         """Unread notifications of live events."""
@@ -135,12 +181,11 @@ class SqlNotificationStore:
         if not user_ids:
             return {}
         query = (
-            select(NotificationRow.user_id, func.count())
-            .join(EventRow, EventRow.id == NotificationRow.event_id)
+            _with_subjects(select(NotificationRow.user_id, func.count()))
             .where(
                 NotificationRow.user_id.in_(user_ids),
                 NotificationRow.read.is_(False),
-                _live_event(),
+                _visible(),
             )
             .group_by(NotificationRow.user_id)
         )
@@ -182,9 +227,8 @@ class SqlNotificationStore:
         if not ids:
             return []
         query = (
-            select(NotificationRow)
-            .join(EventRow, EventRow.id == NotificationRow.event_id)
-            .where(NotificationRow.id.in_(ids), NotificationRow.pushed.is_(False), _live_event())
+            _with_subjects(select(NotificationRow))
+            .where(NotificationRow.id.in_(ids), NotificationRow.pushed.is_(False), _visible())
             .order_by(NotificationRow.created_at, NotificationRow.id)
         )
         async with self._sessions() as session:

@@ -21,6 +21,7 @@ from stadtfest.application.ai_ingestion.ports import (
     SearchTool,
     WebSearchUnavailableError,
 )
+from stadtfest.application.collections.friends import FriendLinkView, FriendView, LinkTarget
 from stadtfest.application.collections.ports import FavoriteView
 from stadtfest.application.events.criteria import PageCursor, SearchCriteria
 from stadtfest.application.events.views import (
@@ -81,7 +82,11 @@ from stadtfest.domain.events.images import (
 )
 from stadtfest.domain.events.maintenance import DomainEvent, ManagedEvent
 from stadtfest.domain.identity.principal import Principal
-from stadtfest.domain.notifications.notification import EventFacts, NotificationType
+from stadtfest.domain.notifications.notification import (
+    EventFacts,
+    NotificationType,
+    PersonFacts,
+)
 from stadtfest.domain.notifications.settings import NotificationSettings
 
 
@@ -782,9 +787,9 @@ class FakeDraftStore:
 
 @dataclass
 class FakeNotificationStore:
-    """Notifications with their idempotency keys; event facts per event ID."""
+    """Notifications with their idempotency keys; facts per event or person ID."""
 
-    events: dict[UUID, EventFacts] = field(default_factory=dict)
+    events: dict[UUID, EventFacts | PersonFacts] = field(default_factory=dict)
     deleted_events: set[UUID] = field(default_factory=set)
     rows: list[StoredNotification] = field(default_factory=list)
     keys: set[tuple[UUID, str]] = field(default_factory=set)
@@ -792,14 +797,14 @@ class FakeNotificationStore:
 
     def _visible(self, user_id: UUID) -> list[StoredNotification]:
         return [
-            n for n in self.rows if n.user_id == user_id and n.event_id not in self.deleted_events
+            n for n in self.rows if n.user_id == user_id and n.subject_id not in self.deleted_events
         ]
 
     async def add(
         self,
         user_ids: Sequence[UUID],
         notification_type: NotificationType,
-        event_id: UUID,
+        subject_id: UUID,
         key: str,
         created_at: datetime,
     ) -> list[UUID]:
@@ -809,7 +814,7 @@ class FakeNotificationStore:
                 continue
             self.keys.add((user_id, key))
             row = StoredNotification(
-                uuid4(), user_id, notification_type, event_id, False, created_at
+                uuid4(), user_id, notification_type, subject_id, False, created_at
             )
             self.rows.append(row)
             ids.append(row.id)
@@ -821,7 +826,7 @@ class FakeNotificationStore:
         ordered = sorted(self._visible(user_id), key=lambda n: (n.created_at, n.id), reverse=True)
         if after is not None:
             ordered = [n for n in ordered if (n.created_at, n.id) < (after.created_at, after.id)]
-        return [ListedNotification(n, self.events[n.event_id]) for n in ordered[:limit]]
+        return [ListedNotification(n, self.events[n.subject_id]) for n in ordered[:limit]]
 
     async def unread_count(self, user_id: UUID) -> int:
         return sum(not n.read for n in self._visible(user_id))
@@ -958,3 +963,59 @@ class FakeAiSearchOwners:
 
     async def moderator_of(self, job_id: UUID) -> UUID | None:
         return self.owners.get(job_id)
+
+
+# --- friends (R12) -----------------------------------------------------------------------
+
+
+@dataclass
+class FakeFriendRepository:
+    """Links per user, people by ID, symmetric friendships; records created events."""
+
+    people: dict[UUID, tuple[str, str]] = field(default_factory=dict)
+    links: dict[UUID, FriendLinkView] = field(default_factory=dict)
+    friendships: dict[frozenset[UUID], datetime] = field(default_factory=dict)
+    created_events: list[tuple[UUID, UUID]] = field(default_factory=list)
+
+    async def link_of(self, user_id: UUID) -> FriendLinkView | None:
+        return self.links.get(user_id)
+
+    async def set_link(self, user_id: UUID, token: str, now: datetime) -> FriendLinkView:
+        self.links[user_id] = FriendLinkView(token, now)
+        return self.links[user_id]
+
+    async def owner_of(self, token: str) -> LinkTarget | None:
+        for user_id, link in self.links.items():
+            if link.token == token:
+                first, last = self.people.get(user_id, ("", ""))
+                return LinkTarget(user_id, first, last)
+        return None
+
+    async def befriend(self, owner_id: UUID, friend_id: UUID, now: datetime) -> FriendView:
+        pair = frozenset({owner_id, friend_id})
+        if pair not in self.friendships:
+            self.friendships[pair] = now
+            self.created_events.append((owner_id, friend_id))
+        first, last = self.people.get(owner_id, ("", ""))
+        return FriendView(owner_id, first, last, self.friendships[pair])
+
+    async def friends_of(self, user_id: UUID) -> list[FriendView]:
+        result = []
+        for pair, since in self.friendships.items():
+            if user_id in pair:
+                (other,) = pair - {user_id}
+                first, last = self.people.get(other, ("", ""))
+                result.append(FriendView(other, first, last, since))
+        return sorted(result, key=lambda f: (f.first_name, f.last_name))
+
+    async def remove(self, user_id: UUID, friend_id: UUID) -> None:
+        self.friendships.pop(frozenset({user_id, friend_id}), None)
+
+
+@dataclass
+class FakeRateLimiter:
+    counts: dict[str, int] = field(default_factory=dict)
+
+    async def hit(self, key: str, limit: int, window_seconds: int) -> bool:
+        self.counts[key] = self.counts.get(key, 0) + 1
+        return self.counts[key] <= limit

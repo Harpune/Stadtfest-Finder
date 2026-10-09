@@ -175,8 +175,15 @@ export const strings = {
       near: 'Neu an deinem Wohnort',
       change: 'Änderung',
       cancel: 'Fest abgesagt',
+      friend_added: 'Neuer Freund',
     },
-    icons: {remind: '⏰', near: '📍', change: '✏️', cancel: '⚠️'},
+    icons: {
+      remind: '⏰',
+      near: '📍',
+      change: '✏️',
+      cancel: '⚠️',
+      friend_added: '🤝',
+    },
     time: {
       justNow: 'Gerade eben',
       minutes: (n: number) => `vor ${n} Min.`,

@@ -78,3 +78,5 @@ class NotificationSettings:
                 return self.near and self.home is not None
             case NotificationType.CHANGE | NotificationType.CANCEL:
                 return self.change
+            case NotificationType.FRIEND_ADDED:
+                return False  # list only (R12-US2)

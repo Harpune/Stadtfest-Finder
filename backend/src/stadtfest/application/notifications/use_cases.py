@@ -39,6 +39,7 @@ from stadtfest.application.shared.errors import (
 )
 from stadtfest.application.shared.ports import Clock
 from stadtfest.domain.ai_ingestion.job import AiSearchEventType
+from stadtfest.domain.collections.friends import FriendEventType
 from stadtfest.domain.events.geo import PostalCode
 from stadtfest.domain.events.maintenance import DomainEventType
 from stadtfest.domain.identity.principal import Principal
@@ -82,7 +83,7 @@ class NotificationItem:
     id: UUID
     type: NotificationType
     text: str
-    event_id: UUID
+    subject_id: UUID
     read: bool
     created_at: datetime
 
@@ -142,8 +143,8 @@ class ListNotifications:
             NotificationItem(
                 id=row.notification.id,
                 type=row.notification.type,
-                text=render_text(row.notification.type, row.event, row.notification.created_at),
-                event_id=row.notification.event_id,
+                text=render_text(row.notification.type, row.facts, row.notification.created_at),
+                subject_id=row.notification.subject_id,
                 read=row.notification.read,
                 created_at=row.notification.created_at,
             )
@@ -353,7 +354,7 @@ class Notify:
         self._now = now
 
     async def __call__(
-        self, notification_type: NotificationType, event_id: UUID, user_ids: Sequence[UUID]
+        self, notification_type: NotificationType, subject_id: UUID, user_ids: Sequence[UUID]
     ) -> int:
         """Store the notifications and enqueue their pushes.
 
@@ -361,10 +362,10 @@ class Notify:
             Number of new notifications (duplicates by the idempotency rules are skipped).
         """
         now = self._now()
-        key = dedupe_key(notification_type, event_id, now)
+        key = dedupe_key(notification_type, subject_id, now)
         created = 0
         for chunk in batched(dict.fromkeys(user_ids), FANOUT_BATCH):
-            ids = await self._store.add(chunk, notification_type, event_id, key, now)
+            ids = await self._store.add(chunk, notification_type, subject_id, key, now)
             if ids:
                 await self._jobs.enqueue_push(ids)
                 created += len(ids)
@@ -446,7 +447,12 @@ def _message(notification: StoredNotification, device: Device, badge: int) -> Pu
         title=text.title,
         body=text.body,
         badge=badge,
-        data=_payload(notification.type, "event", notification.event_id, notification.id),
+        data=_payload(
+            notification.type,
+            "friend" if notification.type.about_person else "event",
+            notification.subject_id,
+            notification.id,
+        ),
     )
 
 
@@ -544,6 +550,11 @@ class NotifyForDomainEvent:
             return await self._push_to_moderator(
                 UUID(str(payload["jobId"])), _AI_PUSHES[event_type]
             )
+        if event_type == FriendEventType.CREATED.value:
+            # The link owner learns who accepted (R12-US2); list only, no push.
+            owner = UUID(str(payload["userId"]))
+            friend = UUID(str(payload["friendId"]))
+            return await self._notify(NotificationType.FRIEND_ADDED, friend, [owner])
         if "eventId" not in payload:
             return 0
         event_id = UUID(str(payload["eventId"]))

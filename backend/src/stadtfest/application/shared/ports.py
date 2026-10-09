@@ -1,4 +1,4 @@
-"""Cross-cutting outbound ports: clock and cache."""
+"""Cross-cutting outbound ports: clock, cache and rate limits."""
 
 from __future__ import annotations
 
@@ -33,4 +33,12 @@ class CachePort(Protocol):
 
     async def bump_generation(self, namespace: str) -> int:
         """Increment a namespace generation, invalidating all keys built with the old one."""
+        ...
+
+
+class RateLimiter(Protocol):
+    """Counts attempts per key in a fixed window (Redis); keys hold no personal data."""
+
+    async def hit(self, key: str, limit: int, window_seconds: int) -> bool:
+        """Count one attempt; False if the limit of the current window is exceeded."""
         ...

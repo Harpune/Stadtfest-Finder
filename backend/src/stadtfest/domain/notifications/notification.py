@@ -20,12 +20,18 @@ CHANGE_TRIGGERS = frozenset({"startDate", "endDate", "openingHours", "address", 
 
 
 class NotificationType(StrEnum):
-    """Types listed in the app; invitations, lists and friends add theirs later."""
+    """Types listed in the app; invitations and lists add theirs later."""
 
     REMIND = "remind"
     NEAR = "near"
     CHANGE = "change"
     CANCEL = "cancel"
+    FRIEND_ADDED = "friend_added"
+
+    @property
+    def about_person(self) -> bool:
+        """Whether the subject is a person (the actor) instead of an event."""
+        return self is NotificationType.FRIEND_ADDED
 
 
 class PushOnlyType(StrEnum):
@@ -40,21 +46,24 @@ def is_relevant_change(changed_fields: tuple[str, ...] | list[str]) -> bool:
     return not CHANGE_TRIGGERS.isdisjoint(changed_fields)
 
 
-def dedupe_key(notification_type: NotificationType, event_id: UUID, at: datetime) -> str:
+def dedupe_key(notification_type: NotificationType, subject_id: UUID, at: datetime) -> str:
     """Idempotency key, unique per user (R11-US3).
+
+    The subject is the event, for `friend_added` the new friend.
 
     - `remind`: at most one per event and Berlin day
     - `change`: at most one per event and hour, so several edits are combined
     - `near` and `cancel`: once per event (`near` only on the first publication)
+    - `friend_added`: once per friend
     """
     local = at.astimezone(BERLIN)
     match notification_type:
         case NotificationType.REMIND:
-            return f"remind:{event_id}:{local:%Y-%m-%d}"
+            return f"remind:{subject_id}:{local:%Y-%m-%d}"
         case NotificationType.CHANGE:
-            return f"change:{event_id}:{local:%Y-%m-%dT%H}"
-        case NotificationType.NEAR | NotificationType.CANCEL:
-            return f"{notification_type.value}:{event_id}"
+            return f"change:{subject_id}:{local:%Y-%m-%dT%H}"
+        case NotificationType.NEAR | NotificationType.CANCEL | NotificationType.FRIEND_ADDED:
+            return f"{notification_type.value}:{subject_id}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +83,8 @@ PUSH_TEXTS: dict[NotificationType | PushOnlyType, PushText] = {
         "Änderung", "Bei einem deiner Favoriten hat sich etwas geändert."
     ),
     NotificationType.CANCEL: PushText("Fest abgesagt", "Eines deiner Lieblingsfeste fällt aus."),
+    # Not pushed (R12), kept for completeness of the generic texts.
+    NotificationType.FRIEND_ADDED: PushText("Neuer Freund", "Jemand ist jetzt mit dir befreundet."),
     PushOnlyType.AI_SEARCH_COMPLETED: PushText(
         "Suche abgeschlossen", "Die automatische Suche ist fertig."
     ),
@@ -92,6 +103,14 @@ class EventFacts:
     start_date: date | None
     end_date: date | None
     cancel_reason: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PersonFacts:
+    """Current name of the person a notification is about (e.g. a new friend)."""
+
+    first_name: str
+    last_name: str
 
 
 _DASH = "\u2013"  # en dash, as in the app
@@ -129,9 +148,15 @@ def _starts_in(days: int) -> str:
 
 
 def render_text(
-    notification_type: NotificationType, event: EventFacts, created_at: datetime
+    notification_type: NotificationType,
+    facts: EventFacts | PersonFacts,
+    created_at: datetime,
 ) -> str:
     """The German list text of a notification (E-09)."""
+    if isinstance(facts, PersonFacts):
+        name = f"{facts.first_name} {facts.last_name}".strip()
+        return f"{name} ist jetzt mit dir befreundet."
+    event = facts
     period = format_period(event.start_date, event.end_date)
     place = f" in {event.city}" if event.city else ""
     match notification_type:
@@ -149,3 +174,5 @@ def render_text(
         case NotificationType.CANCEL:
             reason = f" Grund: {event.cancel_reason}" if event.cancel_reason else ""
             return f"{event.name} ({period}) fällt aus.{reason}"
+        case NotificationType.FRIEND_ADDED:
+            raise ValueError("friend_added needs PersonFacts")

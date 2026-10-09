@@ -10,7 +10,11 @@ from typing import Protocol
 from uuid import UUID
 
 from stadtfest.domain.identity.principal import Principal
-from stadtfest.domain.notifications.notification import EventFacts, NotificationType
+from stadtfest.domain.notifications.notification import (
+    EventFacts,
+    NotificationType,
+    PersonFacts,
+)
 from stadtfest.domain.notifications.settings import NotificationSettings
 
 
@@ -36,17 +40,18 @@ class StoredNotification:
     id: UUID
     user_id: UUID
     type: NotificationType
-    event_id: UUID
+    # The event, or for `friend_added` the person (`NotificationType.about_person`).
+    subject_id: UUID
     read: bool
     created_at: datetime
 
 
 @dataclass(frozen=True, slots=True)
 class ListedNotification:
-    """A notification with the current data of its event (for the text)."""
+    """A notification with the current data of its subject (for the text)."""
 
     notification: StoredNotification
-    event: EventFacts
+    facts: EventFacts | PersonFacts
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,7 +69,7 @@ class NotificationStore(Protocol):
         self,
         user_ids: Sequence[UUID],
         notification_type: NotificationType,
-        event_id: UUID,
+        subject_id: UUID,
         key: str,
         created_at: datetime,
     ) -> list[UUID]:

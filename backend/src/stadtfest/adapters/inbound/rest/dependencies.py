@@ -13,6 +13,14 @@ from stadtfest.application.ai_ingestion.use_cases import (
     ListAiSearches,
     StartAiSearch,
 )
+from stadtfest.application.collections.friends import (
+    AcceptFriendLink,
+    GetFriendLink,
+    ListFriends,
+    LookUpFriendLink,
+    RemoveFriend,
+    RotateFriendLink,
+)
 from stadtfest.application.collections.use_cases import (
     AddFavorite,
     IsFavorite,
@@ -89,6 +97,12 @@ class RestDependencies(Protocol):
     remove_favorite: RemoveFavorite
     list_favorites: ListFavorites
     is_favorite: IsFavorite
+    get_friend_link: GetFriendLink
+    rotate_friend_link: RotateFriendLink
+    look_up_friend_link: LookUpFriendLink
+    accept_friend_link: AcceptFriendLink
+    list_friends: ListFriends
+    remove_friend: RemoveFriend
     list_mod_events: ListModEvents
     get_mod_event: GetModEvent
     create_mod_event: CreateModEvent

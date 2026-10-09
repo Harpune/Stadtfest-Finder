@@ -43,6 +43,11 @@ tags:
       Notification list, settings and push devices of the signed-in user (R11, context
       `notifications`). Texts are rendered when reading (E-09); push payloads carry IDs and
       generic texts only (E-04).
+  - name: friends
+    description: |
+      Friendships via a personal friend link or QR code (R12, context `collections`, E-02).
+      The link itself is the owner's consent; there are no requests to decline and no user
+      search.
   - name: config
     description: Public app configuration.
 paths:
@@ -653,6 +658,137 @@ paths:
       responses:
         "204":
           description: The token is no longer registered for the caller.
+        "401":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/me/friend-link:
+    get:
+      operationId: getFriendLink
+      tags: [friends]
+      summary: Own friend link
+      description: |
+        The caller's personal friend link token; created on the first call. The app builds the
+        URL `https://{link host}/freund/{token}` and the QR code from it.
+      responses:
+        "200":
+          description: The friend link.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FriendLink"
+        "401":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/me/friend-link/rotate:
+    post:
+      operationId: rotateFriendLink
+      tags: [friends]
+      summary: Reset the friend link
+      description: Creates a new token; the old one stops working immediately.
+      responses:
+        "200":
+          description: The new friend link.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FriendLink"
+        "401":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/friend-links/{token}:
+    parameters:
+      - $ref: "#/components/parameters/FriendToken"
+    get:
+      operationId: getFriendLinkOwner
+      tags: [friends]
+      summary: Who shared a friend link
+      description: |
+        First name and last-name initial of the link owner, only for signed-in users.
+        At most 20 lookups and accepts per user and hour (`429`), against guessing tokens.
+      responses:
+        "200":
+          description: The owner of the link.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FriendLinkOwner"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/friend-links/{token}/accept:
+    parameters:
+      - $ref: "#/components/parameters/FriendToken"
+    post:
+      operationId: acceptFriendLink
+      tags: [friends]
+      summary: Become friends via a link
+      description: |
+        Creates the friendship in both directions and notifies the link owner
+        (`friend_added`). Idempotent if the friendship exists. The own link is `422 self_link`;
+        unknown or reset tokens are `404`. Counts towards the lookup limit (`429`).
+      responses:
+        "201":
+          description: The new (or existing) friend.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Friend"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/me/friends:
+    get:
+      operationId: listFriends
+      tags: [friends]
+      summary: Own friends
+      description: Ordered by first and last name.
+      responses:
+        "200":
+          description: The friends.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FriendList"
+        "401":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/me/friends/{userId}:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        description: User ID of the friend.
+        schema:
+          type: string
+          format: uuid
+    delete:
+      operationId: removeFriend
+      tags: [friends]
+      summary: Remove a friend
+      description: |
+        Ends the friendship in both directions, without a notification. Idempotent. Shared
+        lists and invitations stay.
+      responses:
+        "204":
+          description: The friendship is gone.
         "401":
           $ref: "#/components/responses/Error"
         default:
@@ -1366,6 +1502,14 @@ components:
       schema:
         type: string
   parameters:
+    FriendToken:
+      name: token
+      in: path
+      required: true
+      description: Friend link token (128 random bits, base64url, no personal data).
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9_-]{22}$"
     CategoryId:
       name: categoryId
       in: path
@@ -2295,16 +2439,17 @@ components:
       type: string
       description: |
         `remind`: a favorite starts soon; `near`: new event near the home; `change`: date,
-        times or place of a favorite changed; `cancel`: a favorite was cancelled.
-      enum: [remind, near, change, cancel]
+        times or place of a favorite changed; `cancel`: a favorite was cancelled;
+        `friend_added`: someone accepted the caller's friend link (R12, list only, no push).
+      enum: [remind, near, change, cancel, friend_added]
     NotificationTarget:
       type: object
-      description: What a tap opens.
+      description: What a tap opens; `friend` opens the friends list (id = the friend's user ID).
       required: [type, id]
       properties:
         type:
           type: string
-          enum: [event]
+          enum: [event, friend]
         id:
           type: string
           format: uuid
@@ -2440,6 +2585,54 @@ components:
         provider:
           type: string
           enum: [expo, direct]
+    FriendLink:
+      type: object
+      description: The caller's personal friend link (the token alone grants befriending).
+      required: [token, createdAt]
+      properties:
+        token:
+          type: string
+          pattern: "^[A-Za-z0-9_-]{22}$"
+        createdAt:
+          type: string
+          format: date-time
+    FriendLinkOwner:
+      type: object
+      required: [owner]
+      properties:
+        owner:
+          type: object
+          description: Only first name and last-name initial (privacy, R12).
+          required: [firstName, lastNameInitial]
+          properties:
+            firstName:
+              type: string
+            lastNameInitial:
+              type: string
+              maxLength: 1
+    Friend:
+      type: object
+      required: [id, firstName, lastName, since]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: User ID of the friend.
+        firstName:
+          type: string
+        lastName:
+          type: string
+        since:
+          type: string
+          format: date-time
+    FriendList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Friend"
     Error:
       type: object
       description: Common error format for all non-2xx responses.

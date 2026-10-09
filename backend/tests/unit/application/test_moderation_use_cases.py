@@ -320,12 +320,18 @@ async def test_event_and_ai_results_reach_the_notifications() -> None:
         await handle(OutboxMessage(uuid4(), event_type, {"eventId": str(uuid4())}))
     for event_type in ["ai_search.completed", "ai_search.failed"]:
         await handle(OutboxMessage(uuid4(), event_type, {"jobId": str(uuid4())}))
+    await handle(
+        OutboxMessage(
+            uuid4(), "friendship.created", {"userId": str(uuid4()), "friendId": str(uuid4())}
+        )
+    )
     # Deleted events notify nobody; their favorites are removed instead.
     assert seen == [
         "event.published",
         "event.cancelled",
         "ai_search.completed",
         "ai_search.failed",
+        "friendship.created",
     ]
 
 

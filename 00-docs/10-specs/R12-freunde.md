@@ -68,6 +68,13 @@
 - [ ] Deep Link `/freund/{token}` funktioniert beim Kalt- und Warmstart.
 - [ ] VVT und `DeleteAccount` erweitert.
 
+## Entscheidungen bei der Umsetzung
+
+- **QR-Code:** `react-native-qrcode-svg` (über das vorhandene `react-native-svg`), freigegeben am 09.10.2026.
+- **URL:** Die API liefert nur `{token, createdAt}`; die App baut die URL `https://{EXPO_PUBLIC_LINK_HOST}/freund/{token}` wie bei geteilten Festen. So gibt es nur eine Stelle für die Link-Domain. Der Android-Intent-Filter und die Caddy-Fallback-Seite kennen den Pfad `/freund/`.
+- **Benachrichtigung:** `friend_added` speichert den Freund als `actor_user_id`; der Text „{Vorname} {Nachname} ist jetzt mit dir befreundet“ entsteht beim Lesen. Das Ereignis `friendship.created` geht über die Outbox (gleiche Transaktion wie die Freundschaft). Kein Push.
+- **Rate-Limit:** Nachschlagen und Annehmen zählen gemeinsam (20 pro Nutzer und Stunde, `429 rate_limited`).
+
 ## Offene Punkte
 
 - Soll ein Link nach einer Anzahl Annahmen oder nach Zeit automatisch ablaufen? Vorerst nicht, nur manuelles Rotieren.

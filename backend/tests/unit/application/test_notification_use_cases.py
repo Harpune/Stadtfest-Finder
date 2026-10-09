@@ -37,7 +37,11 @@ from stadtfest.application.shared.errors import (
 )
 from stadtfest.domain.events.geo import GeoPoint
 from stadtfest.domain.identity.principal import Principal, Role
-from stadtfest.domain.notifications.notification import EventFacts, NotificationType
+from stadtfest.domain.notifications.notification import (
+    EventFacts,
+    NotificationType,
+    PersonFacts,
+)
 from stadtfest.domain.notifications.settings import Home, NotificationSettings
 from tests.fakes import (
     FakeAccountResolver,
@@ -379,3 +383,18 @@ async def test_delete_only_own_notifications(s: Setup) -> None:
     await delete(LENA, lena_note.id)
     await delete(LENA, lena_note.id)  # idempotent
     assert [n.user_id for n in s.store.rows] == [TIM_ID]
+
+
+async def test_friend_added_is_listed_with_the_name_but_never_pushed(s: Setup) -> None:
+    s.store.events[TIM_ID] = PersonFacts("Tim", "Krause")
+    s.device(LENA_ID, "lena-phone")
+    payload = {"userId": str(LENA_ID), "friendId": str(TIM_ID)}
+
+    assert await s.consumer()("friendship.created", payload) == 1
+    assert await s.consumer()("friendship.created", payload) == 0  # redelivery
+
+    listing = await ListNotifications(s.store, s.accounts)(LENA, None, 20)
+    assert listing.items[0].text == "Tim Krause ist jetzt mit dir befreundet."
+    assert listing.items[0].subject_id == TIM_ID
+    assert await s.push()(s.jobs.pushes[0]) == 0
+    assert s.sender.sent == []

@@ -33,7 +33,7 @@ from stadtfest.adapters.outbound.storage.urls import ImageUrls
 from stadtfest.application.notifications.ports import Device, DevicePlatform, PushProvider
 from stadtfest.application.notifications.use_cases import FANOUT_BATCH, Notify
 from stadtfest.domain.events.geo import GeoPoint
-from stadtfest.domain.notifications.notification import NotificationType
+from stadtfest.domain.notifications.notification import EventFacts, NotificationType
 from stadtfest.domain.notifications.settings import Home, NotificationSettings
 from tests.fakes import FakePushJobs
 from tests.integration.seed_support import load
@@ -115,7 +115,8 @@ async def test_add_is_idempotent_per_key_and_pages_newest_first(
     assert again == []
     page = await store.page(lena, None, 10)
     assert [n.notification.id for n in page] == [*later, *first]
-    assert page[0].event.name
+    assert isinstance(page[0].facts, EventFacts)
+    assert page[0].facts.name
     assert await store.unread_count(lena) == 2
     assert await store.mark_read(lena, first[0])
     assert not await store.mark_read(uuid4(), first[0])
