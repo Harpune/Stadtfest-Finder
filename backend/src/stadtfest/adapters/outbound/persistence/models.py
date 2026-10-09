@@ -209,6 +209,8 @@ class NotificationRow(Base):
     actor_user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("app_user.id", ondelete="CASCADE")
     )
+    # The shared list of `list_added` (R13).
+    list_id: Mapped[UUID | None] = mapped_column(ForeignKey("shared_list.id", ondelete="CASCADE"))
     dedupe_key: Mapped[str]
     read: Mapped[bool] = mapped_column(default=False)
     pushed: Mapped[bool] = mapped_column(default=False)
@@ -275,3 +277,44 @@ class FriendLinkRow(Base):
     )
     token: Mapped[str] = mapped_column(unique=True)
     created_at: Mapped[datetime] = mapped_column(server_default="now()")
+
+
+class SharedListRow(Base):
+    """Table `shared_list` (R13)."""
+
+    __tablename__ = "shared_list"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    name: Mapped[str]
+    created_by: Mapped[UUID | None] = mapped_column(ForeignKey("app_user.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(server_default="now()")
+
+
+class ListMemberRow(Base):
+    """Table `list_member` (R13)."""
+
+    __tablename__ = "list_member"
+
+    list_id: Mapped[UUID] = mapped_column(
+        ForeignKey("shared_list.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("app_user.id", ondelete="CASCADE"), primary_key=True
+    )
+    added_by: Mapped[UUID | None] = mapped_column(ForeignKey("app_user.id", ondelete="SET NULL"))
+    added_at: Mapped[datetime] = mapped_column(server_default="now()")
+
+
+class ListEventRow(Base):
+    """Table `list_event` (R13)."""
+
+    __tablename__ = "list_event"
+
+    list_id: Mapped[UUID] = mapped_column(
+        ForeignKey("shared_list.id", ondelete="CASCADE"), primary_key=True
+    )
+    event_id: Mapped[UUID] = mapped_column(
+        ForeignKey("event.id", ondelete="CASCADE"), primary_key=True
+    )
+    added_by: Mapped[UUID | None] = mapped_column(ForeignKey("app_user.id", ondelete="SET NULL"))
+    added_at: Mapped[datetime] = mapped_column(server_default="now()")

@@ -551,25 +551,27 @@ class PushProvider(RootModel[Literal["expo", "direct", "disabled"]]):
     ]
 
 
-class NotificationType(RootModel[Literal["remind", "near", "change", "cancel", "friend_added"]]):
+class NotificationType(
+    RootModel[Literal["remind", "near", "change", "cancel", "friend_added", "list_added"]]
+):
     root: Annotated[
-        Literal["remind", "near", "change", "cancel", "friend_added"],
+        Literal["remind", "near", "change", "cancel", "friend_added", "list_added"],
         Field(
-            description="`remind`: a favorite starts soon; `near`: new event near the home; `change`: date,\ntimes or place of a favorite changed; `cancel`: a favorite was cancelled;\n`friend_added`: someone accepted the caller's friend link (R12, list only, no push).\nExtensible (ADR 0017): new values may appear without a new API version; clients must\nshow unknown types with a neutral fallback.\n"
+            description="`remind`: a favorite starts soon; `near`: new event near the home; `change`: date,\ntimes or place of a favorite changed; `cancel`: a favorite was cancelled;\n`friend_added`: someone accepted the caller's friend link (R12, list only, no push);\n`list_added`: someone added the caller to a shared list (R13, pushed if `invite`).\nExtensible (ADR 0017): new values may appear without a new API version; clients must\nshow unknown types with a neutral fallback.\n"
         ),
     ]
 
 
 class NotificationTarget(BaseModel):
-    """What a tap opens; `friend` opens the friends list (id = the friend's user ID). The
-    type is extensible (ADR 0017): unknown types open nothing.
+    """What a tap opens; `friend` opens the friends list (id = the friend's user ID), `list`
+    a shared list. The type is extensible (ADR 0017): unknown types open nothing.
 
     """
 
     model_config = ConfigDict(
         populate_by_name=True,
     )
-    type: Literal["event", "friend"]
+    type: Literal["event", "friend", "list"]
     id: UUID
 
 
@@ -728,6 +730,83 @@ class FriendList(BaseModel):
         populate_by_name=True,
     )
     items: list[Friend]
+
+
+class ListMember(BaseModel):
+    """A member as the other members see them (name for joint planning)."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    first_name: Annotated[str, Field(alias="firstName")]
+    last_name: Annotated[str, Field(alias="lastName")]
+
+
+class ListEvent(EventSummary):
+    """An event of a shared list."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    category_name: Annotated[str, Field(alias="categoryName")]
+    emoji: str
+    added_at: Annotated[AwareDatetime, Field(alias="addedAt")]
+
+
+class SharedListSummary(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    name: str
+    event_count: Annotated[int, Field(alias="eventCount", ge=0)]
+    members: list[ListMember]
+    next_event: Annotated[
+        ListEvent | None,
+        Field(alias="nextEvent", description="The next event that has not ended, if any."),
+    ] = None
+
+
+class SharedList(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    name: str
+    members: list[ListMember]
+    events: Annotated[
+        list[ListEvent], Field(description="Chronological, including past and cancelled events.")
+    ]
+
+
+class SharedListName(RootModel[str]):
+    root: Annotated[str, Field(max_length=60, min_length=1)]
+
+
+class SharedListCreate(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+    )
+    name: SharedListName
+    member_ids: Annotated[list[UUID], Field(alias="memberIds", max_length=50)]
+
+
+class SharedListRename(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+    )
+    name: SharedListName
+
+
+class SharedListMemberAdd(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+    )
+    user_id: Annotated[UUID, Field(alias="userId")]
 
 
 class Error(BaseModel):

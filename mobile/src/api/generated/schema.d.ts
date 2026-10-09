@@ -568,6 +568,141 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Own shared lists
+         * @description Lists the caller is a member of, ordered by the next upcoming event, then name.
+         */
+        get: operations["listSharedLists"];
+        put?: never;
+        /**
+         * Create a shared list
+         * @description The caller becomes a member; `memberIds` must be friends of the caller
+         *     (`422 not_a_friend`). New members get `list_added`.
+         */
+        post: operations["createSharedList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/lists/{listId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * A shared list
+         * @description Members and events (chronological, incl. past and cancelled). Non-members get `404`.
+         */
+        get: operations["getSharedList"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a shared list
+         * @description Any member may delete the list for everyone.
+         */
+        delete: operations["deleteSharedList"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename a shared list
+         * @description Any member may rename (1-60 characters after trimming).
+         */
+        patch: operations["renameSharedList"];
+        trace?: never;
+    };
+    "/v1/lists/{listId}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a member
+         * @description Only friends of the caller (`422 not_a_friend`). Idempotent; a new member gets
+         *     `list_added`.
+         */
+        post: operations["addSharedListMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/lists/{listId}/members/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+                /** @description User ID of the member; the caller's own ID leaves the list. */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a member or leave
+         * @description Removes another member, or with the caller's own ID leaves the list. When the last
+         *     member leaves, the list is deleted. Idempotent.
+         */
+        delete: operations["removeSharedListMember"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/lists/{listId}/events/{eventId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+                /** @description Event ID. */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Add an event
+         * @description Only publicly visible events (otherwise `404`). Idempotent.
+         */
+        put: operations["addSharedListEvent"];
+        post?: never;
+        /**
+         * Remove an event
+         * @description Idempotent.
+         */
+        delete: operations["removeSharedListEvent"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/mod/events": {
         parameters: {
             query?: never;
@@ -1398,19 +1533,20 @@ export interface components {
         /**
          * @description `remind`: a favorite starts soon; `near`: new event near the home; `change`: date,
          *     times or place of a favorite changed; `cancel`: a favorite was cancelled;
-         *     `friend_added`: someone accepted the caller's friend link (R12, list only, no push).
+         *     `friend_added`: someone accepted the caller's friend link (R12, list only, no push);
+         *     `list_added`: someone added the caller to a shared list (R13, pushed if `invite`).
          *     Extensible (ADR 0017): new values may appear without a new API version; clients must
          *     show unknown types with a neutral fallback.
          * @enum {string}
          */
-        NotificationType: "remind" | "near" | "change" | "cancel" | "friend_added";
+        NotificationType: "remind" | "near" | "change" | "cancel" | "friend_added" | "list_added";
         /**
-         * @description What a tap opens; `friend` opens the friends list (id = the friend's user ID). The
-         *     type is extensible (ADR 0017): unknown types open nothing.
+         * @description What a tap opens; `friend` opens the friends list (id = the friend's user ID), `list`
+         *     a shared list. The type is extensible (ADR 0017): unknown types open nothing.
          */
         NotificationTarget: {
             /** @enum {string} */
-            type: "event" | "friend";
+            type: "event" | "friend" | "list";
             /** Format: uuid */
             id: string;
         };
@@ -1506,6 +1642,49 @@ export interface components {
         FriendList: {
             items: components["schemas"]["Friend"][];
         };
+        /** @description A member as the other members see them (name for joint planning). */
+        ListMember: {
+            /** Format: uuid */
+            id: string;
+            firstName: string;
+            lastName: string;
+        };
+        /** @description An event of a shared list. */
+        ListEvent: components["schemas"]["EventSummary"] & {
+            categoryName: string;
+            emoji: string;
+            /** Format: date-time */
+            addedAt: string;
+        };
+        SharedListSummary: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            eventCount: number;
+            members: components["schemas"]["ListMember"][];
+            /** @description The next event that has not ended, if any. */
+            nextEvent?: components["schemas"]["ListEvent"] | null;
+        };
+        SharedList: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            members: components["schemas"]["ListMember"][];
+            /** @description Chronological, including past and cancelled events. */
+            events: components["schemas"]["ListEvent"][];
+        };
+        SharedListName: string;
+        SharedListCreate: {
+            name: components["schemas"]["SharedListName"];
+            memberIds: string[];
+        };
+        SharedListRename: {
+            name: components["schemas"]["SharedListName"];
+        };
+        SharedListMemberAdd: {
+            /** Format: uuid */
+            userId: string;
+        };
         /** @description Common error format for all non-2xx responses. */
         Error: {
             /**
@@ -1550,6 +1729,8 @@ export interface components {
         };
     };
     parameters: {
+        /** @description Shared list ID. */
+        ListId: string;
         /** @description Friend link token (128 random bits, base64url, no personal data). */
         FriendToken: string;
         /** @description Category ID. */
@@ -2352,6 +2533,243 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    listSharedLists: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The lists. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedListSummary"][];
+                };
+            };
+            401: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    createSharedList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SharedListCreate"];
+            };
+        };
+        responses: {
+            /** @description The new list. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedList"];
+                };
+            };
+            401: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getSharedList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedList"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteSharedList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The list is gone. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    renameSharedList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SharedListRename"];
+            };
+        };
+        responses: {
+            /** @description The renamed list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedList"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    addSharedListMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SharedListMemberAdd"];
+            };
+        };
+        responses: {
+            /** @description The user is a member. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    removeSharedListMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+                /** @description User ID of the member; the caller's own ID leaves the list. */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The user is no member. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    addSharedListEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+                /** @description Event ID. */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event is in the list. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    removeSharedListEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shared list ID. */
+                listId: components["parameters"]["ListId"];
+                /** @description Event ID. */
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event is not in the list. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

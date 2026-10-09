@@ -40,6 +40,7 @@ from stadtfest.application.shared.errors import (
 from stadtfest.application.shared.ports import Clock
 from stadtfest.domain.ai_ingestion.job import AiSearchEventType
 from stadtfest.domain.collections.friends import FriendEventType
+from stadtfest.domain.collections.lists import ListEventType
 from stadtfest.domain.events.geo import PostalCode
 from stadtfest.domain.events.maintenance import DomainEventType
 from stadtfest.domain.identity.principal import Principal
@@ -354,7 +355,11 @@ class Notify:
         self._now = now
 
     async def __call__(
-        self, notification_type: NotificationType, subject_id: UUID, user_ids: Sequence[UUID]
+        self,
+        notification_type: NotificationType,
+        subject_id: UUID,
+        user_ids: Sequence[UUID],
+        actor_id: UUID | None = None,
     ) -> int:
         """Store the notifications and enqueue their pushes.
 
@@ -365,7 +370,9 @@ class Notify:
         key = dedupe_key(notification_type, subject_id, now)
         created = 0
         for chunk in batched(dict.fromkeys(user_ids), FANOUT_BATCH):
-            ids = await self._store.add(chunk, notification_type, subject_id, key, now)
+            ids = await self._store.add(
+                chunk, notification_type, subject_id, key, now, actor_id=actor_id
+            )
             if ids:
                 await self._jobs.enqueue_push(ids)
                 created += len(ids)
@@ -449,7 +456,7 @@ def _message(notification: StoredNotification, device: Device, badge: int) -> Pu
         badge=badge,
         data=_payload(
             notification.type,
-            "friend" if notification.type.about_person else "event",
+            notification.type.subject.value,
             notification.subject_id,
             notification.id,
         ),
@@ -555,6 +562,16 @@ class NotifyForDomainEvent:
             owner = UUID(str(payload["userId"]))
             friend = UUID(str(payload["friendId"]))
             return await self._notify(NotificationType.FRIEND_ADDED, friend, [owner])
+        if event_type == ListEventType.MEMBERS_ADDED.value:
+            # New members of a shared list (R13-US2); pushed if `invite` is on.
+            members = [UUID(str(user)) for user in _list(payload.get("userIds"))]
+            actor = payload.get("actorId")
+            return await self._notify(
+                NotificationType.LIST_ADDED,
+                UUID(str(payload["listId"])),
+                members,
+                actor_id=UUID(str(actor)) if actor else None,
+            )
         if "eventId" not in payload:
             return 0
         event_id = UUID(str(payload["eventId"]))
