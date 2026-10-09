@@ -21,6 +21,17 @@ from stadtfest.application.collections.friends import (
     RemoveFriend,
     RotateFriendLink,
 )
+from stadtfest.application.collections.lists import (
+    AddListEvent,
+    AddListMember,
+    CreateSharedList,
+    DeleteSharedList,
+    GetSharedList,
+    ListSharedLists,
+    RemoveListEvent,
+    RemoveListMember,
+    RenameSharedList,
+)
 from stadtfest.application.collections.use_cases import (
     AddFavorite,
     IsFavorite,
@@ -103,6 +114,15 @@ class RestDependencies(Protocol):
     accept_friend_link: AcceptFriendLink
     list_friends: ListFriends
     remove_friend: RemoveFriend
+    list_shared_lists: ListSharedLists
+    create_shared_list: CreateSharedList
+    get_shared_list: GetSharedList
+    rename_shared_list: RenameSharedList
+    delete_shared_list: DeleteSharedList
+    add_list_member: AddListMember
+    remove_list_member: RemoveListMember
+    add_list_event: AddListEvent
+    remove_list_event: RemoveListEvent
     list_mod_events: ListModEvents
     get_mod_event: GetModEvent
     create_mod_event: CreateModEvent

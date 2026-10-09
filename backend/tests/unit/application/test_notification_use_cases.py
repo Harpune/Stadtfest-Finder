@@ -39,6 +39,7 @@ from stadtfest.domain.events.geo import GeoPoint
 from stadtfest.domain.identity.principal import Principal, Role
 from stadtfest.domain.notifications.notification import (
     EventFacts,
+    ListFacts,
     NotificationType,
     PersonFacts,
 )
@@ -60,6 +61,7 @@ LENA = Principal("sub-lena", frozenset({Role.USER}))
 TIM = Principal("sub-tim", frozenset({Role.USER}))
 LENA_ID = uuid5(NAMESPACE_URL, LENA.subject)
 TIM_ID = uuid5(NAMESPACE_URL, TIM.subject)
+MIA = uuid4()
 NOW = datetime(2026, 10, 1, 7, 0, tzinfo=UTC)
 FEST = uuid4()
 FACTS = EventFacts("Reichsstädter Tage", "Aalen", date(2026, 10, 2), date(2026, 10, 13))
@@ -398,3 +400,25 @@ async def test_friend_added_is_listed_with_the_name_but_never_pushed(s: Setup) -
     assert listing.items[0].subject_id == TIM_ID
     assert await s.push()(s.jobs.pushes[0]) == 0
     assert s.sender.sent == []
+
+
+async def test_list_added_names_list_and_actor_and_follows_the_invite_setting(s: Setup) -> None:
+    list_id = uuid4()
+    s.store.events[list_id] = ListFacts("Weihnachtsmarkt-Tour", "Lena")
+    s.device(TIM_ID, "tim-phone")
+    s.device(LENA_ID, "lena-phone")
+    s.settings.stored[LENA_ID] = NotificationSettings(invite=False)
+    payload = {"listId": str(list_id), "userIds": [str(TIM_ID), str(LENA_ID)], "actorId": str(MIA)}
+
+    assert await s.consumer()("list.members_added", payload) == 2
+
+    listing = await ListNotifications(s.store, s.accounts)(TIM, None, 20)
+    assert listing.items[0].text == (
+        "Lena hat dich zur Liste \u201aWeihnachtsmarkt-Tour\u2018 hinzugefügt."
+    )
+    assert listing.items[0].subject_id == list_id
+    assert s.store.actors[list_id] == MIA
+    await s.push()(s.jobs.pushes[0])
+    [message] = s.sender.sent  # Lena turned invitations off
+    assert message.token == "tim-phone"
+    assert message.data["targetType"] == "list"

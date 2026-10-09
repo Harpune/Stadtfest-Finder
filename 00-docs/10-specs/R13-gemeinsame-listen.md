@@ -77,6 +77,12 @@
 - [ ] Autorisierung per Test belegt.
 - [ ] VVT und `DeleteAccount` erweitert.
 
+## Entscheidungen bei der Umsetzung
+
+- **Benachrichtigung:** `list_added` speichert Liste (`list_id`) und Auslöser (`actor_user_id`); der Text „{Vorname} hat dich zur Liste ‚{Name}‘ hinzugefügt“ entsteht beim Lesen. Das Ereignis `list.members_added` geht über die Outbox (gleiche Transaktion wie die Mitgliedschaft). Push nur bei aktivierter Einstellung „Einladungen“. Neue Art und Zieltyp `list` laut [ADR 0017](../25-adr/0017-erweiterbare-benachrichtigungsarten.md) in der Ignore-Liste von oasdiff.
+- **Feste einer Liste:** Gelöschte und zurückgezogene Feste werden beim Lesen ausgeblendet (wie bei Favoriten), die Zeilen bleiben bis zum endgültigen Löschen des Fests (FK mit Cascade).
+- **Verlassen:** `DELETE /v1/lists/{id}/members/{eigene ID}`; das Entfernen sperrt die Liste kurz, damit zwei gleichzeitig Austretende die Liste sicher löschen.
+
 ## Offene Punkte
 
 - Sollen Mitglieder über Änderungen an einer Liste benachrichtigt werden? Vorerst nur beim Hinzufügen.

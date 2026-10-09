@@ -34,6 +34,7 @@ from stadtfest.adapters.outbound.persistence.models import (
     FavoriteRow,
     NotificationRow,
     NotificationSettingsRow,
+    SharedListRow,
 )
 from stadtfest.application.notifications.ports import (
     Device,
@@ -47,8 +48,11 @@ from stadtfest.domain.events.event import EventStatus
 from stadtfest.domain.events.geo import GeoPoint
 from stadtfest.domain.notifications.notification import (
     EventFacts,
+    Facts,
+    ListFacts,
     NotificationType,
     PersonFacts,
+    SubjectKind,
 )
 from stadtfest.domain.notifications.settings import Home, NotificationSettings
 
@@ -57,7 +61,11 @@ _DEFAULTS = NotificationSettings()
 
 def _stored(row: NotificationRow) -> StoredNotification:
     notification_type = NotificationType(row.type)
-    subject = row.actor_user_id if notification_type.about_person else row.event_id
+    subject = {
+        SubjectKind.EVENT: row.event_id,
+        SubjectKind.PERSON: row.actor_user_id,
+        SubjectKind.LIST: row.list_id,
+    }[notification_type.subject]
     assert subject is not None  # noqa: S101  # every type has its subject column set
     return StoredNotification(
         id=row.id,
@@ -83,21 +91,26 @@ def _live_event() -> ColumnElement[bool]:
 
 
 def _with_subjects[*Ts](query: Select[*Ts]) -> Select[*Ts]:
-    return query.outerjoin(EventRow, EventRow.id == NotificationRow.event_id).outerjoin(
-        _Actor, _Actor.id == NotificationRow.actor_user_id
+    return (
+        query.outerjoin(EventRow, EventRow.id == NotificationRow.event_id)
+        .outerjoin(_Actor, _Actor.id == NotificationRow.actor_user_id)
+        .outerjoin(SharedListRow, SharedListRow.id == NotificationRow.list_id)
     )
 
 
-_PageRow = Row[NotificationRow, str, str, date | None, date | None, str | None, str, str]
+_PageRow = Row[NotificationRow, str, str, date | None, date | None, str | None, str, str, str]
 
 
 def _listed(row: _PageRow) -> ListedNotification:
     stored = _stored(row.NotificationRow)
-    facts: EventFacts | PersonFacts
-    if stored.type.about_person:
-        facts = PersonFacts(row.actor_first_name or "", row.actor_last_name or "")
-    else:
-        facts = EventFacts(row.name, row.city, row.start_date, row.end_date, row.cancel_reason)
+    facts: Facts
+    match stored.type.subject:
+        case SubjectKind.PERSON:
+            facts = PersonFacts(row.actor_first_name or "", row.actor_last_name or "")
+        case SubjectKind.LIST:
+            facts = ListFacts(row.list_name or "", row.actor_first_name or "")
+        case SubjectKind.EVENT:
+            facts = EventFacts(row.name, row.city, row.start_date, row.end_date, row.cancel_reason)
     return ListedNotification(stored, facts)
 
 
@@ -115,17 +128,25 @@ class SqlNotificationStore:
         subject_id: UUID,
         key: str,
         created_at: datetime,
+        actor_id: UUID | None = None,
     ) -> list[UUID]:
         """Insert one notification per user, skipping existing `(user, key)` pairs."""
         if not user_ids:
             return []
-        column = "actor_user_id" if notification_type.about_person else "event_id"
+        subject: dict[str, UUID | None] = {"actor_user_id": actor_id}
+        match notification_type.subject:
+            case SubjectKind.EVENT:
+                subject["event_id"] = subject_id
+            case SubjectKind.PERSON:
+                subject["actor_user_id"] = subject_id
+            case SubjectKind.LIST:
+                subject["list_id"] = subject_id
         values = [
             {
                 "id": uuid.uuid4(),
                 "user_id": user_id,
                 "type": notification_type.value,
-                column: subject_id,
+                **subject,
                 "dedupe_key": key,
                 "created_at": created_at,
             }
@@ -157,6 +178,7 @@ class SqlNotificationStore:
                     EventRow.cancel_reason,
                     _Actor.first_name.label("actor_first_name"),
                     _Actor.last_name.label("actor_last_name"),
+                    SharedListRow.name.label("list_name"),
                 )
             )
             .where(NotificationRow.user_id == user_id, _visible())
