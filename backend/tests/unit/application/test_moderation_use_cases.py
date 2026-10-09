@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from datetime import UTC, date, datetime
 from uuid import uuid4
 
@@ -305,6 +306,27 @@ async def test_deleted_events_lose_their_favorites() -> None:
     await handle(message)
     await handle(message)  # delivered twice: still the same state
     assert favorites.removed == [event_id, event_id]
+
+
+async def test_event_and_ai_results_reach_the_notifications() -> None:
+    """R11: published/updated/cancelled and AI results go to the notification consumer."""
+    seen: list[str] = []
+
+    async def notify(event_type: str, payload: Mapping[str, object]) -> None:
+        seen.append(event_type)
+
+    handle = HandleDomainEvent(FakeCache(), FakeEventFavorites(), _ignore, _ignore, None, notify)
+    for event_type in ["event.published", "event.cancelled", "event.deleted"]:
+        await handle(OutboxMessage(uuid4(), event_type, {"eventId": str(uuid4())}))
+    for event_type in ["ai_search.completed", "ai_search.failed"]:
+        await handle(OutboxMessage(uuid4(), event_type, {"jobId": str(uuid4())}))
+    # Deleted events notify nobody; their favorites are removed instead.
+    assert seen == [
+        "event.published",
+        "event.cancelled",
+        "ai_search.completed",
+        "ai_search.failed",
+    ]
 
 
 async def test_unknown_events_are_ignored() -> None:

@@ -1,12 +1,27 @@
 from types import SimpleNamespace
 from typing import Any
+from uuid import uuid4
 
 import pytest
 from arq import Retry
 
-from stadtfest.adapters.inbound.worker.jobs import IDP_DELETION_MAX_TRIES, delete_idp_user
+from stadtfest.adapters.inbound.worker.jobs import (
+    IDP_DELETION_MAX_TRIES,
+    PUSH_MAX_TRIES,
+    check_push_receipts,
+    delete_idp_user,
+    push_notifications,
+)
 from stadtfest.application.identity.use_cases import DeleteIdpUser
-from tests.fakes import FakeIdpAdmin
+from stadtfest.application.notifications.use_cases import CheckPushReceipts, PushNotifications
+from tests.fakes import (
+    FakeDeviceStore,
+    FakeIdpAdmin,
+    FakeNotificationStore,
+    FakePushJobs,
+    FakePushSender,
+    FakeSettingsStore,
+)
 
 
 def _ctx(idp: FakeIdpAdmin, job_try: int = 1) -> dict[str, Any]:
@@ -32,3 +47,26 @@ async def test_delete_idp_user_job_gives_up_after_max_tries(
     ctx = _ctx(FakeIdpAdmin(unavailable=True), job_try=IDP_DELETION_MAX_TRIES)
     await delete_idp_user(ctx, "sub-1")
     assert "idp_deletion_failed" in caplog.text
+
+
+def _push_ctx(sender: FakePushSender, job_try: int = 1) -> dict[str, Any]:
+    store, devices = FakeNotificationStore(), FakeDeviceStore()
+    container = SimpleNamespace(
+        push_notifications=PushNotifications(
+            store, FakeSettingsStore(), devices, sender, FakePushJobs()
+        ),
+        check_push_receipts=CheckPushReceipts(sender, devices),
+    )
+    return {"container": container, "job_try": job_try, "job_id": "push_notifications:n1"}
+
+
+async def test_push_job_retries_while_the_service_is_down(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    down = FakePushSender(unavailable=True)
+    with pytest.raises(Retry) as retry:
+        await check_push_receipts(_push_ctx(down, job_try=2), {"t": "x"})
+    assert retry.value.defer_score == 60_000
+    assert await check_push_receipts(_push_ctx(down, job_try=PUSH_MAX_TRIES), {"t": "x"}) == 0
+    assert "push_failed" in caplog.text
+    assert await push_notifications(_push_ctx(FakePushSender()), [str(uuid4())]) == 0

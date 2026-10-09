@@ -1,9 +1,9 @@
 /**
  * Profile drawer: guest variant (03-07) with login; signed in (R06) with user row, the
- * timeline "Deine Festsaison" and the footer (dark mode, moderator view, logout).
- * "Gemeinsame Listen" (R13) and "Benachrichtigungen" (R11) are not shown yet.
+ * bell with the unread counter next to the user (R11), the timeline "Deine Festsaison" and the
+ * footer (dark mode, moderator view, logout). "Gemeinsame Listen" (R13) is not shown yet.
+ * Deviation from the design: the notifications sit with the user, not in the footer.
  */
-import {router} from 'expo-router';
 import React, {useEffect, useState} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 
@@ -13,15 +13,18 @@ import {
   Icon,
   IconButton,
   MenuRow,
+  NotificationBell,
   SideDrawer,
   Skeleton,
   Text,
   useToast,
 } from '@/components';
+import {navigate} from '@/features/navigation/navigate';
 import {initialsOf, useAuth} from '@/features/auth/AuthProvider';
 import {todayInBerlin} from '@/features/events/dates';
 import {FestSaison} from '@/features/favorites/FestSaison';
 import {useFavorites} from '@/features/favorites/useFavorites';
+import {useUnreadCount} from '@/features/notifications/useNotifications';
 import {strings} from '@/strings/de';
 import {useTheme, useThemePreference} from '@/theme';
 
@@ -66,7 +69,7 @@ export function ProfileDrawer({visible, onClose}: ProfileDrawerProps) {
           chevron
           onPress={() => {
             onClose();
-            router.push('/mod');
+            navigate('/mod');
           }}
           testID="drawer.moderator"
         />
@@ -157,6 +160,7 @@ function GuestContent({onClose}: {onClose: () => void}) {
 
 function SignedInContent({onClose}: {onClose: () => void}) {
   const {user, email} = useAuth();
+  const unread = useUnreadCount();
   const favorites = useFavorites();
   const name = user ? `${user.firstName} ${user.lastName}`.trim() : '';
   return (
@@ -168,7 +172,7 @@ function SignedInContent({onClose}: {onClose: () => void}) {
           accessibilityLabel={strings.drawer.openAccount}
           onPress={() => {
             onClose();
-            router.push('/konto');
+            navigate('/konto');
           }}
           style={styles.user}
         >
@@ -184,6 +188,14 @@ function SignedInContent({onClose}: {onClose: () => void}) {
             ) : null}
           </View>
         </Pressable>
+        <NotificationBell
+          unread={unread}
+          onPress={() => {
+            onClose();
+            navigate('/benachrichtigungen');
+          }}
+          testID="drawer.notifications"
+        />
         <CloseButton onClose={onClose} />
       </View>
       <FestSaison
@@ -193,7 +205,7 @@ function SignedInContent({onClose}: {onClose: () => void}) {
         today={todayInBerlin()}
         onOpen={eventId => {
           onClose();
-          router.push(`/f/${eventId}`);
+          navigate(`/f/${eventId}`);
         }}
         onDiscover={onClose}
         onRetry={() => void favorites.refetch()}

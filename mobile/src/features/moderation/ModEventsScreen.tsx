@@ -2,7 +2,6 @@
  * Overview of all events (R07-US2, 08-01, no regions since ADR 0015): search and status chips filter the
  * loaded list on the device; a row opens the form.
  */
-import {router} from 'expo-router';
 import React, {useEffect, useMemo, useState} from 'react';
 import {FlatList, StyleSheet, View} from 'react-native';
 
@@ -17,6 +16,7 @@ import {
   SearchBar,
   Text,
 } from '@/components';
+import {navigate} from '@/features/navigation/navigate';
 import {buildCategoryLookup} from '@/features/discover/categoryLookup';
 import {useCategories} from '@/features/discover/useDiscoverData';
 import {
@@ -115,7 +115,7 @@ export function ModEventsScreen() {
           label={strings.mod.newEvent}
           variant="mod"
           size="medium"
-          onPress={() => router.push('/mod/fest/neu')}
+          onPress={() => navigate('/mod/fest/neu')}
           testID="mod.events.new"
         />
       </View>
@@ -188,7 +188,7 @@ export function ModEventsScreen() {
               meta={meta}
               favoriteCount={item.favoriteCount}
               autoFound={item.source === 'ai'}
-              onPress={() => router.push(`/mod/fest/${item.id}`)}
+              onPress={() => navigate(`/mod/fest/${item.id}`)}
               testID={`mod.events.row.${item.id}`}
             />
           );
@@ -267,7 +267,7 @@ function SearchStatus({
     <AiSearchBanner
       state="found"
       text={strings.mod.ai.found(found, search.postalCode)}
-      onReview={() => router.push(`/mod/pruefen/${search.id}`)}
+      onReview={() => navigate(`/mod/pruefen/${search.id}`)}
       onDismiss={onDismiss}
       testID="mod.ai.banner"
     />

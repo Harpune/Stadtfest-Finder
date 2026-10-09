@@ -542,6 +542,145 @@ class UpdateMeRequest(BaseModel):
     last_name: Annotated[str, Field(alias="lastName", max_length=50, min_length=1)]
 
 
+class PushProvider(RootModel[Literal["expo", "direct", "disabled"]]):
+    root: Annotated[
+        Literal["expo", "direct", "disabled"],
+        Field(
+            description="Push delivery (`PUSH_PROVIDER`); decides the token type the app registers."
+        ),
+    ]
+
+
+class NotificationType(RootModel[Literal["remind", "near", "change", "cancel"]]):
+    root: Annotated[
+        Literal["remind", "near", "change", "cancel"],
+        Field(
+            description="`remind`: a favorite starts soon; `near`: new event near the home; `change`: date,\ntimes or place of a favorite changed; `cancel`: a favorite was cancelled.\n"
+        ),
+    ]
+
+
+class NotificationTarget(BaseModel):
+    """What a tap opens."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    type: Literal["event"]
+    id: UUID
+
+
+class Notification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: UUID
+    type: NotificationType
+    text: Annotated[str, Field(description="German text, rendered when reading.")]
+    target: NotificationTarget
+    read: bool
+    created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
+
+
+class NotificationPage(BaseModel):
+    """One page of notifications, newest first."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    items: list[Notification]
+    next_cursor: Annotated[
+        str | None,
+        Field(alias="nextCursor", description="Cursor for the next page, `null` on the last page."),
+    ] = None
+
+
+class RemindDaysBefore(RootModel[Literal[1, 3, 7]]):
+    root: Literal[1, 3, 7]
+
+
+class NearRadiusKm(RootModel[int]):
+    root: Annotated[int, Field(ge=5, le=150, multiple_of=5)]
+
+
+class HomeUpdate(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+    )
+    postal_code: Annotated[str, Field(alias="postalCode", pattern="^[0-9]{5}$")]
+    place_name: Annotated[str, Field(alias="placeName", max_length=100, min_length=1)]
+
+
+class Home(BaseModel):
+    """Home for "new near your home"; the location is the ZIP code center."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    postal_code: Annotated[str, Field(alias="postalCode", pattern="^[0-9]{5}$")]
+    place_name: Annotated[str, Field(alias="placeName")]
+    lat: Annotated[
+        float, Field(description="Latitude of the ZIP code center (for the radius preview).")
+    ]
+    lon: float
+
+
+class NotificationSettingsUpdate(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+    )
+    remind: bool
+    remind_days_before: Annotated[RemindDaysBefore, Field(alias="remindDaysBefore")]
+    near: bool
+    home: HomeUpdate | None
+    near_radius_km: Annotated[NearRadiusKm, Field(alias="nearRadiusKm")]
+    change: bool
+    invite: bool
+    rsvp: bool
+
+
+class NotificationSettings(BaseModel):
+    """Which types are pushed. Muted types still appear in the list. `invite` and `rsvp`
+    take effect with invitations (R14).
+
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    remind: bool
+    remind_days_before: Annotated[RemindDaysBefore, Field(alias="remindDaysBefore")]
+    near: bool
+    home: Home | None
+    near_radius_km: Annotated[NearRadiusKm, Field(alias="nearRadiusKm")]
+    change: bool
+    invite: bool
+    rsvp: bool
+
+
+class DevicePlatform(RootModel[Literal["ios", "android"]]):
+    root: Literal["ios", "android"]
+
+
+class DeviceRegistration(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+    )
+    token: Annotated[
+        str,
+        Field(
+            description="Expo push token (`expo`) or native APNs/FCM token (`direct`).",
+            max_length=4096,
+            min_length=1,
+        ),
+    ]
+    platform: DevicePlatform
+    provider: Literal["expo", "direct"]
+
+
 class Error(BaseModel):
     """Common error format for all non-2xx responses."""
 
@@ -648,3 +787,12 @@ class Me(BaseModel):
     ]
     last_name: Annotated[str, Field(alias="lastName", max_length=50)]
     roles: Annotated[list[Role], Field(description="Effective roles from the token.")]
+
+
+class AppConfig(BaseModel):
+    """Public app configuration."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    push_provider: Annotated[PushProvider, Field(alias="pushProvider")]

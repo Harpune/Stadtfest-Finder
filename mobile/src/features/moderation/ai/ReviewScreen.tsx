@@ -8,6 +8,7 @@ import * as WebBrowser from 'expo-web-browser';
 import React, {useCallback, useMemo, useRef, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
 
+import {navigate} from '@/features/navigation/navigate';
 import {fetchClient} from '@/api/client';
 import {
   Button,
@@ -119,7 +120,7 @@ export function ReviewScreen({jobId}: {jobId: string}) {
 
   const openForm = (event: ModEventDetail) => {
     editing.current = {id: event.id, version: event.version};
-    router.push(`/mod/fest/${event.id}`);
+    navigate(`/mod/fest/${event.id}`);
   };
 
   const categories = useCategories();

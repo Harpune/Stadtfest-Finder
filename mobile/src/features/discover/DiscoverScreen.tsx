@@ -3,7 +3,6 @@
  * Map and list share one query; the map stays mounted below the list, so switching views
  * keeps search, filter, selection and camera without reloading.
  */
-import {router} from 'expo-router';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Keyboard, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -24,11 +23,13 @@ import {
   Text,
   useToast,
 } from '@/components';
+import {navigate} from '@/features/navigation/navigate';
 import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
 
 import {ProfileDrawer} from '../account/ProfileDrawer';
 import {initialsOf, useAuth} from '../auth/AuthProvider';
+import {useUnreadCount} from '../notifications/useNotifications';
 import {todayInBerlin} from '../events/dates';
 import {
   favoriteEntryFrom,
@@ -107,6 +108,7 @@ export function DiscoverScreen() {
   const {state, dispatch} = useDiscover();
   const {location, locate} = useUserLocation();
   const {requestAccountAction, user} = useAuth();
+  const unread = useUnreadCount();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const mapRef = useRef<DiscoverMapHandle>(null);
   const today = todayInBerlin();
@@ -251,7 +253,7 @@ export function DiscoverScreen() {
   const selectOrOpen = useCallback(
     (event: EventSummary) => {
       if (state.selectedEventId === event.id) {
-        router.push(`/f/${event.id}`);
+        navigate(`/f/${event.id}`);
       } else {
         dispatch({type: 'select', eventId: event.id});
       }
@@ -386,7 +388,7 @@ export function DiscoverScreen() {
             onEndReached={() => {
               if (search.hasNextPage) void search.fetchNextPage();
             }}
-            onOpen={event => router.push(`/f/${event.id}`)}
+            onOpen={event => navigate(`/f/${event.id}`)}
             onFavorite={toggleFavorite}
             favoriteIds={favoriteIds}
           />
@@ -477,6 +479,7 @@ export function DiscoverScreen() {
           <AvatarButton
             onPress={() => setDrawerOpen(true)}
             initials={initialsOf(user) || undefined}
+            hasUnread={unread > 0}
             testID="discover.profile"
           />
         </View>
@@ -531,7 +534,7 @@ export function DiscoverScreen() {
         categoryOf={categoryOf}
         onOpen={event => {
           setStack(null);
-          router.push(`/f/${event.id}`);
+          navigate(`/f/${event.id}`);
         }}
         onClose={() => setStack(null)}
       />

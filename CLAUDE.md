@@ -137,6 +137,7 @@ seed/                          synthetic seed data + loader
   - `collections` – favorites, lists, invitations
   - `ai_ingestion` – AI search jobs, event drafts
   - `moderation` – review, publish (any moderator, any event)
+  - `notifications` – notification list, settings, push devices and delivery (ADR 0016)
 - Dependency rule: `adapters → application → domain`. Never the other way round.
 - `domain/` is pure Python: no imports from FastAPI, SQLAlchemy, Pydantic, Redis, httpx.
 - Business logic lives in domain and application only. Adapters translate and delegate.

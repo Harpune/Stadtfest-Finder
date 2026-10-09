@@ -173,6 +173,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public app configuration
+         * @description Settings the app needs before sign-in, e.g. which push token type to register
+         *     (`expo`: Expo push token, `direct`: native APNs/FCM token, `disabled`: none).
+         */
+        get: operations["getConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me": {
         parameters: {
             query?: never;
@@ -249,6 +270,165 @@ export interface paths {
          * @description Idempotent; succeeds also if the event was no favorite or no longer exists.
          */
         delete: operations["removeFavorite"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Own notifications
+         * @description Newest first. The text is rendered from the type and the referenced data (E-09);
+         *     entries whose event was deleted are left out. The header `X-Unread-Count` carries
+         *     the number of unread entries (badge on the avatar and in the drawer).
+         */
+        get: operations["listNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/notifications/{notificationId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notification ID. */
+                notificationId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a notification as read
+         * @description Idempotent. Notifications of other users are `404`.
+         */
+        post: operations["markNotificationRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/notifications/{notificationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notification ID. */
+                notificationId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a notification
+         * @description Removes the entry from the caller's list (swipe in the app). Idempotent: also `204`
+         *     if it no longer exists; notifications of other users are left alone.
+         */
+        delete: operations["deleteNotification"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark all notifications as read
+         * @description The unread count drops to zero.
+         */
+        post: operations["markAllNotificationsRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/notification-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Own notification settings
+         * @description Defaults until the first change (all types on, 1 day before, 25 km, no home).
+         */
+        get: operations["getNotificationSettings"];
+        /**
+         * Replace own notification settings
+         * @description Replaces the whole object. The home is given as ZIP code and place name; the server
+         *     stores the ZIP code center from geocoding, never a GPS position (E-10). An unknown
+         *     ZIP code is `422` (`postal_code_unknown`).
+         */
+        put: operations["updateNotificationSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register a push token
+         * @description Called after the notification permission and after every sign-in. Idempotent; a
+         *     token registered by another user moves to the caller.
+         */
+        post: operations["registerDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/devices/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The push token (URL-encoded). */
+                token: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a push token
+         * @description Called on sign-out. Idempotent; tokens of other users are left alone.
+         */
+        delete: operations["removeDevice"];
         options?: never;
         head?: never;
         patch?: never;
@@ -376,7 +556,7 @@ export interface paths {
         put?: never;
         /**
          * Cancel a published event
-         * @description Only published events. Users with this favorite are notified from R11 on.
+         * @description Only published events. Users with this favorite get a notification (R11).
          */
         post: operations["cancelModEvent"];
         delete?: never;
@@ -1072,6 +1252,93 @@ export interface components {
             firstName: string;
             lastName: string;
         };
+        /** @description Public app configuration. */
+        AppConfig: {
+            pushProvider: components["schemas"]["PushProvider"];
+        };
+        /**
+         * @description Push delivery (`PUSH_PROVIDER`); decides the token type the app registers.
+         * @enum {string}
+         */
+        PushProvider: "expo" | "direct" | "disabled";
+        /**
+         * @description `remind`: a favorite starts soon; `near`: new event near the home; `change`: date,
+         *     times or place of a favorite changed; `cancel`: a favorite was cancelled.
+         * @enum {string}
+         */
+        NotificationType: "remind" | "near" | "change" | "cancel";
+        /** @description What a tap opens. */
+        NotificationTarget: {
+            /** @enum {string} */
+            type: "event";
+            /** Format: uuid */
+            id: string;
+        };
+        Notification: {
+            /** Format: uuid */
+            id: string;
+            type: components["schemas"]["NotificationType"];
+            /** @description German text, rendered when reading. */
+            text: string;
+            target: components["schemas"]["NotificationTarget"];
+            read: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /** @description One page of notifications, newest first. */
+        NotificationPage: {
+            items: components["schemas"]["Notification"][];
+            /** @description Cursor for the next page, `null` on the last page. */
+            nextCursor?: string | null;
+        };
+        /** @enum {integer} */
+        RemindDaysBefore: 1 | 3 | 7;
+        NearRadiusKm: number;
+        HomeUpdate: {
+            postalCode: string;
+            placeName: string;
+        };
+        /** @description Home for "new near your home"; the location is the ZIP code center. */
+        Home: {
+            postalCode: string;
+            placeName: string;
+            /** @description Latitude of the ZIP code center (for the radius preview). */
+            lat: number;
+            lon: number;
+        };
+        NotificationSettingsUpdate: {
+            remind: boolean;
+            remindDaysBefore: components["schemas"]["RemindDaysBefore"];
+            near: boolean;
+            home: components["schemas"]["HomeUpdate"] | null;
+            nearRadiusKm: components["schemas"]["NearRadiusKm"];
+            change: boolean;
+            invite: boolean;
+            rsvp: boolean;
+        };
+        /**
+         * @description Which types are pushed. Muted types still appear in the list. `invite` and `rsvp`
+         *     take effect with invitations (R14).
+         */
+        NotificationSettings: {
+            remind: boolean;
+            remindDaysBefore: components["schemas"]["RemindDaysBefore"];
+            near: boolean;
+            home: components["schemas"]["Home"] | null;
+            nearRadiusKm: components["schemas"]["NearRadiusKm"];
+            change: boolean;
+            invite: boolean;
+            rsvp: boolean;
+        };
+        /** @enum {string} */
+        DevicePlatform: "ios" | "android";
+        DeviceRegistration: {
+            /** @description Expo push token (`expo`) or native APNs/FCM token (`direct`). */
+            token: string;
+            platform: components["schemas"]["DevicePlatform"];
+            /** @enum {string} */
+            provider: "expo" | "direct";
+        };
         /** @description Common error format for all non-2xx responses. */
         Error: {
             /**
@@ -1416,6 +1683,27 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    getConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The configuration. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppConfig"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
     getMe: {
         parameters: {
             query?: never;
@@ -1548,6 +1836,201 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description The event is no favorite. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    listNotifications: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from `nextCursor` of the previous page. Cursors not issued by the server are rejected with `422`. */
+                cursor?: string;
+                /** @description Page size. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of notifications. */
+            200: {
+                headers: {
+                    /** @description Number of unread notifications of the caller. */
+                    "X-Unread-Count"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPage"];
+                };
+            };
+            401: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    markNotificationRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notification ID. */
+                notificationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The notification is read. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteNotification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notification ID. */
+                notificationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The notification is gone. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    markAllNotificationsRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All notifications are read. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getNotificationSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettings"];
+                };
+            };
+            401: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    updateNotificationSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description The stored settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettings"];
+                };
+            };
+            401: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    registerDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeviceRegistration"];
+            };
+        };
+        responses: {
+            /** @description The device is registered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    removeDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The push token (URL-encoded). */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The token is no longer registered for the caller. */
             204: {
                 headers: {
                     [name: string]: unknown;

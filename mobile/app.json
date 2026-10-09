@@ -18,7 +18,8 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "de.stadtfestfinder.app"
+      "package": "de.stadtfestfinder.app",
+      "googleServicesFile": "./google-services.json"
     },
     "plugins": [
       "expo-router",
@@ -48,6 +49,14 @@
       ],
       "expo-web-browser",
       [
+        "expo-notifications",
+        {
+          "color": "#FFB547",
+          "defaultChannel": "default",
+          "enableBackgroundRemoteNotifications": false
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Stadtfest-Finder braucht Zugriff auf deine Fotos, damit du Bilder zu Festen hochladen kannst. Es werden nur die ausgewählten Bilder übertragen.",
@@ -59,6 +68,13 @@
     "scheme": "stadtfest",
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f7e8a72e-07b0-4673-acab-7932b41539b5"
+      }
+    },
+    "owner": "harpune"
   }
 }

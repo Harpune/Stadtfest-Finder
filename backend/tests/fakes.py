@@ -54,6 +54,18 @@ from stadtfest.application.moderation.ports import (
     ModEventSummary,
     VersionConflictError,
 )
+from stadtfest.application.notifications.ports import (
+    Device,
+    ListedNotification,
+    PushMessage,
+    PushProvider,
+    PushResult,
+    PushUnavailableError,
+    StoredNotification,
+)
+from stadtfest.application.notifications.ports import (
+    PageCursor as NotificationCursor,
+)
 from stadtfest.application.outbox.ports import OutboxMessage
 from stadtfest.application.shared.ports import JsonValue
 from stadtfest.domain.ai_ingestion.finds import FoundEvent
@@ -69,6 +81,8 @@ from stadtfest.domain.events.images import (
 )
 from stadtfest.domain.events.maintenance import DomainEvent, ManagedEvent
 from stadtfest.domain.identity.principal import Principal
+from stadtfest.domain.notifications.notification import EventFacts, NotificationType
+from stadtfest.domain.notifications.settings import NotificationSettings
 
 
 @dataclass
@@ -761,3 +775,186 @@ class FakeDraftStore:
     ) -> list[UUID]:
         self.stored.extend(drafts)
         return [uuid4() for _ in drafts]
+
+
+# --- notifications (R11) -----------------------------------------------------------------
+
+
+@dataclass
+class FakeNotificationStore:
+    """Notifications with their idempotency keys; event facts per event ID."""
+
+    events: dict[UUID, EventFacts] = field(default_factory=dict)
+    deleted_events: set[UUID] = field(default_factory=set)
+    rows: list[StoredNotification] = field(default_factory=list)
+    keys: set[tuple[UUID, str]] = field(default_factory=set)
+    pushed: set[UUID] = field(default_factory=set)
+
+    def _visible(self, user_id: UUID) -> list[StoredNotification]:
+        return [
+            n for n in self.rows if n.user_id == user_id and n.event_id not in self.deleted_events
+        ]
+
+    async def add(
+        self,
+        user_ids: Sequence[UUID],
+        notification_type: NotificationType,
+        event_id: UUID,
+        key: str,
+        created_at: datetime,
+    ) -> list[UUID]:
+        ids = []
+        for user_id in user_ids:
+            if (user_id, key) in self.keys:
+                continue
+            self.keys.add((user_id, key))
+            row = StoredNotification(
+                uuid4(), user_id, notification_type, event_id, False, created_at
+            )
+            self.rows.append(row)
+            ids.append(row.id)
+        return ids
+
+    async def page(
+        self, user_id: UUID, after: NotificationCursor | None, limit: int
+    ) -> list[ListedNotification]:
+        ordered = sorted(self._visible(user_id), key=lambda n: (n.created_at, n.id), reverse=True)
+        if after is not None:
+            ordered = [n for n in ordered if (n.created_at, n.id) < (after.created_at, after.id)]
+        return [ListedNotification(n, self.events[n.event_id]) for n in ordered[:limit]]
+
+    async def unread_count(self, user_id: UUID) -> int:
+        return sum(not n.read for n in self._visible(user_id))
+
+    async def unread_counts(self, user_ids: Sequence[UUID]) -> dict[UUID, int]:
+        return {user_id: await self.unread_count(user_id) for user_id in user_ids}
+
+    async def mark_read(self, user_id: UUID, notification_id: UUID) -> bool:
+        for index, n in enumerate(self.rows):
+            if n.id == notification_id and n.user_id == user_id:
+                self.rows[index] = dataclasses.replace(n, read=True)
+                return True
+        return False
+
+    async def mark_all_read(self, user_id: UUID) -> None:
+        self.rows = [
+            dataclasses.replace(n, read=True) if n.user_id == user_id else n for n in self.rows
+        ]
+
+    async def delete(self, user_id: UUID, notification_id: UUID) -> None:
+        self.rows = [n for n in self.rows if not (n.id == notification_id and n.user_id == user_id)]
+
+    async def unpushed(self, ids: Sequence[UUID]) -> list[StoredNotification]:
+        return [n for n in self.rows if n.id in set(ids) and n.id not in self.pushed]
+
+    async def mark_pushed(self, ids: Sequence[UUID]) -> None:
+        self.pushed.update(ids)
+
+    async def purge(self, before: datetime) -> int:
+        kept = [n for n in self.rows if n.created_at >= before]
+        removed = len(self.rows) - len(kept)
+        self.rows = kept
+        return removed
+
+
+@dataclass
+class FakeSettingsStore:
+    stored: dict[UUID, NotificationSettings] = field(default_factory=dict)
+
+    async def get(self, user_id: UUID) -> NotificationSettings:
+        return self.stored.get(user_id, NotificationSettings())
+
+    async def put(self, user_id: UUID, settings: NotificationSettings) -> None:
+        self.stored[user_id] = settings
+
+    async def for_users(self, user_ids: Sequence[UUID]) -> dict[UUID, NotificationSettings]:
+        return {user_id: await self.get(user_id) for user_id in user_ids}
+
+
+@dataclass
+class FakeRecipients:
+    holders: dict[UUID, list[UUID]] = field(default_factory=dict)
+    near: dict[UUID, list[UUID]] = field(default_factory=dict)
+    due: dict[date, dict[UUID, list[UUID]]] = field(default_factory=dict)
+
+    async def favorite_holders(self, event_id: UUID) -> list[UUID]:
+        return list(self.holders.get(event_id, []))
+
+    async def near_home(self, event_id: UUID) -> list[UUID]:
+        return list(self.near.get(event_id, []))
+
+    async def reminders(self, today: date) -> dict[UUID, list[UUID]]:
+        return self.due.get(today, {})
+
+
+@dataclass
+class FakeDeviceStore:
+    devices: dict[str, tuple[UUID, Device, datetime]] = field(default_factory=dict)
+
+    async def register(self, user_id: UUID, device: Device, now: datetime) -> None:
+        self.devices[device.token] = (user_id, device, now)
+
+    async def remove(self, user_id: UUID, token: str) -> None:
+        if token in self.devices and self.devices[token][0] == user_id:
+            del self.devices[token]
+
+    async def for_users(
+        self, user_ids: Sequence[UUID], provider: PushProvider
+    ) -> dict[UUID, list[Device]]:
+        result: dict[UUID, list[Device]] = {}
+        for user_id, device, _ in self.devices.values():
+            if user_id in user_ids and device.provider is provider:
+                result.setdefault(user_id, []).append(device)
+        return result
+
+    async def remove_tokens(self, tokens: Sequence[str]) -> None:
+        for token in tokens:
+            self.devices.pop(token, None)
+
+    async def purge_inactive(self, before: datetime) -> int:
+        old = [token for token, (_, _, seen) in self.devices.items() if seen < before]
+        for token in old:
+            del self.devices[token]
+        return len(old)
+
+
+@dataclass
+class FakePushSender:
+    provider: PushProvider = PushProvider.EXPO
+    sent: list[PushMessage] = field(default_factory=list)
+    invalid: set[str] = field(default_factory=set)
+    receipts: dict[str, str] = field(default_factory=dict)
+    invalid_by_receipt: set[str] = field(default_factory=set)
+    unavailable: bool = False
+
+    async def send(self, messages: Sequence[PushMessage]) -> PushResult:
+        if self.unavailable:
+            raise PushUnavailableError
+        self.sent.extend(messages)
+        tokens = {m.token for m in messages}
+        return PushResult(frozenset(tokens & self.invalid), dict(self.receipts))
+
+    async def check_receipts(self, receipts: dict[str, str]) -> frozenset[str]:
+        if self.unavailable:
+            raise PushUnavailableError
+        return frozenset(set(receipts.values()) & self.invalid_by_receipt)
+
+
+@dataclass
+class FakePushJobs:
+    pushes: list[list[UUID]] = field(default_factory=list)
+    receipt_checks: list[dict[str, str]] = field(default_factory=list)
+
+    async def enqueue_push(self, notification_ids: Sequence[UUID]) -> None:
+        self.pushes.append(list(notification_ids))
+
+    async def enqueue_receipt_check(self, receipts: dict[str, str]) -> None:
+        self.receipt_checks.append(receipts)
+
+
+@dataclass
+class FakeAiSearchOwners:
+    owners: dict[UUID, UUID] = field(default_factory=dict)
+
+    async def moderator_of(self, job_id: UUID) -> UUID | None:
+        return self.owners.get(job_id)

@@ -19,6 +19,7 @@ import React, {
 import {$api, fetchClient} from '@/api/client';
 import type {components} from '@/api/generated/schema';
 import {GuestHintKind, GuestHintSheet, useToast} from '@/components';
+import {unregisterDevice} from '@/features/notifications/devices';
 import {strings} from '@/strings/de';
 
 import {authSession} from './authSession';
@@ -216,7 +217,8 @@ export function AuthProvider({
 
   const logout = useCallback(async () => {
     const refreshToken = session.current?.refreshToken;
-    // R11: DELETE /v1/me/devices/{token} before revoking.
+    // The push token goes first, while the access token is still valid (R11-US5).
+    await unregisterDevice();
     if (refreshToken) await gateway.revoke(refreshToken);
     await endSession();
     toast(strings.login.loggedOut);

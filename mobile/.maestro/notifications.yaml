@@ -1,0 +1,117 @@
+# Notifications (R11): a moderator marks an event as favorite, cancels it in the moderation
+# view and then sees "Fest abgesagt" in the notification list and the counter in the drawer.
+# Requires the local stack with API and worker (`make dev`, `make seed`) and Keycloak with
+# the dev realm. The flow cancels "Gmünder Stadtfest"; `make seed` restores it.
+# PUSH_PROVIDER may stay `disabled`: the list works without push. Tag `typing`: see login.yaml.
+appId: de.stadtfestfinder.app
+name: Benachrichtigung bei Absage
+tags:
+  - typing
+env:
+  EVENT: 7d7f3fe2-2748-5da6-b269-aee113f03e54 # "Gmünder Stadtfest"
+  USERNAME: moderator@example.test # dev realm moderator
+  PASSWORD: stadtfest-dev
+---
+- runFlow:
+    file: shared/launch.yaml
+    env:
+      LOCATION: never
+
+# Login via the drawer
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.login
+- tapOn:
+    id: login.email
+- tapOn:
+    text: 'Fortfahren|Continue'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: username
+    timeout: 60000
+- tapOn:
+    id: username
+- inputText: ${USERNAME}
+- tapOn:
+    id: password
+- inputText: ${PASSWORD}
+- tapOn:
+    id: kc-login
+- extendedWaitUntil:
+    visible:
+      id: discover.profile
+    timeout: 60000
+
+# Mark the event as favorite (the system may ask for notifications now)
+- openLink: stadtfest://f/${EVENT}
+- runFlow:
+    when:
+      visible: 'Öffnen|Open'
+    commands:
+      - tapOn: 'Öffnen|Open'
+- extendedWaitUntil:
+    visible:
+      id: detail.title
+    timeout: 15000
+- tapOn:
+    id: detail.favorite
+- runFlow:
+    when:
+      visible: 'Zulassen|Allow'
+    commands:
+      - tapOn: 'Zulassen|Allow'
+
+# Cancel it in the moderation view
+- openLink: stadtfest://mod/fest/${EVENT}
+- runFlow:
+    when:
+      visible: 'Öffnen|Open'
+    commands:
+      - tapOn: 'Öffnen|Open'
+- tapOn:
+    id: mod.form.menu
+- tapOn:
+    id: mod.form.menu.cancel
+- tapOn:
+    id: mod.cancelDialog.confirm
+- extendedWaitUntil:
+    visible: 'Abgesagt · 1 Nutzer wird benachrichtigt'
+    timeout: 10000
+
+# The notification arrives via outbox and worker within a few seconds
+- openLink: stadtfest://benachrichtigungen
+- runFlow:
+    when:
+      visible: 'Öffnen|Open'
+    commands:
+      - tapOn: 'Öffnen|Open'
+- extendedWaitUntil:
+    visible:
+      id: notifications.screen
+    timeout: 10000
+- retry:
+    maxRetries: 5
+    commands:
+      - swipe:
+          direction: DOWN # pull to refresh
+      - extendedWaitUntil:
+          visible: 'Fest abgesagt'
+          timeout: 5000
+- assertVisible: 'Neu'
+
+# Counter in the drawer, then everything read
+- tapOn:
+    id: notifications.back
+- tapOn:
+    id: discover.profile
+- assertVisible:
+    id: drawer.notifications.badge
+- tapOn:
+    id: drawer.notifications
+- tapOn:
+    id: notifications.readAll
+- assertVisible: 'Früher'
+- assertNotVisible:
+    id: notifications.readAll

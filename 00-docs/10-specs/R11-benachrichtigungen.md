@@ -31,6 +31,7 @@
 - Ist ein referenziertes Fest gelöscht, entfällt der Eintrag in der Antwort.
 - Ein Tipp markiert den Eintrag als gelesen (`POST /v1/me/notifications/{id}/read`, optimistisch) und öffnet das Ziel (Detailseite, ab R14 auch Einladungen).
 - `POST /v1/me/notifications/read-all`: Alle Punkte und Zähler verschwinden.
+- **Löschen (Wunsch des Product Owners, 06.10.2026):** Ein Eintrag wird durch Wischen nach links gelöscht (`DELETE /v1/me/notifications/{id}`, idempotent, optimistisch, Toast „Benachrichtigung gelöscht“). Screenreader erreichen dieselbe Funktion über die Aktion „Löschen“.
 - Leerzustand „Noch keine Benachrichtigungen“ (Annahme).
 
 ### R11-US2 · Einstellungen
@@ -59,7 +60,7 @@
 - Ablauf: Domain-Event bzw. Zeitplan → Empfänger ermitteln → Eintrag speichern (`read=false`) → wenn die Art aktiv ist: Push → Zustellergebnis auswerten (ungültiger Token → Gerät entfernen).
 - **Push-Inhalt (E-04, CLAUDE.md):**
   - Titel und Text generisch je Art, ohne Namen, Festnamen oder Orte, z. B. „Erinnerung“ / „Eines deiner Lieblingsfeste beginnt bald.“
-  - Payload `{notificationId, type, target: {type, id}}`
+  - Payload `{notificationId, type, targetType, targetId}` (flach mit Zeichenketten, weil FCM nur solche Werte erlaubt; Moderator-Push ohne `notificationId`)
   - Badge = Anzahl ungelesener Einträge
 - **Idempotenz:**
   - höchstens eine Erinnerung pro `(user, event, Tag)`
@@ -100,7 +101,7 @@ Fehlende Credentials für den gewählten Anbieter beenden den Start. `disabled` 
 
 | Tabelle | Felder |
 |---|---|
-| `notification` | `id`, `user_id`, `type`, `event_id?`, `invitation_id?`, `list_id?`, `actor_user_id?`, `source_event_id` (Idempotenz), `read`, `pushed`, `created_at` |
+| `notification` | `id`, `user_id`, `type`, `event_id?`, `dedupe_key` (Idempotenz, eindeutig je Nutzer), `read`, `pushed`, `created_at`. `invitation_id`, `list_id` und `actor_user_id` kommen mit R12–R14. |
 | `notification_settings` | Felder laut Datenmodell, `home_postal_code`, `home_place_name`, `home_location geography(Point)` = PLZ-Mittelpunkt |
 | `device` | `user_id`, `token` (unique), `platform`, `provider`, `last_seen_at` |
 
@@ -132,11 +133,20 @@ Fehlende Credentials für den gewählten Anbieter beenden den Start. `disabled` 
 
 ## Definition of Done
 
-- [ ] Screens 07-01 bis 07-04 umgesetzt, Zähler am Profilbild (roter Punkt) und im Drawer.
-- [ ] Zustellung mit allen drei `PUSH_PROVIDER`-Werten durch Tests belegt, manuell mit `expo` auf einem Gerät geprüft.
-- [ ] VVT, Löschkonzept und `DeleteAccount` erweitert.
+- [x] Screens 07-01 bis 07-04 umgesetzt (Liste mit Ziehen zum Aktualisieren, Einstellungen mit Wohnort, Radius und Vorschau, Hell und Dunkel über die Theme-Tokens), Zähler am Profilbild (Punkt) und im Drawer.
+- [ ] Zustellung mit allen drei `PUSH_PROVIDER`-Werten durch Tests belegt (erledigt), manuell mit `expo` auf einem Gerät geprüft (offen: braucht EAS-Projekt, Firebase-Konfiguration und `EXPO_ACCESS_TOKEN`, siehe [push-expo.md](../40-operations/push-expo.md)).
+- [x] VVT, Löschkonzept und `DeleteAccount` erweitert.
+
+## Entscheidungen bei der Umsetzung
+
+- **Kontext:** fünfter Kontext `notifications` ([ADR 0016](../25-adr/0016-benachrichtigungen-und-push.md)), CLAUDE.md und Architektur angepasst.
+- **Push-Adapter:** `expo`, `direct` (APNs und FCM, für beide Plattformen gleich; APNs braucht HTTP/2, dafür das Paket `h2`) und `disabled`. Neue Abhängigkeiten nach Rückfrage am 06.10.2026: `h2` (Backend), `expo-notifications` (App).
+- **„Neu an deinem Wohnort“ nur beim ersten Veröffentlichen:** `event.published` trägt `firstPublication: true`, wenn das Fest zum ersten Mal öffentlich wird.
+- **Idempotenz** über `dedupe_key`: `remind:<fest>:<Tag>`, `change:<fest>:<Stunde>`, `near:<fest>`, `cancel:<fest>` (Tag und Stunde in Europe/Berlin).
+- **App:** `expo-notifications`; die Berechtigung fragt die App beim ersten Favoriten, in den Einstellungen gibt es „Mitteilungen erlauben“ bzw. den Weg in die Systemeinstellungen. Ohne EAS-Projekt-ID (Expo) bzw. Firebase-Konfiguration (Android) bekommt die App kein Token; die Liste funktioniert trotzdem. „Konto löschen“ steht zusätzlich unten in den Einstellungen.
+- **Platz im Drawer (06.10.2026, Wunsch des Product Owners):** Abweichend vom Design (Eintrag im Fußbereich) sitzt eine Glocke mit rosa Zähler in der Nutzer-Zeile oben, neben dem ✕. Benachrichtigungen gehören zum Nutzer, der Fußbereich bleibt für Einstellungen wie den Dunkelmodus.
+- **Listentexte** entstehen beim Lesen aus Art und aktuellen Festdaten, z. B. „{Fest} beginnt morgen: 2.–13. Okt 2026 in Aalen.“, „Neu in Aalen: {Fest} (…)“, „{Fest} (…) fällt aus. Grund: …“.
 
 ## Offene Punkte
 
-- Bounded Context: CLAUDE.md nennt vier Kontexte. Vorschlag: Benachrichtigungen als fünfter Kontext `notifications`. Dafür CLAUDE.md und die Architektur anpassen (per ADR).
 - Die Arten `rsvp`, `invite` und `list_added` bekommen in ihren Inkrementen eigene Vorlagen.

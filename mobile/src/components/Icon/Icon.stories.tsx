@@ -33,6 +33,8 @@ const NAMES: IconName[] = [
   'pin',
   'grip',
   'chevronRight',
+  'settings',
+  'bell',
   'check',
 ];
 

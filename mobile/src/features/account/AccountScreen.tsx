@@ -4,7 +4,7 @@
  */
 import {router} from 'expo-router';
 import React, {useState} from 'react';
-import {Alert, ScrollView, StyleSheet, View} from 'react-native';
+import {ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {
@@ -21,15 +21,16 @@ import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
 
 import {NAME_MAX_LENGTH, useNameForm} from './nameForm';
+import {useConfirmDeleteAccount} from './useConfirmDeleteAccount';
 
 export function AccountScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const toast = useToast();
-  const {user, email, updateName, deleteAccount} = useAuth();
+  const {user, email, updateName} = useAuth();
   const form = useNameForm(user?.firstName ?? '', user?.lastName ?? '');
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const {confirm: confirmDelete, deleting} = useConfirmDeleteAccount();
 
   const save = async () => {
     const names = form.submit();
@@ -38,21 +39,6 @@ export function AccountScreen() {
     const ok = await updateName(names.firstName, names.lastName);
     setSaving(false);
     if (ok) toast(strings.name.saved);
-  };
-
-  const confirmDelete = () => {
-    Alert.alert(strings.account.deleteTitle, strings.account.deleteText, [
-      {text: strings.account.cancel, style: 'cancel'},
-      {
-        text: strings.account.deleteConfirm,
-        style: 'destructive',
-        onPress: async () => {
-          setDeleting(true);
-          const deleted = await deleteAccount();
-          if (!deleted) setDeleting(false);
-        },
-      },
-    ]);
   };
 
   return (

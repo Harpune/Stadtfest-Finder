@@ -212,3 +212,8 @@ jest.mock('expo-image-manipulator', () => {
     __context: context,
   };
 });
+
+// The double-tap guard of `navigate` is module state; every test starts unlocked.
+beforeEach(() =>
+  require('@/features/navigation/navigate').resetNavigationLock(),
+);

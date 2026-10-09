@@ -56,6 +56,17 @@ from stadtfest.application.moderation.use_cases import (
     UnpublishModEvent,
     UpdateModEvent,
 )
+from stadtfest.application.notifications.ports import PushProvider
+from stadtfest.application.notifications.use_cases import (
+    DeleteNotification,
+    GetNotificationSettings,
+    ListNotifications,
+    MarkAllNotificationsRead,
+    MarkNotificationRead,
+    RegisterDevice,
+    RemoveDevice,
+    UpdateNotificationSettings,
+)
 
 
 class RestDependencies(Protocol):
@@ -100,6 +111,15 @@ class RestDependencies(Protocol):
     start_ai_search: StartAiSearch
     get_ai_search: GetAiSearch
     list_ai_searches: ListAiSearches
+    push_provider: PushProvider
+    list_notifications: ListNotifications
+    mark_notification_read: MarkNotificationRead
+    mark_all_notifications_read: MarkAllNotificationsRead
+    delete_notification: DeleteNotification
+    get_notification_settings: GetNotificationSettings
+    update_notification_settings: UpdateNotificationSettings
+    register_device: RegisterDevice
+    remove_device: RemoveDevice
 
 
 def container(request: Request) -> RestDependencies:

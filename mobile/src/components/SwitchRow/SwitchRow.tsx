@@ -44,6 +44,7 @@ export function SwitchRow({
         value={value}
         onValueChange={onChange}
         disabled={disabled}
+        accessibilityState={{disabled, checked: value}}
         trackColor={{false: c.outline, true: on}}
         thumbColor="#FFFFFF"
         ios_backgroundColor={c.outline}

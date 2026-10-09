@@ -9,6 +9,7 @@ import {$api, fetchClient} from '@/api/client';
 import type {components} from '@/api/generated/schema';
 import {useToast} from '@/components';
 import {useAuth} from '@/features/auth/AuthProvider';
+import {usePush} from '@/features/notifications/PushProvider';
 import {strings} from '@/strings/de';
 
 import type {FavoriteEntry} from './timeline';
@@ -56,6 +57,7 @@ export function favoriteEntryFrom(
 export function useToggleFavorite() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const {askPermission} = usePush();
   const key = FAVORITES_QUERY.queryKey;
 
   return useCallback(
@@ -80,7 +82,10 @@ export function useToggleFavorite() {
       toast(favorite ? strings.favorites.added : strings.favorites.removed);
       // Server order and `favoritedAt` replace the optimistic entry.
       void queryClient.invalidateQueries({queryKey: key});
+      // The system asks for notifications on the first favorite, not at app start
+      // (R11-US5); afterwards the call returns without a dialog.
+      if (favorite) void askPermission();
     },
-    [queryClient, toast, key],
+    [queryClient, toast, key, askPermission],
   );
 }

@@ -9,6 +9,7 @@ from fastapi import Depends, FastAPI
 
 from stadtfest.adapters.inbound.rest import (
     categories,
+    config,
     events,
     favorites,
     geocoding,
@@ -18,6 +19,7 @@ from stadtfest.adapters.inbound.rest import (
     mod_categories,
     mod_events,
     mod_images,
+    notifications,
 )
 from stadtfest.adapters.inbound.rest.auth import optional_principal
 from stadtfest.adapters.inbound.rest.errors import register_error_handlers
@@ -71,6 +73,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(geocoding.mod_router)
     app.include_router(me.router)
     app.include_router(favorites.router)
+    app.include_router(notifications.router)
+    app.include_router(config.router)
     app.include_router(mod_events.router)
     app.include_router(mod_images.router)
     app.include_router(mod_categories.router)

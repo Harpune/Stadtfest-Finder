@@ -194,3 +194,54 @@ class RejectedSourceRow(Base):
     # Normalized event name; "" (rows before R10b) rejects every event of the page.
     name_normalized: Mapped[str] = mapped_column(primary_key=True, default="")
     rejected_at: Mapped[datetime] = mapped_column(server_default="now()")
+
+
+class NotificationRow(Base):
+    """Table `notification` (R11): type and IDs only, the text is rendered when read."""
+
+    __tablename__ = "notification"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("app_user.id", ondelete="CASCADE"))
+    type: Mapped[str]
+    event_id: Mapped[UUID | None] = mapped_column(ForeignKey("event.id", ondelete="CASCADE"))
+    dedupe_key: Mapped[str]
+    read: Mapped[bool] = mapped_column(default=False)
+    pushed: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(server_default="now()")
+
+
+class NotificationSettingsRow(Base):
+    """Table `notification_settings` (R11). The home is the ZIP code center (E-10)."""
+
+    __tablename__ = "notification_settings"
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("app_user.id", ondelete="CASCADE"), primary_key=True
+    )
+    remind: Mapped[bool]
+    remind_days_before: Mapped[int]
+    near: Mapped[bool]
+    home_postal_code: Mapped[str | None]
+    home_place_name: Mapped[str | None]
+    home_location: Mapped[object | None] = mapped_column(
+        Geography(geometry_type="POINT", srid=4326, spatial_index=False)
+    )
+    near_radius_km: Mapped[int]
+    change: Mapped[bool]
+    invite: Mapped[bool]
+    rsvp: Mapped[bool]
+    updated_at: Mapped[datetime] = mapped_column(server_default="now()")
+
+
+class DeviceRow(Base):
+    """Table `device` (R11): push tokens until sign-out or 90 days without activity."""
+
+    __tablename__ = "device"
+
+    token: Mapped[str] = mapped_column(primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("app_user.id", ondelete="CASCADE"))
+    platform: Mapped[str]
+    provider: Mapped[str]
+    created_at: Mapped[datetime] = mapped_column(server_default="now()")
+    last_seen_at: Mapped[datetime] = mapped_column(server_default="now()")

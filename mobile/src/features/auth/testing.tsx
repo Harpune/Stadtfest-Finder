@@ -55,7 +55,12 @@ export interface ApiCall {
 
 /** Answers /v1/me and /v1/me/favorites like the backend; everything else with an empty list. */
 export function mockMeApi(
-  options: {me?: Me; status?: number; favoriteStatus?: number} = {},
+  options: {
+    me?: Me;
+    status?: number;
+    favoriteStatus?: number;
+    unread?: number;
+  } = {},
 ) {
   const calls: ApiCall[] = [];
   let me = options.me ?? LENA;
@@ -74,6 +79,14 @@ export function mockMeApi(
         status,
         headers: {'Content-Type': 'application/json'},
       });
+    if (url.pathname === '/v1/me/notifications') {
+      return new Response(JSON.stringify({items: []}), {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Unread-Count': String(options.unread ?? 0),
+        },
+      });
+    }
     if (url.pathname.startsWith('/v1/me/favorites')) {
       if (request.method === 'GET') return json({items: []});
       return new Response(null, {status: options.favoriteStatus ?? 204});

@@ -151,6 +151,98 @@ export const strings = {
     darkModeSystem: 'Darstellung folgt wieder dem System',
     moderator: 'Moderator-Ansicht',
   },
+  notifications: {
+    title: 'Benachrichtigungen',
+    markAllRead: 'Alle als gelesen markieren',
+    delete: 'Löschen',
+    deleted: 'Benachrichtigung gelöscht',
+    bellUnread: (n: number) =>
+      n === 1
+        ? 'Benachrichtigungen, 1 ungelesen'
+        : `Benachrichtigungen, ${n} ungelesen`,
+    groupNew: 'Neu',
+    groupEarlier: 'Früher',
+    settings: 'Einstellungen',
+    emptyTitle: 'Noch keine Benachrichtigungen',
+    emptyText:
+      'Hier erscheinen Erinnerungen an deine Favoriten, neue Feste an deinem Wohnort, Änderungen und Absagen.',
+    loadFailed: 'Benachrichtigungen konnten nicht geladen werden',
+    retry: 'Erneut versuchen',
+    failed: 'Das hat nicht geklappt',
+    unreadLabel: 'Ungelesen',
+    kinds: {
+      remind: 'Erinnerung',
+      near: 'Neu an deinem Wohnort',
+      change: 'Änderung',
+      cancel: 'Fest abgesagt',
+    },
+    icons: {remind: '⏰', near: '📍', change: '✏️', cancel: '⚠️'},
+    time: {
+      justNow: 'Gerade eben',
+      minutes: (n: number) => `vor ${n} Min.`,
+      hours: (n: number) => `vor ${n} Std.`,
+      today: (time: string) => `Heute, ${time}`,
+      yesterday: 'Gestern',
+    },
+  },
+  notificationSettings: {
+    title: 'Einstellungen',
+    section: 'Benachrichtigungen',
+    rows: {
+      remind: {
+        icon: '⏰',
+        title: 'Erinnerungen an Favoriten',
+        desc: 'Bevor ein gemerktes Fest beginnt',
+      },
+      near: {
+        icon: '📍',
+        title: 'Neue Feste an deinem Wohnort',
+        desc: 'Wenn ein Fest im Radius um deinen Wohnort dazukommt',
+      },
+      change: {
+        icon: '✏️',
+        title: 'Änderungen und Absagen',
+        desc: 'Wenn sich bei Favoriten Zeiten ändern oder ein Fest ausfällt',
+      },
+      invite: {
+        icon: '✉️',
+        title: 'Einladungen',
+        desc: 'Wenn Freunde dich zu einem Fest einladen',
+      },
+      rsvp: {
+        icon: '👍',
+        title: 'Zu- und Absagen',
+        desc: 'Wenn Eingeladene auf deine Einladung antworten',
+      },
+    },
+    when: [
+      {days: 1, label: '1 Tag vorher'},
+      {days: 3, label: '3 Tage'},
+      {days: 7, label: '1 Woche'},
+    ],
+    home: 'Wohnort',
+    homePlaceholder: 'Stadt oder PLZ',
+    homeNoHit: 'Kein Ort gefunden',
+    homeSet: (name: string) => `Wohnort: ${name}`,
+    homeRemove: 'Wohnort entfernen',
+    homeRequired: 'Lege zuerst deinen Wohnort fest',
+    useLocation: 'Aktuellen Standort verwenden',
+    locationTaken: (name: string) => `Standort übernommen: ${name}`,
+    locationFailed: 'Standort konnte nicht ermittelt werden',
+    radius: (name: string) => `Radius um ${name}`,
+    radiusValue: (km: number) => `${km} km`,
+    yourHome: 'deinem Wohnort',
+    preview: (n: number, km: number, place: string) =>
+      `Aktuell ${n} ${n === 1 ? 'Fest' : 'Feste'} im Umkreis von ${km} km um ${place}. Du wirst benachrichtigt, sobald ein neues dazukommt.`,
+    hintAllowed:
+      'Mitteilungen sind in den Systemeinstellungen deines Telefons erlaubt. Stumm geschaltete Arten erscheinen weiterhin in der Liste.',
+    hintMuted: 'Stumm geschaltete Arten erscheinen weiterhin in der Liste.',
+    allow: 'Mitteilungen erlauben',
+    openSystemSettings: 'Mitteilungen in den Systemeinstellungen erlauben',
+    saveFailed: 'Speichern fehlgeschlagen',
+    postalCodeUnknown: 'Diese Postleitzahl kennen wir nicht.',
+    loadFailed: 'Einstellungen konnten nicht geladen werden',
+  },
   sortable: {
     handle: 'Zum Verschieben ziehen',
     up: 'Nach oben verschieben',
@@ -397,7 +489,11 @@ export const strings = {
     cancelDialog: {
       title: 'Fest absagen?',
       text: (name: string, n: number) =>
-        `„${name}“ wird als abgesagt markiert. ${n} Nutzer mit diesem Favoriten werden benachrichtigt.`,
+        `„${name}“ wird als abgesagt markiert. ${
+          n === 1
+            ? '1 Nutzer mit diesem Favoriten wird'
+            : `${n} Nutzer mit diesem Favoriten werden`
+        } benachrichtigt.`,
       reasonPlaceholder: 'Grund (wird in der Benachrichtigung angezeigt)',
       confirm: 'Absagen und benachrichtigen',
     },
