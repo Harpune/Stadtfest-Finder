@@ -29,11 +29,6 @@ export interface SideDrawerProps {
   testID: string;
   /** Fixed area at the bottom (e.g. "Abmelden"), separated by a line. */
   footer?: ReactNode;
-  /**
-   * False: the next close happens at once, without sliding out. Used when a drawer entry
-   * opens another screen, so only that screen moves (no drawer-out, screen-in sequence).
-   */
-  animateClose?: boolean;
 }
 
 /**
@@ -45,7 +40,6 @@ export function SideDrawer({
   onClose,
   testID,
   footer,
-  animateClose = true,
   children,
 }: PropsWithChildren<SideDrawerProps>) {
   const theme = useTheme();
@@ -58,11 +52,6 @@ export function SideDrawer({
 
   useEffect(() => {
     if (visible) setMounted(true);
-    if (!visible && !animateClose) {
-      progress.setValue(0);
-      setMounted(false);
-      return undefined;
-    }
     const animation = Animated.timing(progress, {
       toValue: visible ? 1 : 0,
       duration: theme.motion.page.duration,
@@ -73,7 +62,7 @@ export function SideDrawer({
       if (finished && !visible) setMounted(false);
     });
     return () => animation.stop();
-  }, [visible, animateClose, progress, theme.motion.page.duration]);
+  }, [visible, progress, theme.motion.page.duration]);
 
   const panelStyle = {
     transform: [
