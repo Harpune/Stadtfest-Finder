@@ -235,7 +235,9 @@ describe('list detail (05-03, 05-04)', () => {
     await waitFor(() =>
       expect(screen.queryByTestId(`list.member.${MIA}`)).toBeNull(),
     );
-    expect(screen.queryByText('Ulmer Weihnachtsmarkt')).toBeNull();
+    await waitFor(() =>
+      expect(screen.queryByText('Ulmer Weihnachtsmarkt')).toBeNull(),
+    );
     expect(calls.map(c => `${c.method} ${c.path}`)).toEqual(
       expect.arrayContaining([
         `DELETE /v1/lists/${LIST}/members/${MIA}`,
