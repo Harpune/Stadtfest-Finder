@@ -555,13 +555,16 @@ class NotificationType(RootModel[Literal["remind", "near", "change", "cancel", "
     root: Annotated[
         Literal["remind", "near", "change", "cancel", "friend_added"],
         Field(
-            description="`remind`: a favorite starts soon; `near`: new event near the home; `change`: date,\ntimes or place of a favorite changed; `cancel`: a favorite was cancelled;\n`friend_added`: someone accepted the caller's friend link (R12, list only, no push).\n"
+            description="`remind`: a favorite starts soon; `near`: new event near the home; `change`: date,\ntimes or place of a favorite changed; `cancel`: a favorite was cancelled;\n`friend_added`: someone accepted the caller's friend link (R12, list only, no push).\nExtensible (ADR 0017): new values may appear without a new API version; clients must\nshow unknown types with a neutral fallback.\n"
         ),
     ]
 
 
 class NotificationTarget(BaseModel):
-    """What a tap opens; `friend` opens the friends list (id = the friend's user ID)."""
+    """What a tap opens; `friend` opens the friends list (id = the friend's user ID). The
+    type is extensible (ADR 0017): unknown types open nothing.
+
+    """
 
     model_config = ConfigDict(
         populate_by_name=True,

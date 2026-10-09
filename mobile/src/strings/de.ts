@@ -188,6 +188,9 @@ export const strings = {
       cancel: '⚠️',
       friend_added: '🤝',
     },
+    // Types of a newer server version (ADR 0017).
+    unknownKind: 'Benachrichtigung',
+    unknownIcon: '🔔',
     time: {
       justNow: 'Gerade eben',
       minutes: (n: number) => `vor ${n} Min.`,

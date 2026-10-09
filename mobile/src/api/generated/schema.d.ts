@@ -1399,10 +1399,15 @@ export interface components {
          * @description `remind`: a favorite starts soon; `near`: new event near the home; `change`: date,
          *     times or place of a favorite changed; `cancel`: a favorite was cancelled;
          *     `friend_added`: someone accepted the caller's friend link (R12, list only, no push).
+         *     Extensible (ADR 0017): new values may appear without a new API version; clients must
+         *     show unknown types with a neutral fallback.
          * @enum {string}
          */
         NotificationType: "remind" | "near" | "change" | "cancel" | "friend_added";
-        /** @description What a tap opens; `friend` opens the friends list (id = the friend's user ID). */
+        /**
+         * @description What a tap opens; `friend` opens the friends list (id = the friend's user ID). The
+         *     type is extensible (ADR 0017): unknown types open nothing.
+         */
         NotificationTarget: {
             /** @enum {string} */
             type: "event" | "friend";

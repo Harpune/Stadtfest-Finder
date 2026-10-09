@@ -10,3 +10,8 @@ PATCH /v1/mod/events/{eventId} removed the required property `regionId` from the
 POST /v1/mod/events/{eventId}/cancel removed the required property `regionId` from the response with the `200` status
 POST /v1/mod/events/{eventId}/publish removed the required property `regionId` from the response with the `200` status
 POST /v1/mod/events/{eventId}/unpublish removed the required property `regionId` from the response with the `200` status
+#
+# 09.10.2026, ADR 0017 (notification types are extensible): R12 adds friend_added / friend.
+# Clients must tolerate unknown values; the app shows a neutral fallback.
+GET /v1/me/notifications added the new `friend` enum value to the `items/items/target/type` response property for the response status `200`
+GET /v1/me/notifications added the new `friend_added` enum value to the `items/items/type` response property for the response status `200`
