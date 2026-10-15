@@ -1,8 +1,10 @@
+import {BottomSheetTextInput} from '@gorhom/bottom-sheet';
 import React from 'react';
 import {StyleSheet, TextInput, TextInputProps, View} from 'react-native';
 
 import {useTheme} from '@/theme';
 
+import {useInSheet} from '../BottomSheet/inSheet';
 import {Text} from '../Text/Text';
 
 export interface TextFieldProps extends Pick<
@@ -51,10 +53,12 @@ export function TextField({
 }: TextFieldProps) {
   const theme = useTheme();
   const c = theme.colors;
+  // In a sheet a plain TextInput leaves the sheet behind the keyboard.
+  const Input = useInSheet() ? BottomSheetTextInput : TextInput;
   return (
     <View style={styles.container}>
       {hideLabel ? null : <Text variant="label">{label}</Text>}
-      <TextInput
+      <Input
         {...inputProps}
         testID={testID}
         value={value}

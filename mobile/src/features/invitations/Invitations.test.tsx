@@ -178,6 +178,23 @@ describe('compose (06-02)', () => {
       message: 'Kommst du?',
     });
   });
+
+  it('shows the event card before the first invitation exists', async () => {
+    mockApi(call => {
+      if (call.path === `/v1/events/${EVENT_ID}`) {
+        return {status: 200, body: {...EVENT, images: []}};
+      }
+      if (call.path === '/v1/me/friends') {
+        return {status: 200, body: {items: []}};
+      }
+      return undefined;
+    });
+    await render(<HostInvitationScreen eventId={EVENT_ID} />);
+
+    expect(await screen.findByTestId('invitation.event')).toHaveTextContent(
+      /Stadtfest Schwäbisch Gmünd/,
+    );
+  });
 });
 
 describe('overview (06-01)', () => {

@@ -23,6 +23,7 @@ import {useTheme} from '@/theme';
 import {IconButton} from '../IconButton/IconButton';
 import {Icon} from '../Icon/Icon';
 import {Text} from '../Text/Text';
+import {InSheetContext} from './inSheet';
 
 export interface BottomSheetProps {
   visible: boolean;
@@ -180,7 +181,7 @@ export function BottomSheet({
             />
           </View>
         ) : null}
-        {children}
+        <InSheetContext.Provider value>{children}</InSheetContext.Provider>
       </BottomSheetScrollView>
     </BottomSheetModal>
   );
