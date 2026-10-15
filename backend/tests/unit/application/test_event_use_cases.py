@@ -101,6 +101,21 @@ async def test_cache_keys_do_not_contain_exact_coordinates() -> None:
     assert all("48.837" not in key and "10.093" not in key for key in cache.store)
 
 
+async def test_date_ranges_are_windows_and_part_of_the_cache_key() -> None:
+    catalog = FakeEventCatalog()
+    cache = FakeCache()
+    search = _search(catalog, cache)
+    october = TimeFilter.between(date(2026, 10, 1), date(2026, 10, 31))
+    november = TimeFilter.between(date(2026, 11, 1), date(2026, 11, 30))
+
+    await search(SearchFilter(time=october))
+    await search(SearchFilter(time=november))
+
+    assert catalog.search_calls[0][0].windows == (DateRange(date(2026, 10, 1), date(2026, 10, 31)),)
+    assert len(catalog.search_calls) == 2
+    assert len(cache.store) == 2
+
+
 async def test_authenticated_searches_are_not_cached() -> None:
     catalog = FakeEventCatalog()
     cache = FakeCache()

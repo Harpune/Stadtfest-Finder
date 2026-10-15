@@ -13,6 +13,8 @@
 | Verfügbarkeit | Health-/Readiness-Probes | `/v1/health/live`, `/v1/health/ready` | R01 |
 | Verfügbarkeit | Backups | folgt in R16 | – |
 | Belastbarkeit | Rate-Limits | Geocoding 5 Anfragen/s je Client (IP gehasht, 2 s TTL) | R02 |
+| Belastbarkeit | Rate-Limit MCP | 60 Tool-Aufrufe/min je Token bzw. IP (Schlüssel gehasht, 60 s TTL) | R15 |
+| Vertraulichkeit | MCP nur mit bekannten Clients | Anmeldung nur über statische OAuth-Apps (PKCE, JWT) je Client, keine offene Client-Registrierung; Tool-Log nur mit Tool, Ergebnis und Dauer (ADR 0018) | R15 |
 | Vertraulichkeit | Standortdaten minimiert | Keine Speicherung von Nutzerpositionen; Reverse-Geocoding auf ~100 m gerundet; Cache-Schlüssel nur über gerundete Werte, gehasht; Geocoding selbst gehostet | R02 |
 | Standort | Kern in der EU | Eigener Server (EU), Zitadel EU-Region; Nicht-EU-Dienste nur per ADR und per ENV abschaltbar | R01 |
 | Vertraulichkeit | Bildmetadaten entfernt | Der Worker kopiert nur Pixel (EXIF, XMP, IPTC, ICC inkl. GPS fallen weg), Originale werden gelöscht; Test mit GPS-EXIF in `test_pillow_processor.py` | R08 |

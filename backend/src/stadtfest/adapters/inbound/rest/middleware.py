@@ -45,7 +45,7 @@ class RequestContextMiddleware:
         async def send_with_request_id(message: Message) -> None:
             nonlocal status_code
             if message["type"] == "http.response.start":
-                status_code = message["status"]
+                status_code = int(message["status"])  # some apps send `HTTPStatus`
                 headers = list(message.get("headers", []))
                 headers.append((REQUEST_ID_HEADER.encode(), request_id.encode()))
                 message["headers"] = headers

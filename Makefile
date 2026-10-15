@@ -39,11 +39,16 @@ migrate: ## Apply database migrations
 	$(BACKEND) uv run alembic upgrade head
 
 .PHONY: dev
-dev: install deps-up migrate ## Start local stack + API (reload) + worker; Ctrl+C stops API and worker
+dev: install deps-up migrate ## Start local stack + API (reload) + worker + MCP server; Ctrl+C stops them
 	@trap 'kill 0' INT TERM EXIT; \
 	( $(BACKEND) uv run uvicorn stadtfest.bootstrap.app:create_app --factory --reload --reload-dir src --port $(API_PORT) --no-access-log ) & \
 	( $(BACKEND) uv run python -m stadtfest.bootstrap.worker ) & \
+	( $(BACKEND) uv run python -m stadtfest.bootstrap.mcp ) & \
 	wait
+
+.PHONY: mcp
+mcp: ## Start only the MCP server (http://localhost:$$MCP_PORT/mcp, R15)
+	$(BACKEND) uv run python -m stadtfest.bootstrap.mcp
 
 .PHONY: seed
 seed: migrate ## Load synthetic seed data into the local DB (idempotent, never in prod)

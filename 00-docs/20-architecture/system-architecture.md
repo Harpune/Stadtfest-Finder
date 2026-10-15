@@ -15,7 +15,7 @@ flowchart LR
 
   subgraph Backend["Backend (eigene Infrastruktur, EU)"]
     API["Backend-API<br/>FastAPI, JSON, prüft JWT + Rollen"]
-    MCP["FastMCP-Server<br/>Streamable HTTP, OAuth"]
+    MCP["FastMCP-Server<br/>Streamable HTTP /mcp, OAuth-Ressourcenserver"]
     SVC[["Service-Schicht<br/>Use Cases, gemeinsam für API, MCP, Worker"]]
     WRK["Worker<br/>arq, KI-Suche, Benachrichtigungen, Bilder"]
     DB[("Datenbank<br/>PostgreSQL + PostGIS")]
@@ -39,6 +39,7 @@ flowchart LR
   APP -. "Vektorkacheln, Stil" .-> TILES
   APP -. "Bild-Upload (signierte URL), Bilder laden" .-> OBJ
   MCPC -- "D1 · MCP über Streamable HTTP" --> MCP
+  MCPC -. "D0 · OAuth Auth Code + PKCE<br/>statischer Client (ADR 0018)" .-> IDP
   API --> SVC
   MCP -- D2 --> SVC
   SVC -- "A2/D3 · SQL" --> DB
@@ -53,6 +54,7 @@ flowchart LR
   WEB -. "Suchanfragen ohne Personenbezug" .-> ENG
   WRK -. "Push-Auftrag" .-> PUSH
   API -. "B3 · JWKS, JWT-Signatur prüfen" .-> IDP
+  MCP -. "JWKS (wie B3)" .-> IDP
   SVC -. "Kontolöschung · Admin-API (ADR 0010)" .-> IDP
 ```
 
@@ -63,7 +65,7 @@ flowchart LR
 | **A · Suche als Gast** | A1 App → API ohne Token · A2 PostGIS-Umkreisabfrage → Ergebnisliste und Karte (Redis-Cache 5 min) |
 | **B · Anmeldung** | B1 App ↔ Zitadel (OIDC, PKCE) → Token · B2 App sendet JWT an die API · B3 API prüft JWT per JWKS und liest Rollen aus den Claims. Kontolöschung: API löscht lokale Daten und den Nutzer über die Admin-API des IdP, bei Fehler per Worker-Retry (ADR 0010) |
 | **C · KI-Suche per PLZ** | C1 Moderator stößt die Suche an, API legt einen Auftrag an (`202`) · C2 Auftrag in die Queue (über die Outbox, ADR 0005) · C3 Worker übernimmt · C4 Geocoding PLZ → Umkreis · C5 KI-Modul mit Festschema · C6 KI-Anbieter mit Web-Suche → validiertes JSON · C7 Speichern als **Entwurf** (Quelle geprüft, Duplikate und verworfene Quellen übersprungen) · C8 Moderator prüft und gibt frei; die App fragt den Status alle 10 s ab. LLM-Adapter: Pydantic AI (ADR 0012), Web-Suche: selbst gehostetes SearXNG (ADR 0013), Nicht-EU-LLM optional (ADR 0014) |
-| **D · MCP** | D1 externer KI-Client → FastMCP (OAuth über Zitadel) · D2 Service-Schicht · D3 Datenbank |
+| **D · MCP** | D1 externer KI-Client → FastMCP (Streamable HTTP unter `/mcp`, zustandslos). `search_events` und `get_event` gehen ohne Token. `start_ai_search` ohne Token ergibt `401` mit Protected Resource Metadata (RFC 9728) → D0 Anmeldung bei Zitadel mit statischem OAuth-Client (PKCE, ADR 0018) → erneuter Aufruf mit Token, geprüft wie B3 · D2 Service-Schicht: dieselben Use Cases wie REST, Rollen im Use Case · D3 Datenbank. Rate-Limit 60 Aufrufe/min je Token bzw. IP |
 
 ## Ausgabeschema der KI-Suche (C5)
 
@@ -94,7 +96,7 @@ flowchart LR
 |---|---|---|
 | Backend-API | `uvicorn stadtfest.bootstrap.app:create_app --factory` | `adapters/inbound/rest` |
 | Worker | `python -m stadtfest.bootstrap.worker` | `adapters/inbound/worker` |
-| FastMCP-Server | ab R15 | `adapters/inbound/mcp` |
+| FastMCP-Server | `python -m stadtfest.bootstrap.mcp` (Image `stadtfest-mcp`, Port 8001) | `adapters/inbound/mcp`; Bearer-Prüfung gemeinsam mit REST in `adapters/inbound/auth` |
 | Service-Schicht | – | `application/<context>` + `domain/<context>`; Kontexte `events`, `collections`, `ai_ingestion`, `moderation`, `notifications` (ADR 0016) |
 | Datenbank, Objektspeicher, Redis, KI-Modul, Geocoding, Push | – | `adapters/outbound/<tech>` (hinter Ports) |
 

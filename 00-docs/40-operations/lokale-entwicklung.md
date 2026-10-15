@@ -27,8 +27,8 @@ Für native Builds zusätzlich **mindestens 20 GB freien Speicher** einplanen (P
    - installiert Backend- und Mobile-Abhängigkeiten
    - startet PostGIS, Redis, SeaweedFS und Keycloak
    - wendet die Migrationen an
-   - startet API (Port 8000, Reload) und Worker
-   - `Ctrl+C` beendet API und Worker, die Container laufen weiter (`make deps-down` stoppt sie)
+   - startet API (Port 8000, Reload), Worker und MCP-Server (Port 8001, `http://localhost:8001/mcp`, [mcp-client-anbinden.md](mcp-client-anbinden.md))
+   - `Ctrl+C` beendet API, Worker und MCP-Server, die Container laufen weiter (`make deps-down` stoppt sie)
 3. **App (zweites Terminal):**
    - `cd mobile && pnpm ios` (bzw. `pnpm android`) baut den Development-Build und startet ihn im Simulator.
    - Danach reicht `pnpm start`.
@@ -40,6 +40,7 @@ Für native Builds zusätzlich **mindestens 20 GB freien Speicher** einplanen (P
 | Dienst | Adresse (Host) | Zugang |
 |---|---|---|
 | API | http://localhost:8000 (`/docs` nur außerhalb von `prod`) | – |
+| MCP-Server | http://localhost:8001/mcp (Health `/health/ready`) | Keycloak-Client `stadtfest-mcp` |
 | PostgreSQL/PostGIS | localhost:55432 | `stadtfest` / `stadtfest` / DB `stadtfest` |
 | Redis | localhost:56379 | – |
 | SeaweedFS (S3) | http://localhost:58333 | Schlüssel in `infra/dev/seaweedfs/s3.json` |

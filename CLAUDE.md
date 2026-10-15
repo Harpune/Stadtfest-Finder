@@ -92,7 +92,9 @@ seed/                          synthetic seed data + loader
   passwords; it only validates JWTs against the IdP's JWKS and reads roles from claims.
 - Public endpoints must work without a token. Authorization checks (roles)
   live in use cases, not in routers, so REST, MCP and worker enforce the same rules.
-- The MCP server uses OAuth against the same IdP.
+- The MCP server uses OAuth against the same IdP: it is a resource server, guests may use the
+  public tools, login-only tools answer `401` with resource metadata; one static OAuth client
+  per known MCP client, no Dynamic Client Registration (ADR 0018).
 
 ## Library documentation (Context7)
 

@@ -89,6 +89,7 @@ def _set_prod_auth(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AUTH_ISSUER", "https://stadtfest.eu1.zitadel.cloud")
     monkeypatch.setenv("IDP_ADMIN_PROVIDER", "zitadel")
     monkeypatch.setenv("IDP_ADMIN_TOKEN", "pat-value")
+    monkeypatch.setenv("MCP_PUBLIC_URL", "https://mcp.stadtfest.example.eu")
     for name in ("IDP_ADMIN_CLIENT_ID", "IDP_ADMIN_CLIENT_SECRET", "AUTH_JWKS_URL"):
         monkeypatch.delenv(name, raising=False)
 
@@ -111,6 +112,14 @@ def test_http_issuer_is_rejected_in_prod(monkeypatch: pytest.MonkeyPatch) -> Non
         load_settings()
 
     assert "AUTH_ISSUER" in str(exc_info.value)
+
+
+def test_http_mcp_url_is_rejected_in_prod(monkeypatch: pytest.MonkeyPatch) -> None:
+    _prod(monkeypatch)
+    monkeypatch.setenv("MCP_PUBLIC_URL", "http://mcp.stadtfest.example.eu")
+
+    with pytest.raises(SettingsError, match="MCP_PUBLIC_URL"):
+        load_settings()
 
 
 def test_fake_idp_admin_is_rejected_in_prod(monkeypatch: pytest.MonkeyPatch) -> None:

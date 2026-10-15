@@ -138,6 +138,7 @@ from stadtfest.application.events.use_cases import (
 from stadtfest.application.geocoding.ports import GeocodingPort
 from stadtfest.application.geocoding.use_cases import (
     Geocode,
+    LocatePostalCode,
     ReverseGeocode,
     ReverseGeocodeEventLocation,
 )
@@ -198,6 +199,7 @@ from stadtfest.application.notifications.use_cases import (
     UpdateNotificationSettings,
 )
 from stadtfest.application.outbox.use_cases import HandleDomainEvent, PurgeOutbox, RelayOutbox
+from stadtfest.application.shared.ports import RateLimiter
 from stadtfest.bootstrap.settings import (
     GeocodingProvider,
     IdpAdminProvider,
@@ -260,6 +262,8 @@ class Container:
     get_public_event: GetPublicEvent
     list_active_categories: ListActiveCategories
     geocode: Geocode
+    locate_postal_code: LocatePostalCode
+    rate_limiter: RateLimiter
     reverse_geocode: ReverseGeocode
     reverse_geocode_event_location: ReverseGeocodeEventLocation
     authenticate: Authenticate
@@ -406,6 +410,7 @@ class Container:
         shared_lists = SqlSharedListRepository(sessions, image_urls)
         invitations = SqlInvitationRepository(sessions, image_urls)
         limiter = RedisRateLimiter(redis)
+        geocode = Geocode(geocoding, cache)
         images = SqlImageRepository(sessions)
         categories = SqlCategoryRepository(sessions)
         managed = SqlManagedEventRepository(sessions)
@@ -467,7 +472,9 @@ class Container:
             count_events=CountEvents(catalog, cache, clock),
             get_public_event=GetPublicEvent(catalog),
             list_active_categories=ListActiveCategories(catalog, cache),
-            geocode=Geocode(geocoding, cache),
+            geocode=geocode,
+            locate_postal_code=LocatePostalCode(geocode),
+            rate_limiter=limiter,
             reverse_geocode=ReverseGeocode(geocoding, cache),
             reverse_geocode_event_location=ReverseGeocodeEventLocation(geocoding, cache),
             authenticate=Authenticate(verifier, claim_mapping, deleted_accounts),

@@ -74,3 +74,20 @@ def test_overlap_includes_boundaries() -> None:
 def test_inverted_range_is_rejected() -> None:
     with pytest.raises(ValueError, match="before"):
         DateRange(SUNDAY, FRIDAY)
+
+
+def test_range_is_its_own_window() -> None:
+    windows = TimeFilter.between(date(2026, 10, 1), date(2026, 10, 3)).windows(FRIDAY)
+    assert windows == (DateRange(date(2026, 10, 1), date(2026, 10, 3)),)
+
+
+def test_range_must_not_be_inverted() -> None:
+    with pytest.raises(ValueError, match="before"):
+        TimeFilter.between(date(2026, 10, 3), date(2026, 10, 1))
+
+
+def test_dates_belong_to_the_range_kind_only() -> None:
+    with pytest.raises(ValueError, match="range"):
+        TimeFilter(TimeFilterKind.RANGE)
+    with pytest.raises(ValueError, match="range"):
+        TimeFilter(TimeFilterKind.ALL, dates=DateRange(FRIDAY, FRIDAY))

@@ -54,9 +54,15 @@
 
 ## Definition of Done
 
-- [ ] Rollenprüfungen für alle Tools per Test belegt (CLAUDE.md „Testing“).
-- [ ] Ein manueller Test mit einem echten MCP-Client lokal ist dokumentiert.
+- [x] Rollenprüfungen für alle Tools per Test belegt (CLAUDE.md „Testing“): `backend/tests/unit/mcp/test_mcp_server.py`.
+- [x] Ein manueller Test mit einem echten MCP-Client lokal ist dokumentiert: [mcp-client-anbinden.md](../40-operations/mcp-client-anbinden.md#manueller-test-lokal-15102026-r15-dod) (MCP Inspector 2.11.0, CLI und OAuth-Anmeldung im Browser).
 
 ## Offene Punkte
 
-- Unterstützt Zitadel Dynamic Client Registration für MCP-Clients? Falls nicht: statischer OAuth-Client pro bekanntem Client, im Runbook dokumentiert.
+- ~~Unterstützt Zitadel Dynamic Client Registration für MCP-Clients?~~ **Geklärt (15.10.2026):** Zitadel kann DCR seit August 2026, aber nur mit instanzweit offener Registrierung und standardmäßig opaken Tokens (zitadel#12658). Die MCP-Spezifikation 2026-07-28 erklärt DCR für veraltet. Deshalb gibt es einen statischen OAuth-Client je bekanntem Client ([ADR 0018](../25-adr/0018-mcp-server-auth.md), [Runbook](../40-operations/mcp-client-anbinden.md)).
+
+## Umsetzungsnotizen
+
+- `infra/compose.yaml` gibt es erst mit R16. Der Dienst `mcp` (Image `stadtfest-mcp`, Port 8001, Health `/health/live`) kommt dort hinzu. Lokal startet `make dev` den MCP-Server wie API und Worker als Prozess, nicht als Container in `compose.dev.yaml` (dort laufen nur Abhängigkeiten).
+- Zeitraum in `search_events`: neue Zeitfilter-Art `range` (Überschneidung mit `date_from`–`date_to`, offenes Ende unbegrenzt). In der App gibt es sie nicht.
+- Postleitzahlen werden auch als JSON-Zahl angenommen (`1067` → `01067`), weil manche Clients Ziffern so senden.

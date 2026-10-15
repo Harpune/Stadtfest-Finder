@@ -86,6 +86,52 @@
       ]
     },
     {
+      "clientId": "stadtfest-mcp",
+      "name": "MCP clients (Claude, MCP Inspector), R15",
+      "description": "Static public client for MCP clients (no Dynamic Client Registration, see 00-docs/40-operations/mcp-client-anbinden.md)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "redirectUris": [
+        "http://localhost:6274/oauth/callback",
+        "http://localhost:6274/oauth/callback/debug",
+        "http://localhost:*",
+        "http://127.0.0.1:*",
+        "https://claude.ai/api/mcp/auth_callback"
+      ],
+      "webOrigins": [
+        "http://localhost:6274"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "email",
+        "roles",
+        "web-origins",
+        "acr"
+      ],
+      "optionalClientScopes": [
+        "offline_access"
+      ],
+      "protocolMappers": [
+        {
+          "name": "audience-stadtfest-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "stadtfest-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
       "clientId": "stadtfest-tests",
       "name": "Integration tests (password grant, dev only)",
       "enabled": true,
