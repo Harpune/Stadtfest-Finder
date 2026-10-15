@@ -73,12 +73,16 @@ class YearMonth:
 
 
 class TimeFilterKind(StrEnum):
-    """Time filter options of the filter sheet (E-03: month grid, no free calendar)."""
+    """Time filter options of the filter sheet (E-03: month grid, no free calendar).
+
+    `range` is not offered in the app; the MCP tool `search_events` uses it (R15-US3).
+    """
 
     ALL = "all"
     TODAY = "today"
     WEEKEND = "weekend"
     MONTHS = "months"
+    RANGE = "range"
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,13 +91,25 @@ class TimeFilter:
 
     kind: TimeFilterKind = TimeFilterKind.ALL
     months: tuple[YearMonth, ...] = ()
+    dates: DateRange | None = None
 
     def __post_init__(self) -> None:
-        """Validate that months are given exactly when required."""
+        """Validate that months and the range are given exactly when required."""
         if self.kind is TimeFilterKind.MONTHS and not self.months:
             raise ValueError("when=months requires at least one month")
         if len(self.months) > MAX_MONTHS:
             raise ValueError(f"at most {MAX_MONTHS} months")
+        if (self.kind is TimeFilterKind.RANGE) != (self.dates is not None):
+            raise ValueError("a date range belongs to the kind `range` only")
+
+    @classmethod
+    def between(cls, start: date, end: date) -> TimeFilter:
+        """Return a filter for events overlapping the inclusive range `start`-`end`.
+
+        Raises:
+            ValueError: If `end` is before `start`.
+        """
+        return cls(TimeFilterKind.RANGE, dates=DateRange(start, end))
 
     def windows(self, today: date) -> tuple[DateRange, ...] | None:
         """Return the date ranges an event must overlap, or None for "all dates".
@@ -105,6 +121,7 @@ class TimeFilter:
             - `today`: the current day.
             - `weekend`: Saturday and Sunday of the current week; on Sunday only Sunday.
             - `months`: one range per selected month.
+            - `range`: the given range.
             - `all`: None (no restriction).
         """
         match self.kind:
@@ -118,3 +135,6 @@ class TimeFilter:
                 return (DateRange(max(today, saturday), sunday),)
             case TimeFilterKind.MONTHS:
                 return tuple(month.as_range() for month in sorted(set(self.months)))
+            case TimeFilterKind.RANGE:
+                # Always set for this kind (checked in __post_init__).
+                return (self.dates,) if self.dates is not None else None

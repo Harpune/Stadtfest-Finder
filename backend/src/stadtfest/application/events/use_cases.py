@@ -44,6 +44,11 @@ def _filter_cache_key(search_filter: SearchFilter, today: str) -> str:
         "radius": search_filter.radius_km,
         "when": search_filter.time.kind.value,
         "months": sorted(str(m) for m in search_filter.time.months),
+        "range": (
+            [time_range.start.isoformat(), time_range.end.isoformat()]
+            if (time_range := search_filter.time.dates)
+            else None
+        ),
         "cats": sorted(str(c) for c in search_filter.category_ids)
         if search_filter.category_ids is not None
         else None,

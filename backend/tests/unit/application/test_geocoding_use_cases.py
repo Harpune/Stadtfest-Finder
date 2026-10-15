@@ -3,11 +3,13 @@ import pytest
 from stadtfest.application.geocoding.ports import Place, PlaceKind
 from stadtfest.application.geocoding.use_cases import (
     Geocode,
+    LocatePostalCode,
     ReverseGeocode,
     ReverseGeocodeEventLocation,
 )
 from stadtfest.application.shared.errors import (
     ForbiddenError,
+    InvalidInputError,
     NotFoundError,
     ServiceUnavailableError,
 )
@@ -79,3 +81,32 @@ async def test_event_pin_lookup_is_for_moderators_only() -> None:
     user = Principal("u", frozenset({Role.USER}))
     with pytest.raises(ForbiddenError):
         await ReverseGeocodeEventLocation(FakeGeocoding(), FakeCache())(user, GeoPoint(48.8, 10.1))
+
+
+async def test_locate_postal_code_picks_the_matching_place_and_caches() -> None:
+    town = Place("Aalen", "Aalen", GeoPoint(48.83, 10.09), PlaceKind.CITY, "73431")
+    geocoding = FakeGeocoding(places=[town, AALEN])
+    use_case = LocatePostalCode(Geocode(geocoding, FakeCache()))
+
+    assert await use_case(" 73430 ") == AALEN
+    assert await use_case("73430") == AALEN
+    assert geocoding.search_calls == ["73430"]
+
+
+@pytest.mark.parametrize(
+    ("postal_code", "places", "code"),
+    [
+        ("7343", [AALEN], "validation_failed"),
+        ("abcde", [AALEN], "validation_failed"),
+        ("99999", [AALEN], "postal_code_unknown"),
+        ("73430", [], "postal_code_unknown"),
+    ],
+)
+async def test_locate_postal_code_rejects_malformed_and_unknown_codes(
+    postal_code: str, places: list[Place], code: str
+) -> None:
+    use_case = LocatePostalCode(Geocode(FakeGeocoding(places=places), FakeCache()))
+    with pytest.raises(InvalidInputError) as exc_info:
+        await use_case(postal_code)
+    assert exc_info.value.code == code
+    assert set(exc_info.value.fields) == {"postalCode"}

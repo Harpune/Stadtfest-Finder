@@ -13,17 +13,21 @@ from stadtfest.application.geocoding.ports import (
 )
 from stadtfest.application.shared.errors import (
     ForbiddenError,
+    InvalidInputError,
     NotFoundError,
     ServiceUnavailableError,
 )
 from stadtfest.application.shared.ports import CachePort, JsonValue
-from stadtfest.domain.events.geo import GeoPoint
+from stadtfest.domain.events.geo import GeoPoint, PostalCode
 from stadtfest.domain.identity.principal import Principal
 
 GEOCODING_TTL_SECONDS = 30 * 24 * 60 * 60
 REVERSE_GRID_DECIMALS = 3  # ~100 m; exact coordinates never reach the cache key
 PIN_DECIMALS = 5  # ~1 m: event pins are public data, not user positions
 UNAVAILABLE = "geocoding_unavailable"
+POSTAL_CODE_UNKNOWN = "postal_code_unknown"
+# Suggestions checked for the postal code: it is not always the best match for its digits.
+POSTAL_CODE_CANDIDATES = 5
 
 
 def _place_to_json(place: Place) -> dict[str, JsonValue]:
@@ -82,6 +86,30 @@ class Geocode:
             key, [_place_to_json(place) for place in places], GEOCODING_TTL_SECONDS
         )
         return places
+
+
+class LocatePostalCode:
+    """Resolve a German postal code to its place (center), e.g. for the MCP search (R15)."""
+
+    def __init__(self, geocode: Geocode) -> None:
+        """Create the use case on top of the cached place search."""
+        self._geocode = geocode
+
+    async def __call__(self, postal_code: str) -> Place:
+        """Return the place of the postal code.
+
+        Raises:
+            InvalidInputError: `postalCode` not five digits, or `postal_code_unknown`.
+            ServiceUnavailableError: If the geocoding service is down.
+        """
+        code = postal_code.strip()
+        if not PostalCode.is_valid(code):
+            raise InvalidInputError({"postalCode": "invalid"})
+        places = await self._geocode(code, POSTAL_CODE_CANDIDATES)
+        place = next((place for place in places if place.postal_code == code), None)
+        if place is None:
+            raise InvalidInputError({"postalCode": POSTAL_CODE_UNKNOWN}, POSTAL_CODE_UNKNOWN)
+        return place
 
 
 class ReverseGeocode:

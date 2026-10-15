@@ -10,6 +10,7 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request
 
+from stadtfest.adapters.inbound.auth.bearer import principal_from_header
 from stadtfest.adapters.inbound.rest.dependencies import Deps
 from stadtfest.application.identity.ports import InvalidTokenError
 from stadtfest.domain.identity.principal import Principal
@@ -27,11 +28,8 @@ async def optional_principal(request: Request, deps: Deps) -> Principal | None:
     header = request.headers.get("authorization")
     if header is None:
         return None
-    scheme, _, token = header.partition(" ")
-    if scheme.lower() != "bearer" or not token.strip():
-        raise HTTPException(401, headers=_INVALID_TOKEN_CHALLENGE)
     try:
-        return await deps.authenticate(token.strip())
+        return await principal_from_header(header, deps.authenticate)
     except InvalidTokenError:
         raise HTTPException(401, headers=_INVALID_TOKEN_CHALLENGE) from None
 
