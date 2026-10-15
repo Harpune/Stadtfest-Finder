@@ -104,6 +104,6 @@ Story-IDs: `R03-US2` = Inkrement R03, Story 2. Screen-IDs (z. B. `01-05`) verwei
 | LiteLLM oder Pydantic AI als generischer LLM-Adapter | R10 | ADR |
 | Web-Such-Anbieter | R10 | ADR, EU-Anbieter bevorzugt |
 | Kosten- und Rate-Limit der KI-Suche | R10 | 10 Jobs pro Moderator und Tag, konfigurierbar per ENV |
-| Dynamic Client Registration für MCP-Clients bei Zitadel | R15 | prüfen; sonst statische Client-ID je Client |
+| Dynamic Client Registration für MCP-Clients bei Zitadel | R15 | geklärt: statischer OAuth-Client je Client ([ADR 0018](../25-adr/0018-mcp-server-auth.md)) |
 | Muss die E-Mail vor Account-Aktionen bestätigt sein? | R05 | Nein, E-Mail-Bestätigung per Zitadel-Einstellung erzwingbar |
 | Architektur als Markdown (`00-docs/20-architecture/system-architecture.md`, von CLAUDE.md referenziert, fehlt noch) | R01 | Aus dem PDF ableiten (Mermaid C4) |

@@ -27,6 +27,8 @@ Zitadel Cloud (EU-Region) ist in Produktion der Identity Provider der App (ADR 0
 3. *Token-Einstellungen:* **Auth Token Type = JWT** (sonst sind Access-Tokens opak und das Backend kann sie nicht prüfen), **Refresh Token** aktivieren.
 4. Die **Client-ID** notieren.
 
+MCP-Clients (Claude, MCP Inspector) bekommen eigene öffentliche Apps im selben Projekt: [mcp-client-anbinden.md](mcp-client-anbinden.md) (R15).
+
 ### 3. Apple und Google anbinden
 
 1. *Organisation → Identity Providers → Neu → Apple*: Services ID, Team ID, Key ID und den privaten Schlüssel aus dem Apple Developer Account eintragen. In Apple die von Zitadel angezeigte Callback-URL als Return-URL hinterlegen.
