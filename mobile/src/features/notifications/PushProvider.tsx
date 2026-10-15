@@ -61,6 +61,8 @@ export function targetOf(data: PushData): string | null {
       return `/f/${data.targetId}`;
     case 'friend':
       return '/freunde';
+    case 'list':
+      return `/listen/${data.targetId}`;
     case 'aiSearch':
       return data.type === 'ai_search_completed'
         ? `/mod/pruefen/${data.targetId}`

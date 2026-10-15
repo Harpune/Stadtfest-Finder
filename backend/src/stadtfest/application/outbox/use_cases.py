@@ -21,6 +21,7 @@ from stadtfest.application.outbox.ports import (
 from stadtfest.application.shared.ports import CachePort
 from stadtfest.domain.ai_ingestion.job import AiSearchEventType
 from stadtfest.domain.collections.friends import FriendEventType
+from stadtfest.domain.collections.lists import ListEventType
 from stadtfest.domain.events.category import CATEGORY_CHANGED
 from stadtfest.domain.events.images import ImageEventType
 from stadtfest.domain.events.maintenance import DomainEventType
@@ -84,7 +85,7 @@ class HandleDomainEvent:
             if self._notify is not None:
                 await self._notify(message.type, message.payload)
             return
-        if message.type == FriendEventType.CREATED.value:
+        if message.type in {FriendEventType.CREATED.value, ListEventType.MEMBERS_ADDED.value}:
             # The link owner gets "friend_added" (R12-US2).
             if self._notify is not None:
                 await self._notify(message.type, message.payload)

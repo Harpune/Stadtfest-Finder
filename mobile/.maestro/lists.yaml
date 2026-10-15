@@ -1,0 +1,80 @@
+# Shared lists (R13): user A creates a list with friend B and adds an event; B sees the
+# list and the "Gemeinsame Liste" notification. Requires the local stack (`make dev`,
+# `make seed`) with Keycloak and the dev realm, and that A and B are friends (friends.yaml).
+# Tag `typing`: see login.yaml.
+appId: de.stadtfestfinder.app
+name: Gemeinsame Liste mit Freund
+tags:
+  - typing
+env:
+  USER_A: moderator@example.test # dev realm users (infra/dev/keycloak)
+  USER_B: nutzer@example.test
+  PASSWORD: stadtfest-dev
+  LIST: Maestro-Tour
+---
+- runFlow:
+    file: shared/launch.yaml
+    env:
+      LOCATION: never
+
+# User A: new list with B, add the first suggested event
+- runFlow:
+    file: shared/login.yaml
+    env:
+      USERNAME: ${USER_A}
+      PASSWORD: ${PASSWORD}
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.lists
+- tapOn:
+    id: 'lists\.(new|empty\.new)'
+- tapOn:
+    id: lists.new.name
+- inputText: ${LIST}
+- tapOn:
+    id: 'lists\.new\.friend\..*'
+- tapOn:
+    id: lists.new.create
+- extendedWaitUntil:
+    visible:
+      id: list.screen
+    timeout: 10000
+- tapOn:
+    id: list.events.add
+- tapOn:
+    id: list.events.search
+- inputText: Stadtfest
+- tapOn:
+    id: 'list\.events\.result\..*'
+- back
+- assertVisible:
+    id: 'list\.event\..*'
+- back
+- back
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.logout
+
+# User B: sees the list and the notification
+- runFlow:
+    file: shared/login.yaml
+    env:
+      USERNAME: ${USER_B}
+      PASSWORD: ${PASSWORD}
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.lists
+- extendedWaitUntil:
+    visible: ${LIST}
+    timeout: 10000
+- back
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.notifications
+- extendedWaitUntil:
+    visible: '.*hat dich zur Liste.*'
+    timeout: 30000

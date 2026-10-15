@@ -12,6 +12,7 @@ import {
   Button,
   Icon,
   IconButton,
+  ListsTeaser,
   MenuRow,
   NotificationBell,
   SideDrawer,
@@ -24,6 +25,8 @@ import {initialsOf, useAuth} from '@/features/auth/AuthProvider';
 import {todayInBerlin} from '@/features/events/dates';
 import {FestSaison} from '@/features/favorites/FestSaison';
 import {useFavorites} from '@/features/favorites/useFavorites';
+import {stackPerson} from '@/features/lists/people';
+import {useLists} from '@/features/lists/useLists';
 import {useUnreadCount} from '@/features/notifications/useNotifications';
 import {strings} from '@/strings/de';
 import {useTheme, useThemePreference} from '@/theme';
@@ -162,7 +165,19 @@ function SignedInContent({onClose}: {onClose: () => void}) {
   const {user, email} = useAuth();
   const unread = useUnreadCount();
   const favorites = useFavorites();
+  const lists = useLists();
+  const theme = useTheme();
   const name = user ? `${user.firstName} ${user.lastName}`.trim() : '';
+  const allLists = lists.data ?? [];
+  // Friends across the lists (not the own account), at most three avatars.
+  const others = [
+    ...new Map(
+      allLists
+        .flatMap(list => list.members)
+        .filter(member => member.id !== user?.id)
+        .map(member => [member.id, member]),
+    ).values(),
+  ].slice(0, 3);
   return (
     <>
       <View style={styles.userRow}>
@@ -208,6 +223,22 @@ function SignedInContent({onClose}: {onClose: () => void}) {
         />
         <CloseButton onClose={onClose} />
       </View>
+      <ListsTeaser
+        people={others.map(m => stackPerson(m, user?.id, theme.colors))}
+        summary={
+          allLists.length > 0
+            ? strings.lists.drawerSummary(
+                allLists.length,
+                allLists.map(list => list.name).join(', '),
+              )
+            : strings.lists.drawerEmpty
+        }
+        onPress={() => {
+          onClose();
+          navigate('/listen');
+        }}
+        testID="drawer.lists"
+      />
       <FestSaison
         favorites={favorites.data?.items}
         loading={favorites.isPending}

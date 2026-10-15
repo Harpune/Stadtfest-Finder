@@ -48,6 +48,10 @@ tags:
       Friendships via a personal friend link or QR code (R12, context `collections`, E-02).
       The link itself is the owner's consent; there are no requests to decline and no user
       search.
+  - name: lists
+    description: |
+      Shared event lists with friends (R13, context `collections`). Only members see a list
+      (others get `404`); all members have the same rights.
   - name: config
     description: Public app configuration.
 paths:
@@ -793,6 +797,203 @@ paths:
           $ref: "#/components/responses/Error"
         default:
           $ref: "#/components/responses/Error"
+  /v1/lists:
+    get:
+      operationId: listSharedLists
+      tags: [lists]
+      summary: Own shared lists
+      description: Lists the caller is a member of, ordered by the next upcoming event, then name.
+      responses:
+        "200":
+          description: The lists.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SharedListSummary"
+        "401":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createSharedList
+      tags: [lists]
+      summary: Create a shared list
+      description: |
+        The caller becomes a member; `memberIds` must be friends of the caller
+        (`422 not_a_friend`). New members get `list_added`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SharedListCreate"
+      responses:
+        "201":
+          description: The new list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SharedList"
+        "401":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/lists/{listId}:
+    parameters:
+      - $ref: "#/components/parameters/ListId"
+    get:
+      operationId: getSharedList
+      tags: [lists]
+      summary: A shared list
+      description: Members and events (chronological, incl. past and cancelled). Non-members get `404`.
+      responses:
+        "200":
+          description: The list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SharedList"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: renameSharedList
+      tags: [lists]
+      summary: Rename a shared list
+      description: Any member may rename (1-60 characters after trimming).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SharedListRename"
+      responses:
+        "200":
+          description: The renamed list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SharedList"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteSharedList
+      tags: [lists]
+      summary: Delete a shared list
+      description: Any member may delete the list for everyone.
+      responses:
+        "204":
+          description: The list is gone.
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/lists/{listId}/members:
+    parameters:
+      - $ref: "#/components/parameters/ListId"
+    post:
+      operationId: addSharedListMember
+      tags: [lists]
+      summary: Add a member
+      description: |
+        Only friends of the caller (`422 not_a_friend`). Idempotent; a new member gets
+        `list_added`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SharedListMemberAdd"
+      responses:
+        "204":
+          description: The user is a member.
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/lists/{listId}/members/{userId}:
+    parameters:
+      - $ref: "#/components/parameters/ListId"
+      - name: userId
+        in: path
+        required: true
+        description: User ID of the member; the caller's own ID leaves the list.
+        schema:
+          type: string
+          format: uuid
+    delete:
+      operationId: removeSharedListMember
+      tags: [lists]
+      summary: Remove a member or leave
+      description: |
+        Removes another member, or with the caller's own ID leaves the list. When the last
+        member leaves, the list is deleted. Idempotent.
+      responses:
+        "204":
+          description: The user is no member.
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+  /v1/lists/{listId}/events/{eventId}:
+    parameters:
+      - $ref: "#/components/parameters/ListId"
+      - name: eventId
+        in: path
+        required: true
+        description: Event ID.
+        schema:
+          type: string
+          format: uuid
+    put:
+      operationId: addSharedListEvent
+      tags: [lists]
+      summary: Add an event
+      description: Only publicly visible events (otherwise `404`). Idempotent.
+      responses:
+        "204":
+          description: The event is in the list.
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: removeSharedListEvent
+      tags: [lists]
+      summary: Remove an event
+      description: Idempotent.
+      responses:
+        "204":
+          description: The event is not in the list.
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        default:
+          $ref: "#/components/responses/Error"
   /v1/mod/events:
     get:
       operationId: listModEvents
@@ -1502,6 +1703,14 @@ components:
       schema:
         type: string
   parameters:
+    ListId:
+      name: listId
+      in: path
+      required: true
+      description: Shared list ID.
+      schema:
+        type: string
+        format: uuid
     FriendToken:
       name: token
       in: path
@@ -2440,20 +2649,21 @@ components:
       description: |
         `remind`: a favorite starts soon; `near`: new event near the home; `change`: date,
         times or place of a favorite changed; `cancel`: a favorite was cancelled;
-        `friend_added`: someone accepted the caller's friend link (R12, list only, no push).
+        `friend_added`: someone accepted the caller's friend link (R12, list only, no push);
+        `list_added`: someone added the caller to a shared list (R13, pushed if `invite`).
         Extensible (ADR 0017): new values may appear without a new API version; clients must
         show unknown types with a neutral fallback.
-      enum: [remind, near, change, cancel, friend_added]
+      enum: [remind, near, change, cancel, friend_added, list_added]
     NotificationTarget:
       type: object
       description: |
-        What a tap opens; `friend` opens the friends list (id = the friend's user ID). The
-        type is extensible (ADR 0017): unknown types open nothing.
+        What a tap opens; `friend` opens the friends list (id = the friend's user ID), `list`
+        a shared list. The type is extensible (ADR 0017): unknown types open nothing.
       required: [type, id]
       properties:
         type:
           type: string
-          enum: [event, friend]
+          enum: [event, friend, list]
         id:
           type: string
           format: uuid
@@ -2637,6 +2847,103 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Friend"
+    ListMember:
+      type: object
+      description: A member as the other members see them (name for joint planning).
+      required: [id, firstName, lastName]
+      properties:
+        id:
+          type: string
+          format: uuid
+        firstName:
+          type: string
+        lastName:
+          type: string
+    ListEvent:
+      description: An event of a shared list.
+      allOf:
+        - $ref: "#/components/schemas/EventSummary"
+        - type: object
+          required: [categoryName, emoji, addedAt]
+          properties:
+            categoryName:
+              type: string
+            emoji:
+              type: string
+            addedAt:
+              type: string
+              format: date-time
+    SharedListSummary:
+      type: object
+      required: [id, name, eventCount, members]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        eventCount:
+          type: integer
+          minimum: 0
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/ListMember"
+        nextEvent:
+          description: The next event that has not ended, if any.
+          oneOf:
+            - $ref: "#/components/schemas/ListEvent"
+            - type: "null"
+    SharedList:
+      type: object
+      required: [id, name, members, events]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/ListMember"
+        events:
+          type: array
+          description: Chronological, including past and cancelled events.
+          items:
+            $ref: "#/components/schemas/ListEvent"
+    SharedListName:
+      type: string
+      minLength: 1
+      maxLength: 60
+    SharedListCreate:
+      type: object
+      required: [name, memberIds]
+      additionalProperties: false
+      properties:
+        name:
+          $ref: "#/components/schemas/SharedListName"
+        memberIds:
+          type: array
+          maxItems: 50
+          items:
+            type: string
+            format: uuid
+    SharedListRename:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          $ref: "#/components/schemas/SharedListName"
+    SharedListMemberAdd:
+      type: object
+      required: [userId]
+      additionalProperties: false
+      properties:
+        userId:
+          type: string
+          format: uuid
     Error:
       type: object
       description: Common error format for all non-2xx responses.

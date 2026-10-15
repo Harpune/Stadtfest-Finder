@@ -205,9 +205,9 @@ describe('notification list (07-01)', () => {
     listApi(
       [
         note('x', {
-          type: 'list_added' as AppNotification['type'],
-          text: 'Tim hat dich zu einer Liste hinzugefügt.',
-          target: {type: 'list' as 'event', id: 'l1'},
+          type: 'invite' as AppNotification['type'],
+          text: 'Tim lädt dich zum Stadtfest ein.',
+          target: {type: 'invitation' as 'event', id: 'i1'},
         }),
       ],
       1,

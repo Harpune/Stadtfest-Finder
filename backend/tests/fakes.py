@@ -22,6 +22,7 @@ from stadtfest.application.ai_ingestion.ports import (
     WebSearchUnavailableError,
 )
 from stadtfest.application.collections.friends import FriendLinkView, FriendView, LinkTarget
+from stadtfest.application.collections.lists import ListEventView, ListMemberView, SharedListView
 from stadtfest.application.collections.ports import FavoriteView
 from stadtfest.application.events.criteria import PageCursor, SearchCriteria
 from stadtfest.application.events.views import (
@@ -83,9 +84,8 @@ from stadtfest.domain.events.images import (
 from stadtfest.domain.events.maintenance import DomainEvent, ManagedEvent
 from stadtfest.domain.identity.principal import Principal
 from stadtfest.domain.notifications.notification import (
-    EventFacts,
+    Facts,
     NotificationType,
-    PersonFacts,
 )
 from stadtfest.domain.notifications.settings import NotificationSettings
 
@@ -789,7 +789,8 @@ class FakeDraftStore:
 class FakeNotificationStore:
     """Notifications with their idempotency keys; facts per event or person ID."""
 
-    events: dict[UUID, EventFacts | PersonFacts] = field(default_factory=dict)
+    events: dict[UUID, Facts] = field(default_factory=dict)
+    actors: dict[UUID, UUID | None] = field(default_factory=dict)
     deleted_events: set[UUID] = field(default_factory=set)
     rows: list[StoredNotification] = field(default_factory=list)
     keys: set[tuple[UUID, str]] = field(default_factory=set)
@@ -807,7 +808,9 @@ class FakeNotificationStore:
         subject_id: UUID,
         key: str,
         created_at: datetime,
+        actor_id: UUID | None = None,
     ) -> list[UUID]:
+        self.actors[subject_id] = actor_id
         ids = []
         for user_id in user_ids:
             if (user_id, key) in self.keys:
@@ -1019,3 +1022,80 @@ class FakeRateLimiter:
     async def hit(self, key: str, limit: int, window_seconds: int) -> bool:
         self.counts[key] = self.counts.get(key, 0) + 1
         return self.counts[key] <= limit
+
+
+# --- shared lists (R13) ------------------------------------------------------------------
+
+
+@dataclass
+class FakeSharedListRepository:
+    """Lists with member IDs and event IDs; public events and people by ID."""
+
+    names: dict[UUID, str] = field(default_factory=dict)
+    members: dict[UUID, list[UUID]] = field(default_factory=dict)
+    events: dict[UUID, list[UUID]] = field(default_factory=dict)
+    public_events: dict[UUID, EventSummaryView] = field(default_factory=dict)
+    people: dict[UUID, tuple[str, str]] = field(default_factory=dict)
+    added_events: list[tuple[UUID, list[UUID], UUID]] = field(default_factory=list)
+
+    def _view(self, list_id: UUID) -> SharedListView:
+        events = sorted(
+            (self.public_events[e] for e in self.events[list_id] if e in self.public_events),
+            key=lambda e: (e.start_date, e.name),
+        )
+        return SharedListView(
+            list_id,
+            self.names[list_id],
+            [ListMemberView(m, *self.people.get(m, ("", ""))) for m in self.members[list_id]],
+            [
+                ListEventView(e, "Stadtfest", "🎪", datetime(2026, 10, 9, tzinfo=UTC))
+                for e in events
+            ],
+        )
+
+    async def lists_of(self, user_id: UUID) -> list[SharedListView]:
+        return [self._view(i) for i, members in self.members.items() if user_id in members]
+
+    async def get(self, list_id: UUID) -> SharedListView | None:
+        return self._view(list_id) if list_id in self.names else None
+
+    async def is_member(self, list_id: UUID, user_id: UUID) -> bool:
+        return user_id in self.members.get(list_id, [])
+
+    async def create(
+        self, list_id: UUID, name: str, creator: UUID, members: Sequence[UUID], now: datetime
+    ) -> None:
+        self.names[list_id] = name
+        self.members[list_id] = [creator, *members]
+        self.events[list_id] = []
+        if members:
+            self.added_events.append((list_id, list(members), creator))
+
+    async def rename(self, list_id: UUID, name: str) -> None:
+        self.names[list_id] = name
+
+    async def delete(self, list_id: UUID) -> None:
+        for table in (self.names, self.members, self.events):
+            table.pop(list_id, None)
+
+    async def add_member(self, list_id: UUID, user_id: UUID, by: UUID, now: datetime) -> None:
+        if user_id not in self.members[list_id]:
+            self.members[list_id].append(user_id)
+            self.added_events.append((list_id, [user_id], by))
+
+    async def remove_member(self, list_id: UUID, user_id: UUID) -> None:
+        if list_id not in self.members:
+            return
+        self.members[list_id] = [m for m in self.members[list_id] if m != user_id]
+        if not self.members[list_id]:
+            await self.delete(list_id)
+
+    async def add_event(self, list_id: UUID, event_id: UUID, by: UUID, now: datetime) -> bool:
+        if event_id not in self.public_events:
+            return False
+        if event_id not in self.events[list_id]:
+            self.events[list_id].append(event_id)
+        return True
+
+    async def remove_event(self, list_id: UUID, event_id: UUID) -> None:
+        self.events[list_id] = [e for e in self.events[list_id] if e != event_id]

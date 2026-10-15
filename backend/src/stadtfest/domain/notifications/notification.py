@@ -19,19 +19,34 @@ BERLIN = ZoneInfo("Europe/Berlin")
 CHANGE_TRIGGERS = frozenset({"startDate", "endDate", "openingHours", "address", "lat", "lon"})
 
 
+class SubjectKind(StrEnum):
+    """What a notification is about; the value is the API target type."""
+
+    EVENT = "event"
+    PERSON = "friend"
+    LIST = "list"
+
+
 class NotificationType(StrEnum):
-    """Types listed in the app; invitations and lists add theirs later."""
+    """Types listed in the app; invitations add theirs later (extensible, ADR 0017)."""
 
     REMIND = "remind"
     NEAR = "near"
     CHANGE = "change"
     CANCEL = "cancel"
     FRIEND_ADDED = "friend_added"
+    LIST_ADDED = "list_added"
 
     @property
-    def about_person(self) -> bool:
-        """Whether the subject is a person (the actor) instead of an event."""
-        return self is NotificationType.FRIEND_ADDED
+    def subject(self) -> SubjectKind:
+        """The kind of subject: an event, a person (new friend) or a shared list."""
+        match self:
+            case NotificationType.FRIEND_ADDED:
+                return SubjectKind.PERSON
+            case NotificationType.LIST_ADDED:
+                return SubjectKind.LIST
+            case _:
+                return SubjectKind.EVENT
 
 
 class PushOnlyType(StrEnum):
@@ -54,7 +69,7 @@ def dedupe_key(notification_type: NotificationType, subject_id: UUID, at: dateti
     - `remind`: at most one per event and Berlin day
     - `change`: at most one per event and hour, so several edits are combined
     - `near` and `cancel`: once per event (`near` only on the first publication)
-    - `friend_added`: once per friend
+    - `friend_added`: once per friend, `list_added`: once per list
     """
     local = at.astimezone(BERLIN)
     match notification_type:
@@ -62,7 +77,12 @@ def dedupe_key(notification_type: NotificationType, subject_id: UUID, at: dateti
             return f"remind:{subject_id}:{local:%Y-%m-%d}"
         case NotificationType.CHANGE:
             return f"change:{subject_id}:{local:%Y-%m-%dT%H}"
-        case NotificationType.NEAR | NotificationType.CANCEL | NotificationType.FRIEND_ADDED:
+        case (
+            NotificationType.NEAR
+            | NotificationType.CANCEL
+            | NotificationType.FRIEND_ADDED
+            | NotificationType.LIST_ADDED
+        ):
             return f"{notification_type.value}:{subject_id}"
 
 
@@ -85,6 +105,9 @@ PUSH_TEXTS: dict[NotificationType | PushOnlyType, PushText] = {
     NotificationType.CANCEL: PushText("Fest abgesagt", "Eines deiner Lieblingsfeste fällt aus."),
     # Not pushed (R12), kept for completeness of the generic texts.
     NotificationType.FRIEND_ADDED: PushText("Neuer Freund", "Jemand ist jetzt mit dir befreundet."),
+    NotificationType.LIST_ADDED: PushText(
+        "Gemeinsame Liste", "Du wurdest zu einer gemeinsamen Liste hinzugefügt."
+    ),
     PushOnlyType.AI_SEARCH_COMPLETED: PushText(
         "Suche abgeschlossen", "Die automatische Suche ist fertig."
     ),
@@ -113,7 +136,16 @@ class PersonFacts:
     last_name: str
 
 
+@dataclass(frozen=True, slots=True)
+class ListFacts:
+    """Current name of a shared list and the first name of who added the user."""
+
+    list_name: str
+    actor_first_name: str
+
+
 _DASH = "\u2013"  # en dash, as in the app
+_LOW, _HIGH = "\u201a", "\u2018"  # German single quotes around list names
 _MONTHS = ("Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez")
 
 
@@ -147,15 +179,21 @@ def _starts_in(days: int) -> str:
             return f"in {days} Tagen"
 
 
+type Facts = EventFacts | PersonFacts | ListFacts
+
+
 def render_text(
     notification_type: NotificationType,
-    facts: EventFacts | PersonFacts,
+    facts: Facts,
     created_at: datetime,
 ) -> str:
     """The German list text of a notification (E-09)."""
     if isinstance(facts, PersonFacts):
         name = f"{facts.first_name} {facts.last_name}".strip()
         return f"{name} ist jetzt mit dir befreundet."
+    if isinstance(facts, ListFacts):
+        who = facts.actor_first_name or "Jemand"
+        return f"{who} hat dich zur Liste {_LOW}{facts.list_name}{_HIGH} hinzugefügt."
     event = facts
     period = format_period(event.start_date, event.end_date)
     place = f" in {event.city}" if event.city else ""
@@ -174,5 +212,5 @@ def render_text(
         case NotificationType.CANCEL:
             reason = f" Grund: {event.cancel_reason}" if event.cancel_reason else ""
             return f"{event.name} ({period}) fällt aus.{reason}"
-        case NotificationType.FRIEND_ADDED:
-            raise ValueError("friend_added needs PersonFacts")
+        case NotificationType.FRIEND_ADDED | NotificationType.LIST_ADDED:
+            raise ValueError(f"{notification_type} needs PersonFacts or ListFacts")

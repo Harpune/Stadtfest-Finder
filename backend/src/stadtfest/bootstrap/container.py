@@ -42,6 +42,7 @@ from stadtfest.adapters.outbound.persistence.database import DatabaseProbe, crea
 from stadtfest.adapters.outbound.persistence.favorites import SqlFavoriteRepository
 from stadtfest.adapters.outbound.persistence.friends import SqlFriendRepository
 from stadtfest.adapters.outbound.persistence.images import SqlImageRepository
+from stadtfest.adapters.outbound.persistence.lists import SqlSharedListRepository
 from stadtfest.adapters.outbound.persistence.moderation import (
     SqlActiveCategories,
     SqlManagedEventRepository,
@@ -96,6 +97,17 @@ from stadtfest.application.collections.friends import (
     LookUpFriendLink,
     RemoveFriend,
     RotateFriendLink,
+)
+from stadtfest.application.collections.lists import (
+    AddListEvent,
+    AddListMember,
+    CreateSharedList,
+    DeleteSharedList,
+    GetSharedList,
+    ListSharedLists,
+    RemoveListEvent,
+    RemoveListMember,
+    RenameSharedList,
 )
 from stadtfest.application.collections.use_cases import (
     AddFavorite,
@@ -250,6 +262,15 @@ class Container:
     accept_friend_link: AcceptFriendLink
     list_friends: ListFriends
     remove_friend: RemoveFriend
+    list_shared_lists: ListSharedLists
+    create_shared_list: CreateSharedList
+    get_shared_list: GetSharedList
+    rename_shared_list: RenameSharedList
+    delete_shared_list: DeleteSharedList
+    add_list_member: AddListMember
+    remove_list_member: RemoveListMember
+    add_list_event: AddListEvent
+    remove_list_event: RemoveListEvent
     list_mod_events: ListModEvents
     get_mod_event: GetModEvent
     create_mod_event: CreateModEvent
@@ -357,6 +378,7 @@ class Container:
         deleted_accounts = RedisDeletedAccounts(redis)
         favorites = SqlFavoriteRepository(sessions, image_urls)
         friends = SqlFriendRepository(sessions)
+        shared_lists = SqlSharedListRepository(sessions, image_urls)
         limiter = RedisRateLimiter(redis)
         images = SqlImageRepository(sessions)
         categories = SqlCategoryRepository(sessions)
@@ -443,6 +465,15 @@ class Container:
             accept_friend_link=AcceptFriendLink(friends, ensure_account, limiter),
             list_friends=ListFriends(friends, ensure_account),
             remove_friend=RemoveFriend(friends, ensure_account),
+            list_shared_lists=ListSharedLists(shared_lists, ensure_account, clock),
+            create_shared_list=CreateSharedList(shared_lists, friends, ensure_account),
+            get_shared_list=GetSharedList(shared_lists, ensure_account),
+            rename_shared_list=RenameSharedList(shared_lists, ensure_account),
+            delete_shared_list=DeleteSharedList(shared_lists, ensure_account),
+            add_list_member=AddListMember(shared_lists, friends, ensure_account),
+            remove_list_member=RemoveListMember(shared_lists, ensure_account),
+            add_list_event=AddListEvent(shared_lists, ensure_account),
+            remove_list_event=RemoveListEvent(shared_lists, ensure_account),
             list_mod_events=ListModEvents(*mod),
             get_mod_event=GetModEvent(*mod),
             create_mod_event=CreateModEvent(*mod, ensure_account),
