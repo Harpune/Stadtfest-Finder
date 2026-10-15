@@ -189,7 +189,12 @@ function ListContent({list, onBack}: {list: SharedList; onBack: () => void}) {
             testID="list.name.input"
           />
         ) : (
-          <Text variant="displayXL" testID="list.name">
+          // Long compound words ("Weihnachtsmarkt-Tour") break with a hyphen, not mid-word.
+          <Text
+            variant="displayXL"
+            android_hyphenationFrequency="full"
+            testID="list.name"
+          >
             {list.name}
           </Text>
         )}

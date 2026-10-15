@@ -5,6 +5,7 @@ import {fn} from 'storybook/test';
 
 import {Button} from '../Button/Button';
 import {Text} from '../Text/Text';
+import {TextField} from '../TextField/TextField';
 import {BottomSheet} from './BottomSheet';
 
 const meta = {
@@ -56,4 +57,22 @@ export const WithFooter: Story = {
     </BottomSheet>
   ),
 };
+/** The sheet moves above the keyboard when the field gets focus. */
+function WithInputSheet(args: React.ComponentProps<typeof BottomSheet>) {
+  const [value, setValue] = useState('');
+  return (
+    <BottomSheet {...args} title="Neue Liste">
+      <TextField
+        label="Name der Liste"
+        hideLabel
+        placeholder="Name der Liste"
+        value={value}
+        onChangeText={setValue}
+        testID="story.sheet.input"
+      />
+    </BottomSheet>
+  );
+}
+
+export const WithInput: Story = {render: args => <WithInputSheet {...args} />};
 export const Interactive: Story = {render: args => <Toggle {...args} />};
