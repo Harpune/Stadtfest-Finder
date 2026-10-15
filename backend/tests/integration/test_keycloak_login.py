@@ -113,3 +113,37 @@ async def test_account_deletion_removes_the_keycloak_user(issuer: str) -> None:
         await admin.delete_user(str(claims["sub"]))  # already deleted: still succeeds
 
     assert _password_grant(issuer, "katadmin@example.test").status_code == 401
+
+
+def _authorize(issuer: str, client_id: str, redirect_uri: str) -> httpx.Response:
+    return httpx.get(
+        f"{issuer}/protocol/openid-connect/auth",
+        params={
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "response_type": "code",
+            "scope": "openid profile",
+            "code_challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+            "code_challenge_method": "S256",
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    "redirect_uri",
+    [
+        "http://localhost:6274/oauth/callback",  # MCP Inspector
+        "http://localhost:33418/callback",  # local clients on a loopback port (RFC 8252)
+        "http://127.0.0.1:51234/callback",
+        "https://claude.ai/api/mcp/auth_callback",
+    ],
+)
+def test_mcp_client_accepts_known_redirects(issuer: str, redirect_uri: str) -> None:
+    # Static OAuth client for MCP clients (R15, no Dynamic Client Registration).
+    response = _authorize(issuer, "stadtfest-mcp", redirect_uri)
+    assert response.status_code == 200, response.text[:200]
+
+
+def test_mcp_client_rejects_foreign_redirects(issuer: str) -> None:
+    response = _authorize(issuer, "stadtfest-mcp", "https://evil.example/callback")
+    assert response.status_code == 400
