@@ -75,6 +75,15 @@ export function NotificationsScreen({now}: NotificationsScreenProps) {
     if (target === 'list') {
       navigate({pathname: '/listen/[id]', params: {id: item.target.id}});
     }
+    if (target === 'invitation') {
+      navigate({pathname: '/einladung/[id]', params: {id: item.target.id}});
+    }
+    if (target === 'invitationOverview') {
+      navigate({
+        pathname: '/einladen/[eventId]',
+        params: {eventId: item.target.id},
+      });
+    }
     if (target === 'event') {
       navigate({pathname: '/f/[id]', params: {id: item.target.id}});
     }

@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from stadtfest.adapters.inbound.rest import events, favorites
 from stadtfest.adapters.inbound.rest.auth import optional_principal
 from stadtfest.adapters.inbound.rest.errors import register_error_handlers
+from stadtfest.application.collections.invitations import GetInvitationSummary
 from stadtfest.application.collections.use_cases import (
     AddFavorite,
     IsFavorite,
@@ -26,6 +27,7 @@ from tests.fakes import (
     FakeDeletedAccounts,
     FakeEventCatalog,
     FakeFavoriteRepository,
+    FakeInvitationRepository,
     FakeTokenVerifier,
     FixedClock,
 )
@@ -62,6 +64,9 @@ def client(repository: FakeFavoriteRepository) -> TestClient:
         remove_favorite=RemoveFavorite(repository),
         list_favorites=ListFavorites(repository, FixedClock(TODAY)),
         is_favorite=IsFavorite(repository),
+        get_invitation_summary=GetInvitationSummary(
+            FakeInvitationRepository(), FakeAccountResolver()
+        ),
     )
     return TestClient(app)
 

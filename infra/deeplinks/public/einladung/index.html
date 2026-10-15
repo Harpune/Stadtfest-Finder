@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Stadtfest-Finder</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #FBF8F4; --text: #231A2E; --muted: #6F6480; --amber: #FFB547; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #15111C; --text: #F4EEF8; --muted: #A89BB8; } }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg);
+           color: var(--text); font: 16px/1.5 system-ui, sans-serif; padding: 16px; box-sizing: border-box; }
+    main { max-width: 420px; text-align: center; }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    p { color: var(--muted); margin: 0 0 24px; }
+    a.btn { display: block; margin: 10px 0; padding: 14px; border-radius: 16px; background: var(--amber);
+            color: #15111C; font-weight: 600; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Stadtfest-Finder</h1>
+    <p>Du hast eine Einladung zu einem Fest im Stadtfest-Finder. Öffne sie in der App, um zu- oder abzusagen.</p>
+    <!-- Store links are added once the apps are published (R16). -->
+    <a class="btn" id="open" href="#">In der App öffnen</a>
+  </main>
+  <script>
+    // Hand the path over to the app scheme; no tracking, no external requests.
+    var token = location.pathname.replace(/^\/einladung\//, '').replace(/[^A-Za-z0-9-]/g, '');
+    document.getElementById('open').href = 'stadtfest://einladung/' + token;
+  </script>
+</body>
+</html>

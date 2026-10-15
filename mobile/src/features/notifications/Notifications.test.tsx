@@ -4,6 +4,7 @@ import {router} from 'expo-router';
 import React from 'react';
 
 import {useAuth} from '@/features/auth/AuthProvider';
+import {resetNavigationLock} from '@/features/navigation/navigate';
 import {renderWithProviders} from '@/test-utils';
 
 import {NotificationSettingsScreen} from './NotificationSettingsScreen';
@@ -205,9 +206,9 @@ describe('notification list (07-01)', () => {
     listApi(
       [
         note('x', {
-          type: 'invite' as AppNotification['type'],
-          text: 'Tim lädt dich zum Stadtfest ein.',
-          target: {type: 'invitation' as 'event', id: 'i1'},
+          type: 'poll' as AppNotification['type'],
+          text: 'Tim fragt, wann ihr losgeht.',
+          target: {type: 'poll' as 'event', id: 'p1'},
         }),
       ],
       1,
@@ -218,6 +219,38 @@ describe('notification list (07-01)', () => {
     expect(screen.getByText('🔔')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('notifications.item.x'));
     expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it('opens received invitations and the own overview', async () => {
+    listApi(
+      [
+        note('i', {
+          type: 'invite',
+          text: 'Tim Krause lädt dich zu Stadtfest ein.',
+          target: {type: 'invitation', id: 'i1'},
+        }),
+        note('r', {
+          type: 'rsvp_yes',
+          text: 'Tim hat für Stadtfest zugesagt.',
+          target: {type: 'invitationOverview', id: 'e1'},
+        }),
+      ],
+      2,
+    );
+    await render(<NotificationsScreen now={NOW} />);
+
+    expect(await screen.findByText('Einladung')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('notifications.item.i'));
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/einladung/[id]',
+      params: {id: 'i1'},
+    });
+    resetNavigationLock();
+    await fireEvent.press(screen.getByTestId('notifications.item.r'));
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/einladen/[eventId]',
+      params: {eventId: 'e1'},
+    });
   });
 
   it('shows the empty state', async () => {
@@ -344,6 +377,12 @@ describe('notification settings (07-02, 07-03)', () => {
 describe('push', () => {
   it('maps push targets to routes', () => {
     expect(targetOf({targetType: 'event', targetId: 'e1'})).toBe('/f/e1');
+    expect(targetOf({targetType: 'invitation', targetId: 'i1'})).toBe(
+      '/einladung/i1',
+    );
+    expect(targetOf({targetType: 'invitationOverview', targetId: 'e1'})).toBe(
+      '/einladen/e1',
+    );
     expect(
       targetOf({
         type: 'ai_search_completed',

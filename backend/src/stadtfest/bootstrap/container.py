@@ -42,6 +42,7 @@ from stadtfest.adapters.outbound.persistence.database import DatabaseProbe, crea
 from stadtfest.adapters.outbound.persistence.favorites import SqlFavoriteRepository
 from stadtfest.adapters.outbound.persistence.friends import SqlFriendRepository
 from stadtfest.adapters.outbound.persistence.images import SqlImageRepository
+from stadtfest.adapters.outbound.persistence.invitations import SqlInvitationRepository
 from stadtfest.adapters.outbound.persistence.lists import SqlSharedListRepository
 from stadtfest.adapters.outbound.persistence.moderation import (
     SqlActiveCategories,
@@ -97,6 +98,19 @@ from stadtfest.application.collections.friends import (
     LookUpFriendLink,
     RemoveFriend,
     RotateFriendLink,
+)
+from stadtfest.application.collections.invitations import (
+    AcceptInvitationLink,
+    CreateInvitationLink,
+    GetHostInvitation,
+    GetInvitationSummary,
+    GetReceivedInvitation,
+    InviteFriends,
+    ListReceivedInvitations,
+    LookUpInvitationLink,
+    PurgeInvitations,
+    RemindInvitees,
+    RespondToInvitation,
 )
 from stadtfest.application.collections.lists import (
     AddListEvent,
@@ -271,6 +285,16 @@ class Container:
     remove_list_member: RemoveListMember
     add_list_event: AddListEvent
     remove_list_event: RemoveListEvent
+    get_host_invitation: GetHostInvitation
+    invite_friends: InviteFriends
+    create_invitation_link: CreateInvitationLink
+    remind_invitees: RemindInvitees
+    respond_to_invitation: RespondToInvitation
+    list_received_invitations: ListReceivedInvitations
+    get_received_invitation: GetReceivedInvitation
+    look_up_invitation_link: LookUpInvitationLink
+    accept_invitation_link: AcceptInvitationLink
+    get_invitation_summary: GetInvitationSummary
     list_mod_events: ListModEvents
     get_mod_event: GetModEvent
     create_mod_event: CreateModEvent
@@ -319,6 +343,7 @@ class Container:
     check_push_receipts: CheckPushReceipts
     send_reminders: SendReminders
     purge_notifications: PurgeNotifications
+    purge_invitations: PurgeInvitations
 
     @classmethod
     def build(cls, settings: Settings) -> Container:
@@ -379,6 +404,7 @@ class Container:
         favorites = SqlFavoriteRepository(sessions, image_urls)
         friends = SqlFriendRepository(sessions)
         shared_lists = SqlSharedListRepository(sessions, image_urls)
+        invitations = SqlInvitationRepository(sessions, image_urls)
         limiter = RedisRateLimiter(redis)
         images = SqlImageRepository(sessions)
         categories = SqlCategoryRepository(sessions)
@@ -474,6 +500,18 @@ class Container:
             remove_list_member=RemoveListMember(shared_lists, ensure_account),
             add_list_event=AddListEvent(shared_lists, ensure_account),
             remove_list_event=RemoveListEvent(shared_lists, ensure_account),
+            get_host_invitation=GetHostInvitation(invitations, ensure_account),
+            invite_friends=InviteFriends(invitations, friends, ensure_account, clock),
+            create_invitation_link=CreateInvitationLink(invitations, ensure_account, clock),
+            remind_invitees=RemindInvitees(invitations, ensure_account),
+            respond_to_invitation=RespondToInvitation(invitations, ensure_account, clock),
+            list_received_invitations=ListReceivedInvitations(invitations, ensure_account),
+            get_received_invitation=GetReceivedInvitation(invitations, ensure_account),
+            look_up_invitation_link=LookUpInvitationLink(invitations, ensure_account, limiter),
+            accept_invitation_link=AcceptInvitationLink(
+                invitations, friends, ensure_account, limiter, clock
+            ),
+            get_invitation_summary=GetInvitationSummary(invitations, ensure_account),
             list_mod_events=ListModEvents(*mod),
             get_mod_event=GetModEvent(*mod),
             create_mod_event=CreateModEvent(*mod, ensure_account),
@@ -534,6 +572,7 @@ class Container:
             check_push_receipts=CheckPushReceipts(sender, devices),
             send_reminders=SendReminders(recipients, notify, clock),
             purge_notifications=PurgeNotifications(notifications, devices),
+            purge_invitations=PurgeInvitations(invitations),
         )
 
     async def aclose(self) -> None:

@@ -19,3 +19,10 @@ GET /v1/me/notifications added the new `friend_added` enum value to the `items/i
 # R13, ADR 0017: list_added / list.
 GET /v1/me/notifications added the new `list` enum value to the `items/items/target/type` response property for the response status `200`
 GET /v1/me/notifications added the new `list_added` enum value to the `items/items/type` response property for the response status `200`
+#
+# R14, ADR 0017: invite / rsvp_yes / rsvp_no and the targets invitation / invitationOverview.
+GET /v1/me/notifications added the new `invitation` enum value to the `items/items/target/type` response property for the response status `200`
+GET /v1/me/notifications added the new `invitationOverview` enum value to the `items/items/target/type` response property for the response status `200`
+GET /v1/me/notifications added the new `invite` enum value to the `items/items/type` response property for the response status `200`
+GET /v1/me/notifications added the new `rsvp_yes` enum value to the `items/items/type` response property for the response status `200`
+GET /v1/me/notifications added the new `rsvp_no` enum value to the `items/items/type` response property for the response status `200`

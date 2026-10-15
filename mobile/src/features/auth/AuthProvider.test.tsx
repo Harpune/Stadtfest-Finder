@@ -148,17 +148,24 @@ describe('AuthProvider login', () => {
     expect(await screen.findByText('Willkommen, Lena!')).toBeOnTheScreen();
   });
 
-  it('reopens the event for a pending invitation', async () => {
+  it('opens the own invitation for a pending "Einladen"', async () => {
+    jest.mocked(router.back).mockClear();
+    jest.mocked(router.push).mockClear();
     mockMeApi();
     await renderProbe();
     await fireEvent.press(screen.getByTestId('invite'));
     await fireEvent.press(screen.getByTestId('login'));
     await waitFor(() =>
       expect(router.push).toHaveBeenCalledWith({
-        pathname: '/f/[id]',
-        params: {id: 'e2'},
+        pathname: '/einladen/[eventId]',
+        params: {eventId: 'e2'},
       }),
     );
+    // The login screen closes first, otherwise closing it pops the invitation again.
+    expect(router.back).toHaveBeenCalledTimes(1);
+    const [backOrder] = jest.mocked(router.back).mock.invocationCallOrder;
+    const [pushOrder] = jest.mocked(router.push).mock.invocationCallOrder;
+    expect(backOrder).toBeLessThan(pushOrder ?? 0);
   });
 
   it('allows account actions directly once signed in', async () => {

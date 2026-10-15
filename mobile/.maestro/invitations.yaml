@@ -1,0 +1,119 @@
+# Invitations (R14): user A invites friend B to an event, B accepts via the notification,
+# A sees "B kommt mit" on the detail page and the "Zusage" notification. Requires the local
+# stack (`make dev`, `make seed`) with Keycloak, the worker running (notifications) and A and
+# B being friends (friends.yaml). Tag `typing`: see login.yaml.
+appId: de.stadtfestfinder.app
+name: Einladung mit Zusage
+tags:
+  - typing
+env:
+  USER_A: moderator@example.test # dev realm users (infra/dev/keycloak)
+  USER_B: nutzer@example.test
+  PASSWORD: stadtfest-dev
+  EVENT: 24b84e9c-31ad-5e4a-83fa-799fd1273ed7 # "Reichsstädter Tage" (seed, upcoming)
+---
+- runFlow:
+    file: shared/launch.yaml
+    env:
+      LOCATION: never
+
+# User A: invite B with a message
+- runFlow:
+    file: shared/login.yaml
+    env:
+      USERNAME: ${USER_A}
+      PASSWORD: ${PASSWORD}
+- openLink: stadtfest://f/${EVENT}
+- tapOn:
+    id: detail.invite
+- extendedWaitUntil:
+    visible:
+      id: invitation.screen
+    timeout: 10000
+# A second run starts from the overview: invite again via "Weitere einladen".
+- runFlow:
+    when:
+      visible:
+        id: invitation.more
+    commands:
+      - tapOn:
+          id: invitation.more
+- tapOn:
+    id: 'invitation\.friend\..*'
+- tapOn:
+    id: invitation.compose.message
+- inputText: Treffpunkt 19 Uhr am Marktplatz
+- hideKeyboard
+- tapOn:
+    id: invitation.compose.send
+- extendedWaitUntil:
+    visible:
+      id: invitation.counts
+    timeout: 10000
+- tapOn:
+    id: invitation.back
+- tapOn:
+    id: detail.back
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.logout
+
+# User B: open the invitation from the notification and accept
+- runFlow:
+    file: shared/login.yaml
+    env:
+      USERNAME: ${USER_B}
+      PASSWORD: ${PASSWORD}
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.notifications
+- extendedWaitUntil:
+    visible: '.*lädt dich zu.*'
+    timeout: 30000
+- tapOn: '.*lädt dich zu.*'
+- extendedWaitUntil:
+    visible:
+      id: received.screen
+    timeout: 10000
+- runFlow:
+    when:
+      visible:
+        id: received.banner.change
+    commands:
+      - tapOn:
+          id: received.banner.change
+- tapOn:
+    id: received.accept
+- assertVisible: '✓ Du hast zugesagt'
+- tapOn:
+    id: received.back
+- tapOn:
+    id: notifications.back
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.logout
+
+# User A: "… kommt mit" on the detail page and the "Zusage" notification
+- runFlow:
+    file: shared/login.yaml
+    env:
+      USERNAME: ${USER_A}
+      PASSWORD: ${PASSWORD}
+- openLink: stadtfest://f/${EVENT}
+- extendedWaitUntil:
+    visible:
+      id: detail.comingAlong
+    timeout: 15000
+- assertVisible: '.*kommt mit.*|.*kommen mit.*'
+- tapOn:
+    id: detail.back
+- tapOn:
+    id: discover.profile
+- tapOn:
+    id: drawer.notifications
+- extendedWaitUntil:
+    visible: '.*hat für .* zugesagt.*'
+    timeout: 30000

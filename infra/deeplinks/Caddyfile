@@ -1,5 +1,6 @@
 # Static host for App Links (R04-US6). Deployed with the production stack (R16).
-# Serves only static files: assetlinks.json and fallback pages for /f/{id} and /freund/{token}.
+# Serves only static files: assetlinks.json and fallback pages for /f/{id}, /freund/{token},
+# /e/{token} and /einladung/{id}.
 # The host comes from LINK_HOST (same value as EXPO_PUBLIC_LINK_HOST in the app).
 {$LINK_HOST:stadtfest.herderstreet.de} {
 	root * /srv/deeplinks
@@ -15,6 +16,12 @@
 	# Friend links (R12): the token carries no personal data; logs are discarded below.
 	@friend path_regexp friend ^/freund/[A-Za-z0-9_-]+/?$
 	rewrite @friend /freund/index.html
+
+	# Invitation links (R14) and received invitations; same rules as friend links.
+	@invitationLink path_regexp invitationLink ^/e/[A-Za-z0-9_-]+/?$
+	rewrite @invitationLink /e/index.html
+	@invitation path_regexp invitation ^/einladung/[A-Za-z0-9-]+/?$
+	rewrite @invitation /einladung/index.html
 
 	file_server
 	log {

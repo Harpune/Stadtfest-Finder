@@ -22,6 +22,7 @@ from stadtfest.application.notifications.ports import (
     Device,
     DevicePlatform,
     DeviceStore,
+    ListedNotification,
     NotificationStore,
     PageCursor,
     PushJobs,
@@ -30,7 +31,6 @@ from stadtfest.application.notifications.ports import (
     PushSender,
     Recipients,
     SettingsStore,
-    StoredNotification,
 )
 from stadtfest.application.shared.errors import (
     InvalidInputError,
@@ -40,6 +40,7 @@ from stadtfest.application.shared.errors import (
 from stadtfest.application.shared.ports import Clock
 from stadtfest.domain.ai_ingestion.job import AiSearchEventType
 from stadtfest.domain.collections.friends import FriendEventType
+from stadtfest.domain.collections.invitations import InvitationEventType, InviteeStatus
 from stadtfest.domain.collections.lists import ListEventType
 from stadtfest.domain.events.geo import PostalCode
 from stadtfest.domain.events.maintenance import DomainEventType
@@ -51,6 +52,7 @@ from stadtfest.domain.notifications.notification import (
     dedupe_key,
     is_relevant_change,
     render_text,
+    target_of,
 )
 from stadtfest.domain.notifications.settings import (
     Home,
@@ -85,6 +87,9 @@ class NotificationItem:
     type: NotificationType
     text: str
     subject_id: UUID
+    # What a tap opens: API target type and ID (`target_of`).
+    target_type: str
+    target_id: UUID
     read: bool
     created_at: datetime
 
@@ -140,17 +145,7 @@ class ListNotifications:
         after = decode_cursor(cursor) if cursor else None
         user_id = await self._accounts(principal)
         rows = await self._store.page(user_id, after, limit + 1)
-        items = [
-            NotificationItem(
-                id=row.notification.id,
-                type=row.notification.type,
-                text=render_text(row.notification.type, row.facts, row.notification.created_at),
-                subject_id=row.notification.subject_id,
-                read=row.notification.read,
-                created_at=row.notification.created_at,
-            )
-            for row in rows[:limit]
-        ]
+        items = [_item(row) for row in rows[:limit]]
         next_cursor = None
         if len(rows) > limit:
             last = items[-1]
@@ -367,7 +362,7 @@ class Notify:
             Number of new notifications (duplicates by the idempotency rules are skipped).
         """
         now = self._now()
-        key = dedupe_key(notification_type, subject_id, now)
+        key = dedupe_key(notification_type, subject_id, now, actor_id)
         created = 0
         for chunk in batched(dict.fromkeys(user_ids), FANOUT_BATCH):
             ids = await self._store.add(
@@ -422,44 +417,60 @@ class PushNotifications:
         if self._sender.provider is PushProvider.DISABLED:
             return 0
         pending = await self._store.unpushed(notification_ids)
-        users = list(dict.fromkeys(n.user_id for n in pending))
+        users = list(dict.fromkeys(n.notification.user_id for n in pending))
         settings = await self._settings.for_users(users)
-        wanted = [n for n in pending if settings[n.user_id].pushes(n.type)]
+        wanted = [
+            n for n in pending if settings[n.notification.user_id].pushes(n.notification.type)
+        ]
         devices = await self._devices.for_users(
-            list(dict.fromkeys(n.user_id for n in wanted)), self._sender.provider
+            list(dict.fromkeys(n.notification.user_id for n in wanted)), self._sender.provider
         )
-        delivered = [n for n in wanted if devices.get(n.user_id)]
+        delivered = [n for n in wanted if devices.get(n.notification.user_id)]
         if not delivered:
             return 0
-        badges = await self._store.unread_counts(list(dict.fromkeys(n.user_id for n in delivered)))
+        badges = await self._store.unread_counts(
+            list(dict.fromkeys(n.notification.user_id for n in delivered))
+        )
         messages = [
-            _message(notification, device, badges.get(notification.user_id, 0))
-            for notification in delivered
-            for device in devices[notification.user_id]
+            _message(listed, device, badges.get(listed.notification.user_id, 0))
+            for listed in delivered
+            for device in devices[listed.notification.user_id]
         ]
         result = await self._sender.send(messages)
         if result.invalid_tokens:
             await self._devices.remove_tokens(sorted(result.invalid_tokens))
         if result.receipts:
             await self._jobs.enqueue_receipt_check(result.receipts)
-        await self._store.mark_pushed([n.id for n in delivered])
+        await self._store.mark_pushed([n.notification.id for n in delivered])
         return len(messages)
 
 
-def _message(notification: StoredNotification, device: Device, badge: int) -> PushMessage:
+def _item(row: ListedNotification) -> NotificationItem:
+    notification = row.notification
+    target_type, target_id = target_of(notification.type, notification.subject_id, row.facts)
+    return NotificationItem(
+        id=notification.id,
+        type=notification.type,
+        text=render_text(notification.type, row.facts, notification.created_at),
+        subject_id=notification.subject_id,
+        target_type=target_type,
+        target_id=target_id,
+        read=notification.read,
+        created_at=notification.created_at,
+    )
+
+
+def _message(listed: ListedNotification, device: Device, badge: int) -> PushMessage:
+    notification = listed.notification
     text = PUSH_TEXTS[notification.type]
+    target_type, target_id = target_of(notification.type, notification.subject_id, listed.facts)
     return PushMessage(
         token=device.token,
         platform=device.platform,
         title=text.title,
         body=text.body,
         badge=badge,
-        data=_payload(
-            notification.type,
-            notification.type.subject.value,
-            notification.subject_id,
-            notification.id,
-        ),
+        data=_payload(notification.type, target_type, target_id, notification.id),
     )
 
 
@@ -562,6 +573,8 @@ class NotifyForDomainEvent:
             owner = UUID(str(payload["userId"]))
             friend = UUID(str(payload["friendId"]))
             return await self._notify(NotificationType.FRIEND_ADDED, friend, [owner])
+        if event_type in _INVITATION_EVENTS:
+            return await self._invitation(event_type, payload)
         if event_type == ListEventType.MEMBERS_ADDED.value:
             # New members of a shared list (R13-US2); pushed if `invite` is on.
             members = [UUID(str(user)) for user in _list(payload.get("userIds"))]
@@ -585,9 +598,30 @@ class NotifyForDomainEvent:
                 users = await self._recipients.favorite_holders(event_id)
                 return await self._notify(NotificationType.CHANGE, event_id, users)
             case DomainEventType.CANCELLED.value:
-                users = await self._recipients.favorite_holders(event_id)
+                holders = await self._recipients.favorite_holders(event_id)
+                accepted = await self._recipients.accepted_invitees(event_id)
+                users = list(dict.fromkeys([*holders, *accepted]))
                 return await self._notify(NotificationType.CANCEL, event_id, users)
         return 0
+
+    async def _invitation(self, event_type: str, payload: Mapping[str, object]) -> int:
+        """`invite` for new and reminded invitees, `rsvp_*` for the host (R14)."""
+        invitation = UUID(str(payload["invitationId"]))
+        host = UUID(str(payload["hostId"]))
+        if event_type == InvitationEventType.RESPONDED.value:
+            kind = {
+                InviteeStatus.ACCEPTED.value: NotificationType.RSVP_YES,
+                InviteeStatus.DECLINED.value: NotificationType.RSVP_NO,
+            }.get(str(payload.get("status")))
+            if kind is None:
+                return 0  # back to "open": no notification
+            invitee = UUID(str(payload["userId"]))
+            return await self._notify(kind, invitation, [host], actor_id=invitee)
+        users = [UUID(str(user)) for user in _list(payload.get("userIds"))]
+        return await self._notify(NotificationType.INVITE, invitation, users, actor_id=host)
+
+
+_INVITATION_EVENTS = frozenset(t.value for t in InvitationEventType)
 
 
 def _list(value: object) -> list[object]:

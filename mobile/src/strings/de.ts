@@ -181,6 +181,9 @@ export const strings = {
       cancel: 'Fest abgesagt',
       friend_added: 'Neuer Freund',
       list_added: 'Gemeinsame Liste',
+      invite: 'Einladung',
+      rsvp_yes: 'Zusage',
+      rsvp_no: 'Absage',
     },
     icons: {
       remind: '⏰',
@@ -189,6 +192,9 @@ export const strings = {
       cancel: '⚠️',
       friend_added: '🤝',
       list_added: '📋',
+      invite: '✉️',
+      rsvp_yes: '👍',
+      rsvp_no: '👋',
     },
     // Types of a newer server version (ADR 0017).
     unknownKind: 'Benachrichtigung',
@@ -302,6 +308,69 @@ export const strings = {
     failed: 'Das hat nicht geklappt',
     notFound: 'Diese Liste gibt es nicht mehr',
     cancelled: 'Abgesagt',
+  },
+  invitations: {
+    overviewTitle: 'Einladung',
+    composeTitle: 'Freunde einladen',
+    receivedTitle: 'Einladung',
+    linkTitle: 'Einladung',
+    coming: 'kommen',
+    open: 'offen',
+    declined: 'abgesagt',
+    groupComing: 'Kommen mit',
+    groupOpen: 'Noch keine Antwort',
+    groupDeclined: 'Abgesagt',
+    you: 'Du',
+    host: 'Lädt ein',
+    hasAccepted: 'hat zugesagt',
+    hasDeclined: 'hat abgesagt',
+    invitedAgo: (ago: string) => `Eingeladen ${ago}`,
+    status: {accepted: 'Zugesagt', open: 'Offen', declined: 'Abgesagt'},
+    remind: 'Erinnern',
+    inviteMore: 'Weitere einladen',
+    reminded: (n: number) =>
+      n === 1
+        ? 'Erinnerung an 1 Person verschickt'
+        : `Erinnerung an ${n} Offene verschickt`,
+    allAnswered: 'Alle haben geantwortet',
+    remindLater: 'Du kannst erst morgen wieder erinnern',
+    whom: 'Wen möchtest du einladen?',
+    messagePlaceholder: 'Nachricht (optional), z. B. Treffpunkt oder Uhrzeit',
+    shareLink: 'Freunde ohne App? Link teilen ↗',
+    shareLinkMessage: (name: string, url: string) =>
+      `Komm mit zu ${name}! ${url}`,
+    send: (n: number) => `Einladung senden (${n})`,
+    sent: (n: number) =>
+      n === 1 ? '1 Einladung verschickt' : `${n} Einladungen verschickt`,
+    noFriends:
+      'Noch keine Freunde. Teile den Link oder verbinde dich über „Freunde“.',
+    allInvited: 'Alle deine Freunde sind schon eingeladen.',
+    invitesYou: (name: string) => `${name} lädt dich ein`,
+    alsoInvited: 'Ebenfalls eingeladen',
+    accept: 'Zusagen',
+    decline: 'Absagen',
+    acceptedBanner: '✓ Du hast zugesagt',
+    declinedBanner: 'Du hast abgesagt',
+    change: 'Ändern',
+    inDays: (n: number) =>
+      n === 0 ? 'Heute' : n === 1 ? 'Morgen' : `In ${n} Tagen`,
+    running: 'Läuft gerade',
+    ended: 'Vorbei',
+    comingAlong: (names: string[], more: number) => {
+      if (more > 0) return `${names.join(', ')} und ${more} weitere kommen mit`;
+      if (names.length === 1) return `${names[0]} kommt mit`;
+      return `${names.join(' und ')} kommen mit`;
+    },
+    linkFrom: (name: string) => `${name} lädt dich ein`,
+    linkText:
+      'Nimm die Einladung an, um zu- oder abzusagen. Ihr werdet dabei auch Freunde.',
+    linkAccept: 'Annehmen',
+    linkDecline: 'Nicht jetzt',
+    invalidLink: 'Dieser Einladungslink gilt nicht mehr',
+    notFound: 'Diese Einladung gibt es nicht mehr',
+    notInvitable: 'Zu diesem Fest kannst du nicht mehr einladen oder antworten',
+    rateLimited: 'Zu viele Versuche. Bitte warte etwas.',
+    failed: 'Das hat nicht geklappt',
   },
   notificationSettings: {
     title: 'Einstellungen',

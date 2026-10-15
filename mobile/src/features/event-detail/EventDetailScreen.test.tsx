@@ -138,6 +138,36 @@ describe('EventDetailScreen', () => {
     expect(screen.getByTestId('detail.route')).not.toBeDisabled();
   });
 
+  it('disables inviting to past events', async () => {
+    mockApi({...DETAIL, startDate: '2020-01-01', endDate: '2020-01-02'});
+    await renderDetail();
+    await waitFor(() =>
+      expect(screen.getByTestId('detail.title')).toBeOnTheScreen(),
+    );
+    expect(screen.getByTestId('detail.invite')).toBeDisabled();
+  });
+
+  it('shows who comes along and opens the received invitation', async () => {
+    mockApi({
+      ...DETAIL,
+      isFavorite: true,
+      invitationSummary: {
+        invitationId: 'i1',
+        role: 'guest',
+        people: [
+          {id: 'p1', firstName: 'Jonas', lastName: 'Weber'},
+          {id: 'p2', firstName: 'Tim', lastName: 'Krause'},
+        ],
+      },
+    });
+    await renderDetail();
+    await fireEvent.press(await screen.findByText('Jonas und Tim kommen mit'));
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/einladung/[id]',
+      params: {id: 'i1'},
+    });
+  });
+
   it('shows the not-found hint on 404 and goes back to the map', async () => {
     mockApi(null, 404);
     await renderDetail();

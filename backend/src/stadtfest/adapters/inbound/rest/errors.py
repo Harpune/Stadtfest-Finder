@@ -49,6 +49,8 @@ _CODE_MESSAGES: dict[str, str] = {
     "not_retryable": "Dieses Bild lässt sich nicht erneut verarbeiten. Bitte lade es neu hoch.",
     "self_link": "Das ist dein eigener Freundschaftslink.",
     "rate_limited": "Zu viele Versuche. Bitte warte etwas und versuche es später erneut.",
+    "event_not_invitable": "Zu vergangenen oder abgesagten Festen kannst du nicht einladen.",
+    "reminded_recently": "Du kannst erst morgen wieder erinnern.",
 }
 _INTERNAL_ERROR = ("internal_error", "Da ist etwas schiefgelaufen. Bitte versuche es erneut.")
 
@@ -138,7 +140,9 @@ async def _handle_conflict(_: Request, exc: Exception) -> JSONResponse:
 
 async def _handle_too_many(_: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, TooManyRequestsError)  # noqa: S101  # registered for this type
-    return error_response(429, exc.code, _CODE_MESSAGES.get(exc.code, _STATUS_ERRORS[429][1]))
+    return error_response(
+        429, exc.code, _CODE_MESSAGES.get(exc.code, _STATUS_ERRORS[429][1]), exc.fields
+    )
 
 
 async def _handle_unavailable(_: Request, exc: Exception) -> JSONResponse:

@@ -129,15 +129,15 @@ def _name(name: str) -> str:
         raise InvalidInputError({"name": "invalid"}) from None
 
 
-async def _require_friends(
-    friends: FriendRepository, user_id: UUID, candidates: Sequence[UUID]
+async def require_friends(
+    friends: FriendRepository, user_id: UUID, candidates: Sequence[UUID], field: str = "memberIds"
 ) -> None:
     """Raises `InvalidInputError(not_a_friend)` unless all candidates are the user's friends."""
     if not candidates:
         return
     own = {friend.id for friend in await friends.friends_of(user_id)}
     if not set(candidates) <= own:
-        raise InvalidInputError({"memberIds": NOT_A_FRIEND}, NOT_A_FRIEND)
+        raise InvalidInputError({field: NOT_A_FRIEND}, NOT_A_FRIEND)
 
 
 class _MemberUseCase:
@@ -218,7 +218,7 @@ class CreateSharedList:
         members = [m for m in dict.fromkeys(member_ids) if m != user_id]
         if len(members) > MEMBERS_MAX:
             raise InvalidInputError({"memberIds": "too_many"})
-        await _require_friends(self._friends, user_id, members)
+        await require_friends(self._friends, user_id, members)
         list_id = uuid4()
         await self._lists.create(list_id, cleaned, user_id, members, self._now())
         created = await self._lists.get(list_id)
@@ -293,7 +293,7 @@ class AddListMember(_MemberUseCase):
         caller = await self._member(principal, list_id)
         if user_id == caller:
             return
-        await _require_friends(self._friends, caller, [user_id])
+        await require_friends(self._friends, caller, [user_id])
         await self._lists.add_member(list_id, user_id, caller, self._now())
 
 

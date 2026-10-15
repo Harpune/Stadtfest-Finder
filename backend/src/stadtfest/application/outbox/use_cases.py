@@ -21,6 +21,7 @@ from stadtfest.application.outbox.ports import (
 from stadtfest.application.shared.ports import CachePort
 from stadtfest.domain.ai_ingestion.job import AiSearchEventType
 from stadtfest.domain.collections.friends import FriendEventType
+from stadtfest.domain.collections.invitations import InvitationEventType
 from stadtfest.domain.collections.lists import ListEventType
 from stadtfest.domain.events.category import CATEGORY_CHANGED
 from stadtfest.domain.events.images import ImageEventType
@@ -33,6 +34,16 @@ RETENTION = timedelta(days=14)
 
 # Events that change what users see: the cached public search must be invalidated.
 _CATALOG_CHANGES = frozenset(DomainEventType)
+
+
+# Collection events that only produce notifications (R12-R14).
+_NOTIFY_ONLY = frozenset(
+    {
+        FriendEventType.CREATED.value,
+        ListEventType.MEMBERS_ADDED.value,
+        *(t.value for t in InvitationEventType),
+    }
+)
 
 
 class RelayOutbox:
@@ -85,7 +96,7 @@ class HandleDomainEvent:
             if self._notify is not None:
                 await self._notify(message.type, message.payload)
             return
-        if message.type in {FriendEventType.CREATED.value, ListEventType.MEMBERS_ADDED.value}:
+        if message.type in _NOTIFY_ONLY:
             # The link owner gets "friend_added" (R12-US2).
             if self._notify is not None:
                 await self._notify(message.type, message.payload)
