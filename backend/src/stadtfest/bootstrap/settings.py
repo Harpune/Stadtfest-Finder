@@ -161,6 +161,21 @@ class Settings(BaseSettings):
         default=None, description="Firebase service account key (JSON)"
     )
 
+    mcp_public_url: AnyHttpUrl = Field(
+        default=AnyHttpUrl("http://localhost:8001"),
+        description="Public base URL of the MCP server (resource in OAuth metadata, R15)",
+    )
+    mcp_oauth_scopes: str = Field(
+        default="openid profile",
+        description="Space-separated scopes MCP clients request (Zitadel: + project aud scope)",
+    )
+    mcp_host: str = Field(default="127.0.0.1", min_length=1)
+    mcp_port: int = Field(default=8001, ge=1, le=65535)
+    deep_link_base_url: AnyHttpUrl = Field(
+        default=AnyHttpUrl("https://stadtfest.herderstreet.de"),
+        description="Deep link domain for event links in MCP results (R04-US6)",
+    )
+
     @model_validator(mode="after")
     def _check_adapters(self) -> Settings:
         if self.geocoding_provider is GeocodingProvider.FAKE and self.env is Environment.PROD:
@@ -172,6 +187,8 @@ class Settings(BaseSettings):
         self._check_push()
         if self.env is Environment.PROD and self.s3_public_base_url.scheme != "https":
             raise ValueError("S3_PUBLIC_BASE_URL must use https in prod")
+        if self.env is Environment.PROD and self.mcp_public_url.scheme != "https":
+            raise ValueError("MCP_PUBLIC_URL must use https in prod")
         return self
 
     def _check_ai(self) -> None:

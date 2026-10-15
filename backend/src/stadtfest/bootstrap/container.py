@@ -199,6 +199,7 @@ from stadtfest.application.notifications.use_cases import (
     UpdateNotificationSettings,
 )
 from stadtfest.application.outbox.use_cases import HandleDomainEvent, PurgeOutbox, RelayOutbox
+from stadtfest.application.shared.ports import RateLimiter
 from stadtfest.bootstrap.settings import (
     GeocodingProvider,
     IdpAdminProvider,
@@ -262,6 +263,7 @@ class Container:
     list_active_categories: ListActiveCategories
     geocode: Geocode
     locate_postal_code: LocatePostalCode
+    rate_limiter: RateLimiter
     reverse_geocode: ReverseGeocode
     reverse_geocode_event_location: ReverseGeocodeEventLocation
     authenticate: Authenticate
@@ -472,6 +474,7 @@ class Container:
             list_active_categories=ListActiveCategories(catalog, cache),
             geocode=geocode,
             locate_postal_code=LocatePostalCode(geocode),
+            rate_limiter=limiter,
             reverse_geocode=ReverseGeocode(geocoding, cache),
             reverse_geocode_event_location=ReverseGeocodeEventLocation(geocoding, cache),
             authenticate=Authenticate(verifier, claim_mapping, deleted_accounts),
