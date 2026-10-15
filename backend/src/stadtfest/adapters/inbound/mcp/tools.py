@@ -12,7 +12,7 @@ from uuid import UUID
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from mcp_types import ToolAnnotations
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from stadtfest.adapters.inbound.mcp.auth import current_principal
@@ -45,8 +45,19 @@ Anmeldung. Funde werden als Entwürfe gespeichert und erst nach Prüfung veröff
 Starts the AI search for new events around a German postal code. Moderators only (sign-in \
 required). Finds are stored as drafts and published only after a moderator reviews them."""
 
+
+def _zip_code_text(value: object) -> object:
+    """Accept postal codes sent as JSON numbers (some clients do), e.g. 1067 -> "01067"."""
+    if isinstance(value, int) and not isinstance(value, bool) and 0 <= value < 100_000:
+        return f"{value:05d}"
+    return value
+
+
 ZipCode = Annotated[
-    str, Field(pattern=r"^\d{5}$", description="Deutsche Postleitzahl / German postal code")
+    str,
+    # Field before the validator, otherwise the pattern is missing in the input schema.
+    Field(pattern=r"^\d{5}$", description="Deutsche Postleitzahl / German postal code"),
+    BeforeValidator(_zip_code_text),
 ]
 
 

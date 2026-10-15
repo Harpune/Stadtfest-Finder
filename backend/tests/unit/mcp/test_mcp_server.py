@@ -215,6 +215,18 @@ async def test_guests_search_events_around_a_postal_code(world: World) -> None:
     assert (cursor, limit) == (None, 51)  # 50 results, one more to detect a cut-off
 
 
+async def test_postal_codes_sent_as_numbers_are_accepted(world: World) -> None:
+    # The MCP Inspector CLI (and some LLM clients) send digits as JSON numbers.
+    async with world.server.client(headers=MOD) as client:
+        await client.call_tool("search_events", {"zip_code": 73430})
+        started = await client.call_tool("start_ai_search", {"zip_code": 73430})
+        with pytest.raises(ToolError, match="Postleitzahl"):
+            await client.call_tool("search_events", {"zip_code": 1067})  # -> "01067"
+
+    assert world.catalog.search_calls[0][0].filter.reference == AALEN.location
+    assert started.structured_content is not None
+
+
 async def test_search_defaults_to_25_km_and_all_dates(world: World) -> None:
     async with world.server.client() as client:
         await client.call_tool("search_events", {"zip_code": "73430"})
@@ -406,3 +418,11 @@ def test_tools_use_the_same_use_cases_as_rest() -> None:
     assert mcp["start_ai_search"] is StartAiSearch
     assert mcp["search_events"] is SearchEvents
     assert mcp["get_public_event"] is GetPublicEvent
+
+
+async def test_input_schema_documents_the_postal_code_format(world: World) -> None:
+    async with world.server.client() as client:
+        tools = {tool.name: tool for tool in await client.list_tools()}
+    schema = tools["search_events"].input_schema["properties"]
+    assert schema["zip_code"]["pattern"] == r"^\d{5}$"
+    assert (schema["radius_km"]["minimum"], schema["radius_km"]["maximum"]) == (10, 300)
