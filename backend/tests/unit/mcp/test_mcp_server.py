@@ -4,6 +4,7 @@ Covers the role checks of all tools (CLAUDE.md "Testing"): guests may search and
 `start_ai_search` needs a token (401 challenge) and the role `moderator` (tool error).
 """
 
+import json
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -14,7 +15,6 @@ from uuid import UUID, uuid4
 import pytest
 from fastmcp.exceptions import ToolError
 from fastmcp.utilities.tests import ASGIServer, asgi_server
-from structlog.testing import capture_logs
 
 from stadtfest.adapters.inbound.mcp import server as mcp_server
 from stadtfest.adapters.inbound.mcp.dependencies import McpConfig, McpDependencies
@@ -37,6 +37,8 @@ from stadtfest.application.geocoding.use_cases import Geocode, LocatePostalCode
 from stadtfest.application.health.check_readiness import CheckReadiness
 from stadtfest.application.identity.claims import ClaimMapping
 from stadtfest.application.identity.use_cases import Authenticate
+from stadtfest.bootstrap.logging import configure_logging
+from stadtfest.bootstrap.settings import GeocodingProvider, LogFormat, Settings
 from stadtfest.domain.events.event import EventStatus
 from stadtfest.domain.events.geo import GeoPoint
 from stadtfest.domain.events.time_filter import DateRange
@@ -52,6 +54,7 @@ from tests.fakes import (
     FakeTokenVerifier,
     FixedClock,
 )
+from tests.settings_values import TEST_STORAGE
 
 TODAY = date(2026, 10, 15)
 AALEN = Place("73430 Aalen", "Aalen", GeoPoint(48.8375, 10.0933), PlaceKind.POSTCODE, "73430")
@@ -389,23 +392,43 @@ async def test_rate_limited_calls_are_tool_errors(
             await client.call_tool("get_event", {"event_id": str(EVENT_ID)})
 
 
-async def test_tool_calls_are_logged_without_inputs_or_user(world: World) -> None:
-    with capture_logs() as logs:
-        async with world.server.client(headers=MOD) as client:
-            await client.call_tool("start_ai_search", {"zip_code": "73430"})
+async def test_tool_calls_are_logged_without_inputs_or_user(
+    world: World, capsys: pytest.CaptureFixture[str]
+) -> None:
+    configure_logging(
+        Settings(
+            database_url="postgresql+asyncpg://u:p@localhost:5432/db",
+            redis_url="redis://localhost:6379/0",
+            log_format=LogFormat.JSON,
+            geocoding_provider=GeocodingProvider.FAKE,
+            **TEST_STORAGE,  # type: ignore[arg-type]
+        )
+    )
+    capsys.readouterr()
 
-    calls = [entry for entry in logs if entry["event"] == "mcp_tool_call"]
-    assert calls == [
-        {
-            "event": "mcp_tool_call",
-            "tool": "start_ai_search",
-            "outcome": "ok",
-            "duration_ms": calls[0]["duration_ms"],
-            "log_level": "info",
-        }
-    ]
-    assert "73430" not in repr(logs)
-    assert "'m'" not in repr(logs)
+    async with world.server.client(headers=MOD) as client:
+        await client.call_tool("start_ai_search", {"zip_code": "73430"})
+
+    output = capsys.readouterr().out
+    lines = [json.loads(line) for line in output.strip().splitlines()]
+    calls = [line for line in lines if line["event"] == "mcp_tool_call"]
+    assert len(calls) == 1
+    assert {key: calls[0][key] for key in ("tool", "outcome")} == {
+        "tool": "start_ai_search",
+        "outcome": "ok",
+    }
+    assert set(calls[0]) <= {
+        "event",
+        "tool",
+        "outcome",
+        "duration_ms",
+        "level",
+        "timestamp",
+        "logger",
+        "request_id",
+    }
+    assert "73430" not in output
+    assert "Bearer" not in output
 
 
 def test_tools_use_the_same_use_cases_as_rest() -> None:
