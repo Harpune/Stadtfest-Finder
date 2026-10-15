@@ -73,7 +73,7 @@
 
 ## Definition of Done
 
-- [ ] Screens 05-01 bis 05-04 und die Drawer-Karte umgesetzt, dunkel und hell (Farben nur aus Theme-Tokens). Offen: Prüfung auf dem Gerät.
+- [x] Screens 05-01 bis 05-04 und die Drawer-Karte umgesetzt, dunkel und hell (Farben nur aus Theme-Tokens). Geprüft auf dem Pixel 8 (Android 17) am 15.10.2026; dabei behoben: Tastatur verdeckte Sheets mit Eingabefeld, Listentitel brach mitten im Wort ohne Trennstrich um.
 - [x] Autorisierung per Test belegt (`404` für Nicht-Mitglieder in allen Use Cases, nur Freunde hinzufügbar).
 - [x] VVT und `DeleteAccount` erweitert.
 
