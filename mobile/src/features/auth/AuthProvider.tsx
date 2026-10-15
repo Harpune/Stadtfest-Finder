@@ -217,6 +217,9 @@ export function AuthProvider({
       setIdToken(result.tokens.idToken);
       setStatus('signedIn');
       const me = await loadProfile();
+      // Close the entry screen before the pending action navigates; closing it afterwards
+      // would pop the screen the action just opened. A closed (aborted) screen stays put.
+      if (!isAborted?.() && router.canGoBack()) router.back();
       executePendingAction(me);
       return result.type;
     },

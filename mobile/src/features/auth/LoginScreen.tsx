@@ -39,11 +39,10 @@ export function LoginScreen() {
 
   const start = async (method: LoginMethod) => {
     setBusy(method);
-    const outcome = await login(method, () => !mounted.current);
+    await login(method, () => !mounted.current);
     if (!mounted.current) return;
+    // Success closes the screen in `login`; cancel keeps it open, errors show a toast.
     setBusy(null);
-    // Cancel keeps the entry screen open without a toast; errors show a toast.
-    if (outcome === 'success' && router.canGoBack()) router.back();
   };
 
   const button = (

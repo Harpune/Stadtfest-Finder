@@ -102,10 +102,10 @@
 
 ## Definition of Done
 
-- [ ] Screens 06-01 bis 06-04 und der „kommen mit“-Hinweis (02-04) umgesetzt, dunkel und hell.
-- [ ] Teilen für angemeldete Nutzer aktiv, Gast-Aktionen `share`/`invite` werden nach dem Login nachgeholt.
-- [ ] Deep Links `/einladung/{id}` und `/e/{token}` funktionieren beim Kalt- und Warmstart.
-- [ ] VVT und `DeleteAccount` erweitert.
+- [x] Screens 06-01 bis 06-04 und der „kommen mit“-Hinweis (02-04) umgesetzt, dunkel und hell. Geprüft auf dem Pixel 8 (Android 17) am 15.10.2026.
+- [x] Teilen für angemeldete Nutzer aktiv, Gast-Aktionen `invite` und `invitationLink` werden nach dem Login nachgeholt (`share` entfällt, siehe Umsetzungsnotizen). Gerätetest fand einen Fehler: Der Login-Screen schloss sich erst nach dem Öffnen der Einladung und nahm sie wieder vom Stapel; behoben.
+- [x] Deep Links `/einladung/{id}` und `/e/{token}` funktionieren beim Kalt- und Warmstart (Pixel 8, 15.10.2026).
+- [x] VVT und `DeleteAccount` erweitert.
 
 ## Umsetzungsnotizen (09.10.2026)
 

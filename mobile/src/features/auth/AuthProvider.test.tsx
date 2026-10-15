@@ -149,6 +149,8 @@ describe('AuthProvider login', () => {
   });
 
   it('opens the own invitation for a pending "Einladen"', async () => {
+    jest.mocked(router.back).mockClear();
+    jest.mocked(router.push).mockClear();
     mockMeApi();
     await renderProbe();
     await fireEvent.press(screen.getByTestId('invite'));
@@ -159,6 +161,11 @@ describe('AuthProvider login', () => {
         params: {eventId: 'e2'},
       }),
     );
+    // The login screen closes first, otherwise closing it pops the invitation again.
+    expect(router.back).toHaveBeenCalledTimes(1);
+    const [backOrder] = jest.mocked(router.back).mock.invocationCallOrder;
+    const [pushOrder] = jest.mocked(router.push).mock.invocationCallOrder;
+    expect(backOrder).toBeLessThan(pushOrder ?? 0);
   });
 
   it('allows account actions directly once signed in', async () => {
