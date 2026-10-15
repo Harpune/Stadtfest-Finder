@@ -32,6 +32,10 @@ import {
 } from '@/components';
 import {initialsOf, useAuth} from '@/features/auth/AuthProvider';
 import {
+  type EventDetail,
+  useEventDetail,
+} from '@/features/event-detail/useEventDetail';
+import {
   displayName,
   friendColor,
   initialsOfName,
@@ -61,6 +65,30 @@ const FOOTER_SPACE = 110;
 
 type EventInfo = HostInvitation['event'];
 
+/** What the event card at the top needs; from the invitation or the event detail. */
+interface HeadEvent {
+  name: string;
+  startDate: string;
+  endDate: string;
+  city: string;
+  thumbUrl?: string;
+}
+
+function headOf(
+  event: EventInfo | EventDetail | undefined,
+): HeadEvent | undefined {
+  if (!event) return undefined;
+  const thumbUrl =
+    'images' in event ? event.images[0]?.thumbUrl : event.coverImage?.thumbUrl;
+  return {
+    name: event.name,
+    startDate: event.startDate,
+    endDate: event.endDate,
+    city: event.city,
+    thumbUrl,
+  };
+}
+
 export function HostInvitationScreen({
   eventId,
   event,
@@ -72,6 +100,8 @@ export function HostInvitationScreen({
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const invitation = useHostInvitation(eventId);
+  // Without an invitation yet the card comes from the event detail (usually cached).
+  const detail = useEventDetail(eventId);
   const [composing, setComposing] = useState(false);
 
   const back = () => {
@@ -105,7 +135,9 @@ export function HostInvitationScreen({
     content = (
       <Compose
         eventId={eventId}
-        event={invitation.data?.event ?? event}
+        event={headOf(
+          invitation.data?.event ?? event ?? detail.summary ?? detail.detail,
+        )}
         invited={invitation.data?.invitees ?? []}
         onSent={() => setComposing(false)}
       />
@@ -145,13 +177,13 @@ export function HostInvitationScreen({
   );
 }
 
-function EventHead({eventId, event}: {eventId: string; event?: EventInfo}) {
+function EventHead({eventId, event}: {eventId: string; event?: HeadEvent}) {
   if (!event) return null;
   return (
     <EventHeaderCard
       name={event.name}
       meta={eventMetaText(event)}
-      imageUrl={event.coverImage?.thumbUrl}
+      imageUrl={event.thumbUrl}
       onPress={() => navigate({pathname: '/f/[id]', params: {id: eventId}})}
       testID="invitation.event"
     />
@@ -203,7 +235,7 @@ function Overview({
           {paddingBottom: FOOTER_SPACE + insets.bottom},
         ]}
       >
-        <EventHead eventId={eventId} event={invitation.event} />
+        <EventHead eventId={eventId} event={headOf(invitation.event)} />
         <InvitationCounts
           coming={groups.accepted.length + 1}
           open={groups.open.length}
@@ -260,7 +292,7 @@ function Compose({
   onSent,
 }: {
   eventId: string;
-  event?: EventInfo;
+  event?: HeadEvent;
   invited: Invitee[];
   onSent: () => void;
 }) {
