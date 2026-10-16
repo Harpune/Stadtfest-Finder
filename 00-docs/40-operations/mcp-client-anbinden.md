@@ -12,7 +12,7 @@ Der MCP-Server ist ein OAuth-2.1-Ressourcenserver. Er veröffentlicht unter `/.w
 
 - Zitadel eingerichtet nach [zitadel.md](zitadel.md): Projekt `stadtfest` mit Rollen und „Assert Roles on Authentication“. Die Projekt-ID ist bekannt.
 - Rolle *Project Owner* (oder höher) in Zitadel
-- MCP-Server öffentlich per HTTPS erreichbar, z. B. `https://mcp.stadtfest.example.eu/mcp` (Reverse Proxy, R16). Claude Desktop und claude.ai verbinden sich **aus der Anthropic-Cloud**, nicht vom eigenen Rechner. Ein lokaler Server ist für sie also nicht erreichbar. Claude Code und der MCP Inspector laufen lokal.
+- MCP-Server öffentlich per HTTPS erreichbar, in Produktion `https://mcp.stadtfest.herderstreet.de/mcp` (Caddy, [deployment-komodo.md](deployment-komodo.md)). Claude Desktop und claude.ai verbinden sich **aus der Anthropic-Cloud**, nicht vom eigenen Rechner. Ein lokaler Server ist für sie also nicht erreichbar. Claude Code und der MCP Inspector laufen lokal.
 - Lokal: Stack aus [lokale-entwicklung.md](lokale-entwicklung.md), Node.js für den MCP Inspector
 
 ## Schritte

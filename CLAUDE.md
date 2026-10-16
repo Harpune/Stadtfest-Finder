@@ -41,6 +41,8 @@ make test         # unit + integration tests
 make test-e2e     # Maestro flows against local stack
 make check        # everything CI runs – must pass before you finish a task
 make ai-eval      # compare AI search prompts with real providers (ZIPS=..., PROMPTS=v1,v2)
+make infra-check  # validate infra/compose.yaml + Caddyfile against the Komodo template (part of lint)
+make smoke        # smoke-test a running deployment (API_URL=..., MCP_URL=...)
 ```
 
 ## Repository layout
@@ -74,8 +76,11 @@ mobile/
   src/api/generated/           generated API client – DO NOT EDIT
   .maestro/                    E2E flows
 infra/
-  compose.yaml                 production stack (deployed via Komodo)
+  compose.yaml                 production stack (deployed via Komodo, ADR 0019)
+  komodo-environment.example   stack environment template (no secrets), checked in CI
   compose.dev.yaml             local dependencies
+  caddy/ deeplinks/            reverse proxy + static deep-link/legal pages
+  backup/ observability/       backup image (restic), Loki/Alloy/Grafana config
 seed/                          synthetic seed data + loader
 .github/workflows/
 ```
@@ -207,6 +212,7 @@ Flow letters match the architecture diagram.
 - `expo`: Expo Push Service → APNs / FCM. Handles retries and receipts.
 - `direct`: backend sends to APNs / FCM itself; one processor fewer outside the EU.
 - `disabled`: no-op adapter (default for tests and local dev).
+- Production uses `direct` (ADR 0019).
 - Settings are validated at startup; missing credentials for the selected provider fail fast.
 - Payloads contain IDs only, regardless of provider.
 

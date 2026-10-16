@@ -27,9 +27,9 @@ Werkzeug `web_search` des Sprachmodells in der KI-Suche (R10, Flow C). Jeder Fun
 
 Mit `LLM_PROVIDER=fake` bringt die echte Suche nichts: Die festen Fake-Funde haben Quellen, die in keinem echten Suchergebnis stehen, und werden deshalb übersprungen. Für einen echten Lauf zusätzlich einen LLM-Anbieter einrichten ([llm-anbieter.md](llm-anbieter.md)).
 
-### Produktion (Komodo, ab R16 in `infra/compose.yaml`)
+### Produktion (Dienst `searxng` in `infra/compose.yaml`)
 
-1. **Konfiguration übernehmen:** `infra/dev/searxng/settings.yml` als Vorlage für den Server nutzen. Wichtig sind:
+1. **Konfiguration:** Der Stack bindet `infra/prod/searxng/settings.yml` ein (aus der lokalen Vorlage, zusätzlich ohne Metriken). Wichtig sind:
    - `search.formats` enthält `json`;
    - `server.limiter: false`;
    - `server.public_instance: false`.
@@ -39,7 +39,7 @@ Mit `LLM_PROVIDER=fake` bringt die echte Suche nichts: Die festen Fake-Funde hab
    ```
    Den Wert als Komodo-Secret `SEARXNG_SECRET` hinterlegen. **Niemals ins Repo.**
 3. **Container nur intern betreiben:** SearXNG im internen Docker-Netz des Stacks starten, **ohne** veröffentlichten Port und ohne Reverse-Proxy-Route. Nur Worker und API sprechen es an.
-4. **Backend konfigurieren** (Komodo-Variablen):
+4. **Backend konfigurieren** (Stack-Umgebung; `WEB_SEARCH_BASE_URL` setzt `infra/compose.yaml` auf `http://searxng:8080`):
    ```bash
    WEB_SEARCH_PROVIDER=searxng
    WEB_SEARCH_BASE_URL=http://searxng:8080

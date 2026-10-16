@@ -14,16 +14,16 @@ Mit `PUSH_PROVIDER=direct` sendet das Backend selbst an Apple (APNs, iOS) und Go
 
 1. **APNs-Schlüssel:** [developer.apple.com](https://developer.apple.com/account/resources/authkeys/list) → Keys → „+“ → „Apple Push Notifications service (APNs)“ aktivieren → Schlüssel herunterladen (`AuthKey_<KEYID>.p8`, nur einmal möglich). Key-ID und Team-ID notieren.
 2. **FCM-Dienstkonto:** Firebase-Konsole → Projekteinstellungen → Dienstkonten → „Neuen privaten Schlüssel generieren“ → JSON-Datei speichern. Die Projekt-ID steht unter „Allgemein“.
-3. Secrets hinterlegen: lokal in `.env`, in Produktion als Komodo-Secret bzw. gemountete Dateien unter `/run/secrets/`. **Niemals ins Repo.**
+3. Secrets hinterlegen: lokal in `.env`, in Produktion als Dateien in `/etc/stadtfest/secrets/push/` (im Container `/run/secrets/push/`, [deployment-komodo.md](deployment-komodo.md)) und Werte in der Stack-Umgebung. **Niemals ins Repo.** Produktion ist `PUSH_PROVIDER=direct` ([ADR 0019](../25-adr/0019-produktionsstack.md)).
    ```bash
    PUSH_PROVIDER=direct
    APNS_KEY_ID=<KEYID>
    APNS_TEAM_ID=<TEAMID>
-   APNS_KEY_PATH=/run/secrets/apns.p8
+   APNS_KEY_PATH=/run/secrets/push/apns.p8
    APNS_TOPIC=de.stadtfestfinder.app
    APNS_SANDBOX=false          # true für Development-Builds aus Xcode/EAS (development)
    FCM_PROJECT_ID=<projekt-id>
-   FCM_CREDENTIALS_PATH=/run/secrets/fcm.json
+   FCM_CREDENTIALS_PATH=/run/secrets/push/fcm.json
    ```
 4. API und Worker neu starten. Fehlt ein Wert oder ist eine Datei nicht lesbar, bricht der Start mit dem Namen der Variable ab.
 5. Die App meldet sich nach dem nächsten Start bzw. Login mit dem nativen Token neu an (`GET /v1/config` liefert `direct`). Expo-Tokens aus der Zeit mit `expo` bleiben ungenutzt und laufen nach 90 Tagen ab.

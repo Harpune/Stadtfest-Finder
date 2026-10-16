@@ -24,6 +24,9 @@ flowchart LR
     AI["KI-Modul<br/>LLM-Port, ein generischer Adapter<br/>festes Ausgabeschema"]
     GEO["Geocoding<br/>selbst gehostetes Nominatim"]
     WEB["Web-Suche<br/>selbst gehostetes SearXNG, ADR 0013"]
+    PROXY["Reverse Proxy<br/>Caddy, TLS, Deep-Link-Seite, ADR 0019"]
+    BAK["Backup-Job<br/>pg_dump, rclone, restic, ADR 0021"]
+    OBS["Logs + Alarme<br/>Alloy, Loki, Grafana, ADR 0020"]
   end
 
   subgraph Extern["Externe Dienste"]
@@ -32,6 +35,7 @@ flowchart LR
     ENG["Suchmaschinen<br/>Google, Bing, DuckDuckGo …<br/>(optional Brave Search API)"]
     PUSH["Push<br/>Expo Push oder APNs/FCM direkt"]
     TILES["Kartenkacheln<br/>MapTiler Cloud (CH), ADR 0009"]
+    BOX["Backup-Ziel<br/>Hetzner Storage Box (DE)"]
   end
 
   APP -- "A1/B2/C1/C8 · HTTPS/REST, JWT" --> API
@@ -56,7 +60,14 @@ flowchart LR
   API -. "B3 · JWKS, JWT-Signatur prüfen" .-> IDP
   MCP -. "JWKS (wie B3)" .-> IDP
   SVC -. "Kontolöschung · Admin-API (ADR 0010)" .-> IDP
+  PROXY -. "api. · mcp. · bilder. (HTTPS-Endpunkte oben)" .- API
+  BAK -- "Dump, S3-Spiegel" --> DB
+  BAK --> OBJ
+  BAK -. "verschlüsselt, SFTP" .-> BOX
+  OBS -. "Container-Logs" .- WRK
 ```
+
+Alle HTTPS-Verbindungen von App, MCP-Client und Bild-Uploads enden an Caddy (`api.`, `mcp.`, `bilder.` und die Deep-Link-Domain); nur Caddy hat offene Ports.
 
 ## Flows
 
@@ -82,13 +93,28 @@ flowchart LR
   H -->|event.deleted| F[Favoriten des Fests entfernen]
   H -->|image.uploaded| I[Bild prüfen, Metadaten entfernen,<br/>Varianten in den Objektspeicher]
   H -->|image.removed| R[Bilddateien löschen]
-  H -->|event.published (erstes Mal), event.updated, event.cancelled, ai_search.*| N[Benachrichtigungen: Einträge, Push-Jobs je 500 Empfänger]
+  H -->|"event.published (erstes Mal), event.updated, event.cancelled, ai_search.*"| N[Benachrichtigungen: Einträge, Push-Jobs je 500 Empfänger]
 ```
 
 - Jede Änderung eines Fests in der Moderation schreibt ihr Domain-Event (`event.published`, `event.updated` mit `changedFields`, `event.unpublished`, `event.cancelled`, `event.deleted`) **in derselben Transaktion** in die Tabelle `outbox`. Der Payload enthält nur IDs und Feldnamen.
 - Das Relay läuft als Hintergrundschleife im Worker-Prozess, sperrt offene Einträge mit `FOR UPDATE SKIP LOCKED`, reiht sie mit der Event-ID als Job-ID in arq ein und markiert sie als versendet. Zustellung „at least once“; die Konsumenten sind idempotent.
 - Versendete Einträge löscht ein täglicher Job nach 14 Tagen (03:30 Uhr).
 - Ab R08 laufen auch Bild-Events über die Outbox (`image.uploaded`, `image.removed`, [ADR 0011](../25-adr/0011-bildauslieferung.md)). Die App lädt Fotos mit signierter URL direkt in den Objektspeicher und lädt Varianten direkt aus dessen öffentlichem Präfix `public/`. Ein täglicher Job (03:45 Uhr) räumt verwaiste Uploads und Bilder gelöschter Feste auf.
+
+## Betrieb und Release (R16, ADR 0019)
+
+```mermaid
+flowchart LR
+  PR[PR grün] -->|Merge auf main| REL[release.yml<br/>Images mit Tag sha-Commit in GHCR]
+  REL --> DEP[deploy.yml<br/>Komodo-Variable STADTFEST_IMAGE_TAG]
+  DEP --> KOM[Komodo DeployStack<br/>migrate → api, worker, mcp]
+  KOM --> SMK[Smoke-Test<br/>Health, Kategorien, Feste, MCP search_events]
+  TAG[Git-Tag vX.Y.Z] --> EAS[eas-build.yml<br/>EAS Build + Submit]
+```
+
+- Produktionsstack: `infra/compose.yaml`, Stack-Umgebung aus `infra/komodo-environment.example` ([deployment-komodo.md](../40-operations/deployment-komodo.md)).
+- Rollback: `deploy.yml` mit dem vorherigen Tag; Migrationen nur rückwärtskompatibel (Expand/Contract).
+- Backups täglich 02:30 Uhr ([backup-restore.md](../40-operations/backup-restore.md)), Alarme in Grafana ([monitoring.md](../40-operations/monitoring.md)).
 
 ## Abbildung im Code
 
@@ -99,5 +125,10 @@ flowchart LR
 | FastMCP-Server | `python -m stadtfest.bootstrap.mcp` (Image `stadtfest-mcp`, Port 8001) | `adapters/inbound/mcp`; Bearer-Prüfung gemeinsam mit REST in `adapters/inbound/auth` |
 | Service-Schicht | – | `application/<context>` + `domain/<context>`; Kontexte `events`, `collections`, `ai_ingestion`, `moderation`, `notifications` (ADR 0016) |
 | Datenbank, Objektspeicher, Redis, KI-Modul, Geocoding, Push | – | `adapters/outbound/<tech>` (hinter Ports) |
+| Migration (Dienst `migrate`) | `alembic upgrade head` (Image `stadtfest-backend`) | `backend/migrations` |
+| Reverse Proxy | `infra/caddy/Caddyfile` | statische Dateien `infra/deeplinks/public` |
+| Backup-Job | Image `stadtfest-backup` | `infra/backup` |
+| Logs + Alarme | Alloy, Loki, Grafana | `infra/observability` |
+| Smoke-Test | `python -m stadtfest.bootstrap.smoke` (`make smoke`) | `bootstrap/smoke.py` |
 
 Lokal ersetzt Keycloak Zitadel (ADR 0003) und SeaweedFS den Objektspeicher (ADR 0007).
