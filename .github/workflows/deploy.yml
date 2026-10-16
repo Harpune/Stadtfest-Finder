@@ -1,0 +1,97 @@
+# Production deployment via Komodo (R16-US1, ADR 0019).
+# - After "Release images" succeeded on main: deploy that commit (tag sha-<commit>).
+# - Manually (rollback or a SemVer release): deploy any existing image tag.
+# The tag is pinned in the Komodo variable STADTFEST_IMAGE_TAG ([[STADTFEST_IMAGE_TAG]] in the
+# stack environment), then DeployStack runs `migrate` and restarts the services; afterwards the
+# smoke test checks the public endpoints. Skipped until the repository variable KOMODO_URL is
+# set (00-docs/40-operations/deployment-komodo.md).
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["Release images"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Image tag to deploy, e.g. sha-<40-char commit> or 1.2.0 (rollback = previous tag)
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.tag || format('sha-{0}', github.event.workflow_run.head_sha) }}
+    if: >-
+      vars.KOMODO_URL != '' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main'))
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      TAG: ${{ inputs.tag || format('sha-{0}', github.event.workflow_run.head_sha) }}
+      KOMODO_URL: ${{ vars.KOMODO_URL }}
+      KOMODO_STACK: ${{ vars.KOMODO_STACK || 'stadtfest' }}
+      KOMODO_API_KEY: ${{ secrets.KOMODO_API_KEY }}
+      KOMODO_API_SECRET: ${{ secrets.KOMODO_API_SECRET }}
+    steps:
+      - name: Validate the tag
+        run: |
+          if ! [[ "$TAG" =~ ^(sha-[0-9a-f]{40}|[0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "::error::Tag must be sha-<40-char commit> or a SemVer version, got '$TAG'."
+            exit 1
+          fi
+      - name: Pin the tag in Komodo and deploy the stack
+        run: |
+          komodo() {
+            curl --fail-with-body -sS -X POST "$KOMODO_URL/$1" \
+              -H "Content-Type: application/json" \
+              -H "X-Api-Key: $KOMODO_API_KEY" -H "X-Api-Secret: $KOMODO_API_SECRET" \
+              --data "$2"
+          }
+          komodo write/UpdateVariableValue \
+            "$(jq -nc --arg v "$TAG" '{name: "STADTFEST_IMAGE_TAG", value: $v}')" > /dev/null
+          update_id=$(komodo execute/DeployStack \
+            "$(jq -nc --arg s "$KOMODO_STACK" '{stack: $s}')" | jq -r '._id["$oid"]')
+          echo "Komodo update $update_id"
+          for _ in $(seq 1 120); do
+            update=$(komodo read/GetUpdate "$(jq -nc --arg id "$update_id" '{id: $id}')")
+            if [ "$(jq -r .status <<< "$update")" = Complete ]; then
+              if [ "$(jq -r .success <<< "$update")" = true ]; then
+                echo "Deployed $TAG"
+                exit 0
+              fi
+              echo "::error::DeployStack failed; see the update log in Komodo (migrate job?)."
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "::error::DeployStack did not finish within 20 minutes."
+          exit 1
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Smoke test (health, categories, events, MCP search_events)
+        working-directory: backend
+        run: |
+          uv sync --frozen --no-dev
+          for attempt in 1 2 3 4 5 6; do
+            if uv run --no-dev python -m stadtfest.bootstrap.smoke \
+                --api-url "${{ vars.API_URL }}" --mcp-url "${{ vars.MCP_URL }}"; then
+              exit 0
+            fi
+            echo "Attempt $attempt failed, retrying in 20 s"
+            sleep 20
+          done
+          echo "::error::Smoke test failed; roll back with this workflow and the previous tag."
+          exit 1
