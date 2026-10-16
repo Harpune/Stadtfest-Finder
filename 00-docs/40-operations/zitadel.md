@@ -18,7 +18,23 @@ Zitadel Cloud (EU-Region) ist in Produktion der Identity Provider der App (ADR 0
 1. In der Organisation ein **Projekt** `stadtfest` anlegen. Die **Projekt-ID** notieren.
 2. Unter *Rollen* die Rollen `user`, `moderator` und `category_admin` anlegen (Schlüssel genau so schreiben).
 3. In den Projekteinstellungen **„Assert Roles on Authentication“** und **„Check authorization on Authentication“** aktivieren. Damit steht der Claim `urn:zitadel:iam:org:project:roles` im Access-Token.
-4. Unter *Organisation → Einstellungen → Standard-Rollen* bzw. per Action dafür sorgen, dass neue Nutzer die Rolle `user` bekommen. (Das Backend behandelt jeden angemeldeten Nutzer ohnehin als `user`.)
+4. Neue Nutzer bekommen die Rolle `user` über die Action `add_user_role_on_registration` (nächster Abschnitt). Sie ist **Pflicht**: Wegen „Check authorization on Authentication“ kann sich ein Konto ohne Rolle im Projekt nicht anmelden. (Das Backend behandelt jeden angemeldeten Nutzer ohnehin als `user`.)
+
+### 1a. Action `add_user_role_on_registration`
+
+Die Action (Actions v1, JavaScript) liegt in [`infra/zitadel/actions/add_user_role_on_registration.js`](../../infra/zitadel/actions/add_user_role_on_registration.js). Sie hängt beim Anlegen eines Kontos die Rolle `user` des Projekts `stadtfest` an; liest und loggt keine personenbezogenen Daten.
+
+1. *Organisation → Actions → Neu*:
+   - **Name:** `add_user_role_on_registration` (muss genau dem Funktionsnamen im Skript entsprechen)
+   - **Skript:** Inhalt der Datei einfügen und `REPLACE_WITH_PROJECT_ID` durch die Projekt-ID aus Schritt 1 ersetzen (derselbe Wert wie `AUTH_AUDIENCE`).
+   - **Timeout:** 10 s
+   - **Fehler zulassen („Allowed to fail“): aus** – schlägt die Action fehl, bricht die Anmeldung mit einem Fehler ab, statt ein Konto ohne Rolle zu hinterlassen.
+2. *Organisation → Actions → Flows*:
+   - Flow **„Internal Authentication“** (Registrierung mit E-Mail), Trigger **„Post Creation“** → Action `add_user_role_on_registration` hinzufügen.
+   - Flow **„External Authentication“** (erste Anmeldung mit Apple/Google), Trigger **„Post Creation“** → dieselbe Action hinzufügen.
+3. **Bestehende Konten** (vor der Action angelegt) und **in der Konsole angelegte Konten** durchlaufen die Flows nicht: Bei ihnen unter *Benutzer → Autorisierungen → Neu* das Projekt `stadtfest` mit der Rolle `user` vergeben.
+
+> Actions v1 werden laut Zitadel mit ZITADEL v5 abgeschaltet (Datum noch offen) und bekommen keine neuen Funktionen mehr. Vor dem Upgrade auf v5 die Action durch Actions v2 ersetzen (Webhook auf das Ereignis „Benutzer angelegt“, der die Rolle über die Management-API vergibt); der Weg dahin steht im Zitadel-Leitfaden „Migrate from Actions V1 to V2“.
 
 ### 2. App-Client (Native, PKCE)
 
@@ -86,6 +102,7 @@ App (EAS-Umgebung, zur Build-Zeit eingebettet, **nicht geheim**):
 
 - [ ] Instanz in der EU-Region, AV-Vertrag abgeschlossen
 - [ ] Projekt `stadtfest` mit Rollen `user`, `moderator`, `category_admin`, „Assert Roles“ aktiv
+- [ ] Action `add_user_role_on_registration` mit Projekt-ID in beiden Flows (Internal und External Authentication, Post Creation)
 - [ ] Native App (PKCE, JWT-Access-Token, Refresh-Token), Redirect `stadtfest://auth`
 - [ ] Apple- und Google-IdP mit automatischer Kontoerstellung
 - [ ] Service-User mit `ORG_USER_MANAGER`, PAT mit Ablaufdatum im Betriebskalender
@@ -97,9 +114,10 @@ App (EAS-Umgebung, zur Build-Zeit eingebettet, **nicht geheim**):
 
 1. Backend neu starten; es startet nur, wenn alle Variablen gültig sind (Fehlermeldung nennt die fehlende Variable, nie den Wert).
 2. In der App „Mit E-Mail anmelden“ → Hosted Login von Zitadel erscheint → nach der Anmeldung zeigt der Drawer Name und E-Mail.
-3. Mit einem Moderator anmelden: `GET /v1/me` liefert `roles: ["user", "moderator"]`. Fehlt `moderator`, sind „Assert Roles on Authentication“ oder die Projekt-Audience (`EXPO_PUBLIC_AUTH_PROJECT_ID`) nicht gesetzt.
-4. „Mit Apple fortfahren“ und „Mit Google fortfahren“ springen direkt zum Anbieter.
-5. Testkonto anlegen und in der App löschen: Der Nutzer ist danach in der Zitadel-Konsole nicht mehr aktiv, im Backend-Log steht kein `idp_deletion_deferred`.
+3. Ein **neues** Konto registrieren (einmal per E-Mail, einmal per Apple oder Google): In der Konsole steht beim Nutzer unter *Autorisierungen* das Projekt `stadtfest` mit der Rolle `user`, und die erste Anmeldung klappt. Fehlt die Rolle, meldet der Hosted Login „Benutzer hat keine Berechtigung“: Action-Name, Projekt-ID und Flows prüfen.
+4. Mit einem Moderator anmelden: `GET /v1/me` liefert `roles: ["user", "moderator"]`. Fehlt `moderator`, sind „Assert Roles on Authentication“ oder die Projekt-Audience (`EXPO_PUBLIC_AUTH_PROJECT_ID`) nicht gesetzt.
+5. „Mit Apple fortfahren“ und „Mit Google fortfahren“ springen direkt zum Anbieter.
+6. Testkonto anlegen und in der App löschen: Der Nutzer ist danach in der Zitadel-Konsole nicht mehr aktiv, im Backend-Log steht kein `idp_deletion_deferred`.
 
 ### Nutzer von Hand löschen
 
@@ -111,5 +129,6 @@ curl -X DELETE "$AUTH_ISSUER/v2/users/<subject>" -H "Authorization: Bearer $IDP_
 
 ## Rollback
 
+- Action fehlerhaft (Anmeldungen neuer Nutzer schlagen fehl): die Action in den beiden Flows entfernen und neuen Konten die Rolle `user` von Hand geben, bis sie korrigiert ist. „Check authorization on Authentication“ **nicht** abschalten, ohne zu prüfen, dass das Backend weiter jeden Nutzer nur als `user` behandelt.
 - Kompromittiertes PAT: beim Service-User löschen, neues Token erzeugen, `IDP_ADMIN_TOKEN` in Komodo ersetzen und das Backend neu starten.
 - Kein Umschalten auf `IDP_ADMIN_PROVIDER=fake` in Produktion (der Start schlägt fehl); bei einem Zitadel-Ausfall bleiben Kontolöschungen im Retry-Job, bis Zitadel wieder erreichbar ist.

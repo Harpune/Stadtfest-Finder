@@ -13,7 +13,7 @@ Moderatoren pflegen alle Feste in Deutschland und starten die KI-Suche für beli
 
 ### Produktion (Zitadel)
 
-1. Konsole → *Benutzer* → Person suchen → *Autorisierungen* → *Neu* → Projekt `stadtfest`, Rolle **`moderator`** (für App-weite Kategorien zusätzlich `category_admin`).
+1. Konsole → *Benutzer* → Person suchen → *Autorisierungen* → die vorhandene Autorisierung für das Projekt `stadtfest` (Rolle `user`, vergeben von der Action `add_user_role_on_registration`, [zitadel.md](zitadel.md#1a-action-add_user_role_on_registration)) öffnen und die Rolle **`moderator`** hinzufügen (für App-weite Kategorien zusätzlich `category_admin`). Zitadel erlaubt je Nutzer und Projekt nur eine Autorisierung; fehlt sie, *Neu* mit den Rollen `user` und `moderator`.
 2. Die Person meldet sich in der App ab und wieder an (die Rolle gilt ab dem nächsten Token, spätestens nach 5 Minuten durch die stille Erneuerung).
 3. Ein früher gesetztes Metadatum `region` wird nicht mehr gebraucht und kann gelöscht werden.
 
