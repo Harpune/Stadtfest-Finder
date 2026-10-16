@@ -44,7 +44,7 @@
 		query X-Amz-Signature=*
 	}
 	handle @public {
-		header Cache-Control "public, max-age=86400"
+		# Cache-Control comes from the object metadata (immutable variants, ADR 0011).
 		reverse_proxy seaweedfs:8333
 	}
 	handle @upload {
