@@ -9,9 +9,6 @@ SHELL := /bin/bash
 export
 
 COMPOSE_DEV := docker compose -f infra/compose.dev.yaml
-# Production stack checked with the Komodo template instead of the real stack environment.
-COMPOSE_PROD_CHECK := STADTFEST_ENV_FILE=komodo-environment.example docker compose --env-file infra/komodo-environment.example -f infra/compose.yaml
-CADDY_IMAGE := caddy:2.11-alpine
 BACKEND := cd backend &&
 MOBILE := cd mobile &&
 API_PORT ?= 8000
@@ -83,11 +80,12 @@ lint: ## Lint + type check + architecture rules + OpenAPI lint
 	$(MAKE) infra-check
 
 .PHONY: infra-check
-infra-check: ## Validate the production stack (compose.yaml + Caddyfile) against the Komodo template
-	$(COMPOSE_PROD_CHECK) config --quiet
-	@grep -E '^(LINK_HOST|API_HOST|MCP_HOST_NAME|IMAGES_HOST|S3_BUCKET)=' infra/komodo-environment.example > infra/.caddy-check.tmp
-	docker run --rm --env-file infra/.caddy-check.tmp -v "$(CURDIR)/infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro" $(CADDY_IMAGE) \
-		caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; status=$$?; rm -f infra/.caddy-check.tmp; exit $$status
+infra-check: ## Build the edge and SearXNG images and validate the Caddyfile (stack lives in HomeLab)
+	docker build -q -t stadtfest-edge:check infra/edge
+	docker build -q -t stadtfest-searxng:check infra/searxng
+	docker run --rm -e LINK_HOST=stadtfest.example.org -e API_HOST=stadtfest-api.example.org \
+		-e MCP_HOST_NAME=stadtfest-mcp.example.org -e IMAGES_HOST=stadtfest-bilder.example.org \
+		-e S3_BUCKET=stadtfest-images stadtfest-edge:check caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
 .PHONY: smoke
 smoke: ## Smoke-test a running deployment, e.g. API_URL=https://api.example.eu MCP_URL=https://mcp.example.eu

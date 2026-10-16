@@ -656,21 +656,21 @@ def _push_sender(settings: Settings, clients: list[httpx.AsyncClient]) -> PushSe
             clients.append(client)
             return ExpoPushSender(client, _secret(settings.expo_access_token))
         case PushProvider.DIRECT:
-            assert settings.apns_key_path is not None  # noqa: S101
-            assert settings.fcm_credentials_path is not None  # noqa: S101
             # APNs only accepts HTTP/2.
             client = httpx.AsyncClient(timeout=10.0, http2=True)
             clients.append(client)
             return DirectPushSender(
                 client,
-                ApnsConfig.from_file(
+                ApnsConfig(
                     settings.apns_key_id or "",
                     settings.apns_team_id or "",
-                    settings.apns_key_path,
+                    settings.apns_private_key(),
                     settings.apns_topic,
-                    sandbox=settings.apns_sandbox,
+                    settings.apns_sandbox,
                 ),
-                FcmConfig.from_file(settings.fcm_project_id or "", settings.fcm_credentials_path),
+                FcmConfig.from_service_account(
+                    settings.fcm_project_id or "", settings.fcm_credentials()
+                ),
             )
         case PushProvider.DISABLED:
             return DisabledPushSender()

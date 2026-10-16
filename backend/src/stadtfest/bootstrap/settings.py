@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
@@ -156,11 +159,18 @@ class Settings(BaseSettings):
     apns_key_id: str | None = None
     apns_team_id: str | None = None
     apns_key_path: Path | None = Field(default=None, description="APNs auth key (.p8)")
+    apns_key_base64: SecretStr | None = Field(
+        default=None, description="APNs auth key (.p8) as base64, instead of APNS_KEY_PATH"
+    )
     apns_topic: str = Field(default="de.stadtfestfinder.app", min_length=1)
     apns_sandbox: bool = Field(default=False, description="Development builds use the sandbox")
     fcm_project_id: str | None = None
     fcm_credentials_path: Path | None = Field(
         default=None, description="Firebase service account key (JSON)"
+    )
+    fcm_credentials_base64: SecretStr | None = Field(
+        default=None,
+        description="Firebase service account key (JSON) as base64, instead of the path",
     )
 
     mcp_public_url: AnyHttpUrl = Field(
@@ -234,19 +244,44 @@ class Settings(BaseSettings):
         required = {
             "APNS_KEY_ID": self.apns_key_id,
             "APNS_TEAM_ID": self.apns_team_id,
-            "APNS_KEY_PATH": self.apns_key_path,
+            "APNS_KEY_PATH or APNS_KEY_BASE64": self.apns_key_path or self.apns_key_base64,
             "FCM_PROJECT_ID": self.fcm_project_id,
-            "FCM_CREDENTIALS_PATH": self.fcm_credentials_path,
+            "FCM_CREDENTIALS_PATH or FCM_CREDENTIALS_BASE64": (
+                self.fcm_credentials_path or self.fcm_credentials_base64
+            ),
         }
         missing = [name for name, value in required.items() if not value]
         if missing:
             raise ValueError(f"{', '.join(missing)} required for PUSH_PROVIDER=direct")
-        for name, path in (
-            ("APNS_KEY_PATH", self.apns_key_path),
-            ("FCM_CREDENTIALS_PATH", self.fcm_credentials_path),
-        ):
-            if path is not None and not path.is_file():
-                raise ValueError(f"{name} is not a readable file")
+        self.apns_private_key()
+        credentials = self.fcm_credentials()
+        if not {"client_email", "private_key"} <= credentials.keys():
+            raise ValueError("FCM credentials are no service account key (client_email missing)")
+
+    def apns_private_key(self) -> str:
+        """The APNs key (PEM) from APNS_KEY_BASE64 or the file APNS_KEY_PATH.
+
+        Raises:
+            ValueError: If the source is missing, unreadable or no valid base64.
+        """
+        return _secret_text("APNS_KEY", self.apns_key_base64, self.apns_key_path)
+
+    def fcm_credentials(self) -> dict[str, str]:
+        """The Firebase service account key from FCM_CREDENTIALS_BASE64 or the file.
+
+        Raises:
+            ValueError: If the source is missing, unreadable or no JSON object.
+        """
+        text = _secret_text(
+            "FCM_CREDENTIALS", self.fcm_credentials_base64, self.fcm_credentials_path
+        )
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            raise ValueError("FCM credentials are no valid JSON") from None
+        if not isinstance(data, dict):
+            raise ValueError("FCM credentials are no JSON object")
+        return {str(key): str(value) for key, value in data.items()}
 
     def _check_auth(self) -> None:
         if self.env is Environment.PROD:
@@ -268,6 +303,21 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         """Whether the app runs in production."""
         return self.env is Environment.PROD
+
+
+def _secret_text(name: str, encoded: SecretStr | None, path: Path | None) -> str:
+    """Decode `<name>_BASE64` or read `<name>_PATH`; messages never contain the value."""
+    if encoded is not None and encoded.get_secret_value():
+        try:
+            return base64.b64decode(encoded.get_secret_value(), validate=True).decode("utf-8")
+        except (binascii.Error, UnicodeDecodeError):
+            raise ValueError(f"{name}_BASE64 is no valid base64 text") from None
+    if path is None:
+        raise ValueError(f"{name}_PATH or {name}_BASE64 is required")
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        raise ValueError(f"{name}_PATH is not a readable file") from None
 
 
 class SettingsError(RuntimeError):

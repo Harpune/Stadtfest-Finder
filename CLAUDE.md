@@ -41,7 +41,7 @@ make test         # unit + integration tests
 make test-e2e     # Maestro flows against local stack
 make check        # everything CI runs – must pass before you finish a task
 make ai-eval      # compare AI search prompts with real providers (ZIPS=..., PROMPTS=v1,v2)
-make infra-check  # validate infra/compose.yaml + Caddyfile against the Komodo template (part of lint)
+make infra-check  # build the edge + SearXNG images and validate the Caddyfile (part of lint)
 make smoke        # smoke-test a running deployment (API_URL=..., MCP_URL=...)
 ```
 
@@ -76,11 +76,11 @@ mobile/
   src/api/generated/           generated API client – DO NOT EDIT
   .maestro/                    E2E flows
 infra/
-  compose.yaml                 production stack (deployed via Komodo, ADR 0019)
-  komodo-environment.example   stack environment template (no secrets), checked in CI
+  komodo-environment.example   production env contract of the backend (checked in CI)
   compose.dev.yaml             local dependencies
-  caddy/ deeplinks/            reverse proxy + static deep-link/legal pages
-  backup/ observability/       backup image (restic), Loki/Alloy/Grafana config
+  edge/                        image stadtfest-edge: Caddy routing + deep-link/legal pages
+  searxng/                     image stadtfest-searxng: SearXNG with the AI search settings
+  zitadel/                     Zitadel action scripts
 seed/                          synthetic seed data + loader
 .github/workflows/
 ```
@@ -305,7 +305,9 @@ Tools are thin adapters: parse input, call the use case, map the result. No busi
 - PR pipeline: format check, lint + type check, OpenAPI lint + `oasdiff`, generated-code
   drift check, tests, security scan (Trivy, CodeQL), AI review (claude-code-action).
 - Only `main` builds Docker images → pushed to GHCR, tagged with commit SHA and SemVer.
-- Deployment: Komodo on the home server (located in the EU) deploys the stack from `infra/compose.yaml`
+- Deployment: the production stack is `stadtfest` in the HomeLab repo (github.com/Harpune/HomeLab,
+  `stacks/stadtfest/`), deployed by Komodo on the home server (EU) with images pinned to a
+  SemVer tag; a `vX.Y.Z` tag here builds them, Renovate in HomeLab proposes the bump (ADR 0019)
   (API, MCP server, worker, PostgreSQL/PostGIS, Redis, object storage).
   See `00-docs/40-operations/deployment-komodo.md`.
 - Mobile builds are not Docker images; they run via EAS Build (separate workflow).

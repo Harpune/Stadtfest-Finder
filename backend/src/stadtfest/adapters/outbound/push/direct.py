@@ -8,12 +8,10 @@ files (`APNS_KEY_PATH`, `FCM_CREDENTIALS_PATH`); tokens are cached and renewed e
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from pathlib import Path
 
 import httpx
 import jwt
@@ -51,13 +49,6 @@ class ApnsConfig:
     topic: str
     sandbox: bool = False
 
-    @classmethod
-    def from_file(
-        cls, key_id: str, team_id: str, key_path: Path, topic: str, *, sandbox: bool
-    ) -> ApnsConfig:
-        """Read the key file."""
-        return cls(key_id, team_id, key_path.read_text(encoding="utf-8"), topic, sandbox)
-
 
 @dataclass(frozen=True, slots=True)
 class FcmConfig:
@@ -69,9 +60,8 @@ class FcmConfig:
     token_uri: str
 
     @classmethod
-    def from_file(cls, project_id: str, credentials_path: Path) -> FcmConfig:
-        """Read the service account file."""
-        data = json.loads(credentials_path.read_text(encoding="utf-8"))
+    def from_service_account(cls, project_id: str, data: Mapping[str, str]) -> FcmConfig:
+        """Build the config from a parsed service account key."""
         return cls(
             project_id,
             data["client_email"],

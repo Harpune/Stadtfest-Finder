@@ -1,13 +1,16 @@
-# Edge of the production stack (infra/compose.yaml, ADR 0019): routes by host name.
-# TLS is terminated by the Caddy that already runs on the server (container on 80/443); it
-# forwards the four hosts with their Host header to this Caddy at http://stadtfest-edge:80 on
-# the shared Docker network PROXY_NETWORK. Snippet: 00-docs/40-operations/deployment-komodo.md.
-# No `log` directive anywhere: Caddy writes no access logs, so no IP addresses are stored
-# (00-docs/30-privacy/toms.md). Hosts come from the stack environment.
+# Edge of the Stadtfest-Finder stack (image stadtfest-edge, ADR 0019): routes by host name.
+# The HomeLab Caddy (github.com/Harpune/HomeLab, Cloudflare Tunnel → Caddy on the `edge`
+# network) terminates TLS for the four hosts and forwards them with their Host header to
+# this container as http://stadtfest-edge:8080. Upstreams are the stack's own containers.
+# No `log` directive anywhere: no access logs, so no IP addresses are stored
+# (00-docs/30-privacy/toms.md). Hosts and template values come from the environment.
 {
 	auto_https off
+	# Unprivileged port: the container runs as uid 1000.
+	http_port 8080
+	admin localhost:2019
 	servers {
-		# Keep the client address from the server's proxy (hashed rate-limit keys only).
+		# Keep the client address from the HomeLab Caddy (hashed rate-limit keys only).
 		trusted_proxies static private_ranges
 	}
 }
@@ -25,19 +28,19 @@
 http://{$API_HOST} {
 	import security_headers
 	encode zstd gzip
-	reverse_proxy api:8000
+	reverse_proxy stadtfest-api:8000
 }
 
 # MCP server (flow D, Streamable HTTP; responses are streamed without buffering).
 http://{$MCP_HOST_NAME} {
 	import security_headers
-	reverse_proxy mcp:8001 {
+	reverse_proxy stadtfest-mcp:8001 {
 		flush_interval -1
 	}
 }
 
 # Object storage (SeaweedFS): only anonymous reads of public/ and signed uploads (ADR 0011).
-# The rest of the S3 API stays internal; the backend talks to http://seaweedfs:8333.
+# The rest of the S3 API stays internal; the backend talks to http://stadtfest-seaweedfs:8333.
 http://{$IMAGES_HOST} {
 	import security_headers
 	@public {
@@ -51,14 +54,14 @@ http://{$IMAGES_HOST} {
 	}
 	handle @public {
 		# Cache-Control comes from the object metadata (immutable variants, ADR 0011).
-		reverse_proxy seaweedfs:8333
+		reverse_proxy stadtfest-seaweedfs:8333
 	}
 	handle @upload {
 		# Uploads are at most 10 MB (MAX_UPLOAD_BYTES); the signature binds host, key and expiry.
 		request_body {
 			max_size 11MB
 		}
-		reverse_proxy seaweedfs:8333
+		reverse_proxy stadtfest-seaweedfs:8333
 	}
 	handle {
 		respond 404

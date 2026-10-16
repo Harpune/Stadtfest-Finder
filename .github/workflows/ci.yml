@@ -71,11 +71,11 @@ jobs:
           err-ignore: api/oasdiff-err-ignore.txt
 
   infra:
-    name: Production stack (compose, Caddyfile)
+    name: Production images (edge, searxng)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Validate infra/compose.yaml and infra/caddy/Caddyfile with the Komodo template
+      - name: Build infra/edge and infra/searxng, validate the Caddyfile
         run: make infra-check
 
   mobile:

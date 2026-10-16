@@ -1,4 +1,4 @@
-# Production SearXNG (infra/compose.yaml): internal only, no port, no proxy route (ADR 0013).
+# Production SearXNG (image stadtfest-searxng): internal only, no port, no proxy route (ADR 0013).
 # Defaults of the image plus the changes below; see 00-docs/40-operations/web-suche.md.
 use_default_settings:
   engines:
