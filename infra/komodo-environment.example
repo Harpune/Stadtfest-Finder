@@ -15,8 +15,11 @@ GHCR_OWNER=harpune
 # Host directory with secret files (push/, seaweedfs-s3.json, backup-ssh/), owner root:10001.
 SECRETS_DIR=/etc/stadtfest/secrets
 
-# --- Hosts and TLS (Caddy) ------------------------------------------------------------
-ACME_EMAIL=REPLACE_WITH_OPS_EMAIL
+# --- Hosts (stack Caddy behind the server's TLS proxy) -----------------------------------
+# The server's existing Caddy terminates TLS for these four hosts and forwards them to
+# http://stadtfest-edge:80 (deployment-komodo.md, step 1). PROXY_NETWORK is the Docker
+# network that Caddy container is attached to (`docker network ls`).
+PROXY_NETWORK=REPLACE_WITH_PROXY_NETWORK
 LINK_HOST=stadtfest.herderstreet.de
 API_HOST=api.stadtfest.herderstreet.de
 MCP_HOST_NAME=mcp.stadtfest.herderstreet.de
@@ -112,3 +115,11 @@ BACKUP_KEEP_WITHIN=30d
 # [secret] Grafana admin password; Grafana listens on 127.0.0.1 only.
 GRAFANA_ADMIN_PASSWORD=[[STADTFEST_GRAFANA_ADMIN_PASSWORD]]
 GRAFANA_HOST_PORT=3000
+# Alert e-mails via SMTP (monitoring.md); leave disabled until a contact point is chosen.
+GRAFANA_SMTP_ENABLED=false
+# host:port, e.g. smtp.example.eu:587
+GRAFANA_SMTP_HOST=
+GRAFANA_SMTP_USER=
+# [secret]
+GRAFANA_SMTP_PASSWORD=
+GRAFANA_SMTP_FROM_ADDRESS=

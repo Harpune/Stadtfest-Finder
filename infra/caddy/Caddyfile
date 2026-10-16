@@ -1,9 +1,15 @@
-# Reverse proxy of the production stack (infra/compose.yaml, ADR 0019).
-# Caddy obtains and renews TLS certificates automatically (Let's Encrypt, ACME_EMAIL).
+# Edge of the production stack (infra/compose.yaml, ADR 0019): routes by host name.
+# TLS is terminated by the Caddy that already runs on the server (container on 80/443); it
+# forwards the four hosts with their Host header to this Caddy at http://stadtfest-edge:80 on
+# the shared Docker network PROXY_NETWORK. Snippet: 00-docs/40-operations/deployment-komodo.md.
 # No `log` directive anywhere: Caddy writes no access logs, so no IP addresses are stored
 # (00-docs/30-privacy/toms.md). Hosts come from the stack environment.
 {
-	email {$ACME_EMAIL}
+	auto_https off
+	servers {
+		# Keep the client address from the server's proxy (hashed rate-limit keys only).
+		trusted_proxies static private_ranges
+	}
 }
 
 (security_headers) {
@@ -16,14 +22,14 @@
 }
 
 # REST API (flow A/B/C).
-{$API_HOST} {
+http://{$API_HOST} {
 	import security_headers
 	encode zstd gzip
 	reverse_proxy api:8000
 }
 
 # MCP server (flow D, Streamable HTTP; responses are streamed without buffering).
-{$MCP_HOST_NAME} {
+http://{$MCP_HOST_NAME} {
 	import security_headers
 	reverse_proxy mcp:8001 {
 		flush_interval -1
@@ -32,7 +38,7 @@
 
 # Object storage (SeaweedFS): only anonymous reads of public/ and signed uploads (ADR 0011).
 # The rest of the S3 API stays internal; the backend talks to http://seaweedfs:8333.
-{$IMAGES_HOST} {
+http://{$IMAGES_HOST} {
 	import security_headers
 	@public {
 		method GET HEAD
@@ -60,7 +66,7 @@
 }
 
 # Deep-link domain (R04-US6, R12, R14): App Links, fallback pages, imprint and privacy policy.
-{$LINK_HOST} {
+http://{$LINK_HOST} {
 	import security_headers
 	root * /srv/deeplinks
 	encode zstd gzip

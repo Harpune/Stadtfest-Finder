@@ -85,7 +85,7 @@ lint: ## Lint + type check + architecture rules + OpenAPI lint
 .PHONY: infra-check
 infra-check: ## Validate the production stack (compose.yaml + Caddyfile) against the Komodo template
 	$(COMPOSE_PROD_CHECK) config --quiet
-	@grep -E '^(ACME_EMAIL|LINK_HOST|API_HOST|MCP_HOST_NAME|IMAGES_HOST|S3_BUCKET)=' infra/komodo-environment.example > infra/.caddy-check.tmp
+	@grep -E '^(LINK_HOST|API_HOST|MCP_HOST_NAME|IMAGES_HOST|S3_BUCKET)=' infra/komodo-environment.example > infra/.caddy-check.tmp
 	docker run --rm --env-file infra/.caddy-check.tmp -v "$(CURDIR)/infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro" $(CADDY_IMAGE) \
 		caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; status=$$?; rm -f infra/.caddy-check.tmp; exit $$status
 

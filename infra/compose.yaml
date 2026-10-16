@@ -5,7 +5,9 @@
 #   and passes it with `--env-file`. Template with every variable: infra/compose.env.example.
 # - Images come from GHCR with a fixed tag (IMAGE_TAG = `sha-<commit>` or a SemVer version).
 # - `migrate` runs Alembic once before api, worker and mcp start (expand/contract only).
-# - Only Caddy publishes ports (80/443). Grafana listens on localhost for SSH tunnels.
+# - No service publishes 80/443: the server's existing Caddy (container on the Docker network
+#   PROXY_NETWORK) terminates TLS and forwards the four hosts to this stack's Caddy under the
+#   network alias `stadtfest-edge` (plain HTTP, port 80). Grafana listens on localhost only.
 name: stadtfest
 
 x-app-env-file: &app-env-file
@@ -208,16 +210,16 @@ services:
           memory: 1g
     logging: *logging
 
-  # Reverse proxy with automatic TLS: API, MCP, public images and the deep-link site.
+  # Edge router behind the server's TLS proxy: API, MCP, public images and the deep-link site.
   caddy:
     image: caddy:2.11-alpine
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
+    networks:
+      default: {}
+      proxy:
+        # The server's Caddy forwards to http://stadtfest-edge:80 (deployment-komodo.md).
+        aliases: [stadtfest-edge]
     environment:
-      ACME_EMAIL: ${ACME_EMAIL:?}
       LINK_HOST: ${LINK_HOST:?}
       API_HOST: ${API_HOST:?}
       MCP_HOST_NAME: ${MCP_HOST_NAME:?}
@@ -231,7 +233,6 @@ services:
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./deeplinks/public:/srv/deeplinks:ro
-      - caddy-data:/data
       - caddy-config:/config
     depends_on:
       api:
@@ -328,6 +329,13 @@ services:
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_NEWS_NEWS_FEED_ENABLED: "false"
       GF_LOG_LEVEL: warn
+      # Alert e-mails (contact point "default", monitoring.md); off until configured.
+      GF_SMTP_ENABLED: ${GRAFANA_SMTP_ENABLED:-false}
+      GF_SMTP_HOST: ${GRAFANA_SMTP_HOST:-}
+      GF_SMTP_USER: ${GRAFANA_SMTP_USER:-}
+      GF_SMTP_PASSWORD: ${GRAFANA_SMTP_PASSWORD:-}
+      GF_SMTP_FROM_ADDRESS: ${GRAFANA_SMTP_FROM_ADDRESS:-}
+      GF_SMTP_FROM_NAME: Stadtfest-Finder Monitoring
     volumes:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
@@ -345,9 +353,14 @@ volumes:
   redis-data:
   nominatim-data:
   seaweedfs-data:
-  caddy-data:
   caddy-config:
   backup-cache:
   loki-data:
   alloy-data:
   grafana-data:
+
+networks:
+  # Docker network of the server's existing reverse proxy (created outside this stack).
+  proxy:
+    name: ${PROXY_NETWORK:?set PROXY_NETWORK to the Docker network of the server's Caddy}
+    external: true
