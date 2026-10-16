@@ -11,7 +11,7 @@
 | Integrität | Code-Review und automatische Prüfungen | PR-Pflicht, grüne Pipeline (Lint, Tests, CodeQL, Trivy) vor Merge | R01 |
 | Integrität | Architekturregeln | import-linter verhindert Framework-Abhängigkeiten in `domain` | R01 |
 | Verfügbarkeit | Health-/Readiness-Probes | `/v1/health/live`, `/v1/health/ready` | R01 |
-| Verfügbarkeit | Backups | täglich 02:30 Uhr Datenbank (`pg_dump`) und Bilder-Bucket (S3-Spiegel) mit restic, **clientseitig verschlüsselt**, außer Haus auf Hetzner Storage Box (DE), 30 Tage, wöchentlich `restic check`; Alarm ohne Erfolg in 26 h; Wiederherstellung geprobt ([ADR 0021](../25-adr/0021-backups.md), [backup-restore.md](../40-operations/backup-restore.md)) | R16 |
+| Verfügbarkeit | Backups | HomeLab: `pg_dump` und kalter Btrfs-Snapshot (konsistent, 7 neueste), wöchentlich restic → pCloud, **clientseitig verschlüsselt**, 7 täglich / 4 wöchentlich / 6 monatlich; Wiederherstellung geprobt ([ADR 0021](../25-adr/0021-backups.md), [backup-restore.md](../40-operations/backup-restore.md)) | R16 |
 | Belastbarkeit | Rate-Limits | Geocoding 5 Anfragen/s je Client (IP gehasht, 2 s TTL) | R02 |
 | Belastbarkeit | Rate-Limit MCP | 60 Tool-Aufrufe/min je Token bzw. IP (Schlüssel gehasht, 60 s TTL) | R15 |
 | Vertraulichkeit | MCP nur mit bekannten Clients | Anmeldung nur über statische OAuth-Apps (PKCE, JWT) je Client, keine offene Client-Registrierung; Tool-Log nur mit Tool, Ergebnis und Dauer (ADR 0018) | R15 |
@@ -27,12 +27,12 @@
 | Vertraulichkeit | Push ohne Personenbezug | Push-Titel und -Texte generisch je Art, Payload nur IDs und Badge-Zahl (E-04); Texte mit Namen und Festdaten entstehen erst beim Lesen der Liste in der API; Test `test_push_texts_are_generic` | R11 |
 | Vertraulichkeit | Wohnort ohne GPS-Position | gespeichert werden nur PLZ, Ortsname und PLZ-Mittelpunkt (E-10); die App schickt keine Koordinaten an die Einstellungen | R11 |
 | Belastbarkeit | Fan-out in Blöcken | Benachrichtigungen in Blöcken zu 500 Empfängern, je Block ein Push-Job; Idempotenz je Nutzer über `dedupe_key` (Erinnerung je Tag, Änderung je Stunde) | R11 |
-| Vertraulichkeit | Transportverschlüsselung | Alle öffentlichen Endpunkte nur per HTTPS (Caddy, automatische Zertifikate, HSTS); `https` für öffentliche URLs beim Start erzwungen (`_check_production_urls`) | R16 |
-| Vertraulichkeit | Minimale Angriffsfläche | Nur Caddy hat offene Ports; S3-API nur Lesen von `public/` und signierte Uploads, Datenbank, Redis, Nominatim, SearXNG, Grafana nicht öffentlich (Grafana nur `127.0.0.1`, Zugriff per SSH-Tunnel) | R16 |
-| Vertraulichkeit | Keine Access-Logs | Caddy und Uvicorn schreiben keine Zugriffsprotokolle mit IP-Adressen | R16 |
-| Vertraulichkeit | Secrets in Produktion | Werte als Komodo-Secrets, Dateien (APNs, FCM, S3-Identitäten, SSH-Schlüssel) in `/etc/stadtfest/secrets` mit `root:10001`, ohne Rechte für andere; Container laufen als eigener Nutzer (uid 10001), nicht als root | R16 |
-| Vertraulichkeit | Zentrale Logs ohne Personenbezug | Loki auf dem eigenen Server, 30 Tage; Alloy liest nur die Container dieses Stacks (Docker-Socket nur lesend) ([ADR 0020](../25-adr/0020-beobachtbarkeit.md)) | R16 |
-| Verfügbarkeit | Healthchecks, Neustarts, Limits | Healthcheck und `restart: unless-stopped` für alle Dienste, Speicherlimits u. a. für Nominatim und Worker, Redis mit AOF | R16 |
+| Vertraulichkeit | Transportverschlüsselung | Öffentliche Endpunkte nur per HTTPS (Cloudflare am Rand, Tunnel zum HomeLab, HomeLab-Caddy mit Let's-Encrypt-Zertifikat, HSTS); `https` für öffentliche URLs beim Start erzwungen (`_check_production_urls`) | R16 |
+| Vertraulichkeit | Minimale Angriffsfläche | Keine eingehenden Ports (Cloudflare Tunnel); vom Stack ist nur `stadtfest-edge` für den HomeLab-Caddy erreichbar; S3-API nur Lesen von `public/` und signierte Uploads; Datenbank, Redis, Nominatim, SearXNG im stackinternen Netz; Grafana nur LAN + Authentik | R16 |
+| Vertraulichkeit | Keine Access-Logs | `stadtfest-edge`, HomeLab-Caddy (für diese Hosts) und Uvicorn schreiben keine Zugriffsprotokolle mit IP-Adressen | R16 |
+| Vertraulichkeit | Secrets in Produktion | Nur im Variablenspeicher von Komodo (als *Secret* markiert, Komodo nur im LAN hinter Authentik); keine Secret-Dateien auf dem Server (S3-Identität aus der Umgebung, APNs/FCM als base64); Backend-Container laufen als eigener Nutzer (uid 10001), Edge und SeaweedFS als 1000 | R16 |
+| Vertraulichkeit | Zentrale Logs ohne Personenbezug | Loki im HomeLab, 30 Tage; Alloy liest den Docker-Socket nur lesend ([ADR 0020](../25-adr/0020-beobachtbarkeit.md)) | R16 |
+| Verfügbarkeit | Healthchecks, Neustarts, Limits | Healthcheck und `restart: unless-stopped` für alle Dienste, Speicherlimits u. a. für Nominatim, Worker, SeaweedFS; Redis mit AOF | R16 |
 | Verfügbarkeit | Alarme | Grafana-Regeln für 5xx-Rate, fehlgeschlagene Jobs, Outbox-Rückstau, fehlendes Backup ([monitoring.md](../40-operations/monitoring.md)) | R16 |
-| Integrität | Nachvollziehbare Releases | Images nur von `main`, Tag `sha-<commit>`; Komodo deployt genau diesen Tag; Migration als eigener Schritt; Rollback auf den vorherigen Tag ([deployment-komodo.md](../40-operations/deployment-komodo.md)) | R16 |
+| Integrität | Nachvollziehbare Releases | Images per Release-Tag, im HomeLab auf genau diesen Tag gepinnt (Renovate-PR, Review), Deploy von Hand; Migration als eigener Schritt; Rollback auf den vorherigen Tag ([deployment-komodo.md](../40-operations/deployment-komodo.md)) | R16 |
 | Integrität | Vollständige Kontolöschung | Test-Suite „DeleteAccount vollständig“ mit Schema-Scan über alle Tabellen ([Löschkonzept](loeschkonzept.md)) | R16 |

@@ -1,5 +1,5 @@
 # Local dependencies for development. Started by `make dev`.
-# Not for production – see infra/compose.yaml (R16).
+# Not for production – the production stack is `stadtfest` in github.com/Harpune/HomeLab (R16).
 name: stadtfest-dev
 
 services:

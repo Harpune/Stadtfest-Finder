@@ -6,35 +6,16 @@ Geocoding für PLZ-/Ortssuche (mit Autocomplete), Straßenadressen in der Modera
 
 ## Voraussetzungen
 
-- Server mit Docker (Komodo-Stack, R16), **mindestens 8 GB RAM (empfohlen 16 GB) und 100 GB SSD** für Deutschland
+- HomeLab-Server (64 GB RAM, NVMe) mit **mindestens 100 GB frei** unter `${APPDATA}` für Deutschland
 - Ausgehender Zugriff auf `download.geofabrik.de`
 - Image `mediagis/nominatim:5.1` (feste Version, wie in `infra/compose.dev.yaml`)
 
 ## Schritte
 
-1. **Dienst:** `nominatim` steht in `infra/compose.yaml` (R16, Speicherlimit 12 GB, 4 CPUs), nur im internen Netz erreichbar, kein öffentlicher Port. Das Datenbank-Passwort kommt aus dem Komodo-Secret `STADTFEST_NOMINATIM_DB_PASSWORD`:
-   ```yaml
-   nominatim:
-     image: mediagis/nominatim:5.1
-     environment:
-       PBF_URL: https://download.geofabrik.de/europe/germany-latest.osm.pbf
-       REPLICATION_URL: https://download.geofabrik.de/europe/germany-updates/
-       IMPORT_STYLE: address
-       NOMINATIM_PASSWORD: ${NOMINATIM_DB_PASSWORD}
-       UPDATE_MODE: continuous
-     volumes:
-       - nominatim-data:/var/lib/postgresql/16/main
-     shm_size: 2gb
-   ```
-   `IMPORT_STYLE=address` reicht für Adressen, PLZ und Orte und spart Speicher.
-2. **Initialimport** starten (`docker compose up -d nominatim`). Er dauert für Deutschland je nach Hardware **mehrere Stunden**. Fortschritt: `docker compose logs -f nominatim`.
-3. **Backend:** `infra/compose.yaml` setzt die Werte selbst; nur `GEOCODING_TIMEOUT_SECONDS` steht in der Stack-Umgebung:
-   ```bash
-   GEOCODING_PROVIDER=nominatim
-   NOMINATIM_URL=http://nominatim:8080
-   GEOCODING_TIMEOUT_SECONDS=3
-   ```
-4. **Updates:** `UPDATE_MODE=continuous` spielt die täglichen Geofabrik-Diffs automatisch ein. Nach einem Major-Update des Images den Import neu aufsetzen (neues Volume), erst danach umschalten.
+1. **Dienst:** `stadtfest-nominatim` im HomeLab-Stack `stadtfest` (`mediagis/nominatim:5.1`, Deutschland-Extrakt, `IMPORT_STYLE=address`, `UPDATE_MODE=continuous` mit den täglichen Geofabrik-Diffs, Limit 12 GB RAM / 4 CPUs), nur im internen Netz, kein öffentlicher Port. Daten unter `${APPDATA}/stadtfest/nominatim`; die Offsite-Sicherung lässt sie aus, weil der Import wiederholbar ist. Das Datenbank-Passwort ist die Komodo-Variable `STADTFEST_NOMINATIM_DB_PASSWORD` (`openssl rand -hex 32`).
+2. **Initialimport:** startet mit dem ersten Deploy des Stacks und dauert für Deutschland **mehrere Stunden**. Fortschritt: `docker logs -f stadtfest-nominatim` (bzw. Dozzle/Grafana).
+3. **Backend:** Die HomeLab-Compose-Datei setzt `GEOCODING_PROVIDER=nominatim` und `NOMINATIM_URL=http://stadtfest-nominatim:8080`; `GEOCODING_TIMEOUT_SECONDS=3` steht fest im Stack. Keine Eingabe nötig.
+4. **Updates:** `UPDATE_MODE=continuous` spielt die täglichen Geofabrik-Diffs automatisch ein. Nach einem Major-Update des Images den Import neu aufsetzen (Verzeichnis `${APPDATA}/stadtfest/nominatim` leeren, Stack neu deployen; mehrere Stunden ohne Geocoding).
 
 ## Lokal
 
@@ -49,8 +30,8 @@ Geocoding für PLZ-/Ortssuche (mit Autocomplete), Straßenadressen in der Modera
 ## Prüfung
 
 ```bash
-curl -s "http://nominatim:8080/search?postalcode=73430&country=de&format=jsonv2" | head
-curl -s "http://<api>/v1/geocode?q=73430"
+docker exec stadtfest-nominatim curl -s "http://127.0.0.1:8080/search?postalcode=73430&country=de&format=jsonv2" | head -c 300
+curl -s "https://stadtfest-api.herderstreet.de/v1/geocode?q=73430"
 ```
 
 Die erste Anfrage liefert Aalen, die zweite `[{"label":"73430 Aalen", ...}]`. Ist Nominatim nicht erreichbar, antwortet die API mit `503 geocoding_unavailable`. Die Festsuche ist davon nicht betroffen.

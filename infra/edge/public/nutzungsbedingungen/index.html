@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Impressum · Stadtfest-Finder</title>
+  <title>Nutzungsbedingungen · Stadtfest-Finder</title>
   <style>
     :root { color-scheme: light dark; --bg: #FBF8F4; --text: #231A2E; --muted: #6F6480; --amber: #FFB547; }
     @media (prefers-color-scheme: dark) { :root { --bg: #15111C; --text: #F4EEF8; --muted: #A89BB8; } }
@@ -19,20 +19,27 @@
   </style>
 </head>
 <body>
-  <!-- Rendered by Caddy templates from the stack environment (infra/caddy/Caddyfile).
+  <!-- Rendered by Caddy templates from the stack environment (image stadtfest-edge, infra/edge/Caddyfile).
        Legal texts: review before the store release (00-docs/40-operations/store-release.md). -->
   <main>
-    <h1>Impressum</h1>
-    <h2>Angaben gemäß § 5 DDG</h2>
+    <h1>Nutzungsbedingungen</h1>
+    <p class="muted">Stand: Oktober 2026</p>
+    <h2>1. Angebot</h2>
+    <p>Stadtfest-Finder zeigt Stadtfeste, Volksfeste, Kirmes, Weihnachtsmärkte und Märkte in Deutschland. Die Nutzung ist kostenlos. Ein Anspruch auf Verfügbarkeit besteht nicht.</p>
+    <h2>2. Festdaten</h2>
+    <p>Termine und Angaben stammen von Veranstaltern und öffentlichen Quellen und werden vor der Veröffentlichung geprüft. Verbindlich sind die Angaben der Veranstalter; bitte prüfe sie vor dem Besuch über die verlinkte Quelle.</p>
+    <h2>3. Konto</h2>
+    <p>Für Favoriten, Freunde, Listen und Einladungen brauchst du ein Konto. Halte deine Zugangsdaten geheim. Du kannst dein Konto jederzeit in der App löschen.</p>
+    <h2>4. Verhalten</h2>
+    <p>Nachrichten in Einladungen und Listennamen dürfen keine rechtswidrigen, beleidigenden oder fremden personenbezogenen Inhalte enthalten. Bei Verstößen können wir Inhalte entfernen und Konten sperren.</p>
+    <h2>5. Haftung</h2>
+    <p>Wir haften unbeschränkt für Vorsatz und grobe Fahrlässigkeit sowie nach dem Produkthaftungsgesetz. Im Übrigen haften wir nur für die Verletzung wesentlicher Pflichten und begrenzt auf den vorhersehbaren Schaden.</p>
+    <h2>6. Kontakt</h2>
     <p>
       {{env "IMPRINT_NAME"}}<br>
       {{range splitList "|" (env "IMPRINT_ADDRESS")}}{{trim .}}<br>{{end}}
       E-Mail: <a href="mailto:{{env "IMPRINT_EMAIL"}}">{{env "IMPRINT_EMAIL"}}</a>
     </p>
-    <h2>Verantwortlich für den Inhalt</h2>
-    <p>{{env "IMPRINT_NAME"}}, Anschrift wie oben.</p>
-    <h2>Festdaten</h2>
-    <p>Die Angaben zu Festen werden sorgfältig gepflegt, teils aus öffentlichen Quellen mit KI-Unterstützung gesucht und vor der Veröffentlichung von Moderierenden geprüft. Für Termine, Absagen und Änderungen gelten die Angaben der Veranstalter; jede Detailseite nennt die Quelle.</p>
     <p class="muted"><a href="/impressum/">Impressum</a> · <a href="/datenschutz/">Datenschutz</a> · <a href="/nutzungsbedingungen/">Nutzungsbedingungen</a></p>
   </main>
 </body>

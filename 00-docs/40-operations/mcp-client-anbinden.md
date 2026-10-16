@@ -12,7 +12,7 @@ Der MCP-Server ist ein OAuth-2.1-Ressourcenserver. Er veröffentlicht unter `/.w
 
 - Zitadel eingerichtet nach [zitadel.md](zitadel.md): Projekt `stadtfest` mit Rollen und „Assert Roles on Authentication“. Die Projekt-ID ist bekannt.
 - Rolle *Project Owner* (oder höher) in Zitadel
-- MCP-Server öffentlich per HTTPS erreichbar, in Produktion `https://mcp.stadtfest.herderstreet.de/mcp` (Caddy, [deployment-komodo.md](deployment-komodo.md)). Claude Desktop und claude.ai verbinden sich **aus der Anthropic-Cloud**, nicht vom eigenen Rechner. Ein lokaler Server ist für sie also nicht erreichbar. Claude Code und der MCP Inspector laufen lokal.
+- MCP-Server öffentlich per HTTPS erreichbar, in Produktion `https://stadtfest-mcp.herderstreet.de/mcp` (Cloudflare Tunnel → HomeLab-Caddy → `stadtfest-edge`, [deployment-komodo.md](deployment-komodo.md)). Claude Desktop und claude.ai verbinden sich **aus der Anthropic-Cloud**, nicht vom eigenen Rechner. Ein lokaler Server ist für sie also nicht erreichbar. Claude Code und der MCP Inspector laufen lokal.
 - Lokal: Stack aus [lokale-entwicklung.md](lokale-entwicklung.md), Node.js für den MCP Inspector
 
 ## Schritte
@@ -35,27 +35,27 @@ Für jede App:
 
 ### 2. MCP-Server konfigurieren
 
-Die Variablen trägt man in Komodo ein, lokal in `.env` (siehe `.env.example`). **Keine Secrets**, alle Werte sind öffentlich:
+In Produktion ist nichts einzutragen: Der HomeLab-Stack `stadtfest` setzt die Werte selbst.
 
-| Variable | Wert |
-|---|---|
-| `MCP_PUBLIC_URL` | `https://mcp.stadtfest.example.eu` (ohne `/mcp`, https in Produktion) |
-| `MCP_OAUTH_SCOPES` | `openid profile urn:zitadel:iam:org:project:id:<Projekt-ID>:aud` |
-| `DEEP_LINK_BASE_URL` | `https://stadtfest.herderstreet.de` |
-| `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_ROLES_CLAIM` | wie bei der API ([zitadel.md](zitadel.md)) |
+| Variable | Wert in Produktion | Quelle |
+|---|---|---|
+| `MCP_PUBLIC_URL` | `https://stadtfest-mcp.herderstreet.de` (ohne `/mcp`) | HomeLab-Compose-Datei aus `DOMAIN` |
+| `MCP_OAUTH_SCOPES` | `openid profile urn:zitadel:iam:org:project:id:<Projekt-ID>:aud` | HomeLab `resources.toml` mit der Komodo-Variable `STADTFEST_ZITADEL_PROJECT_ID` |
+| `DEEP_LINK_BASE_URL` | `https://stadtfest.herderstreet.de` | HomeLab-Compose-Datei aus `DOMAIN` |
+| `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_ROLES_CLAIM` | wie bei der API | [zitadel.md](zitadel.md), Schritt 6 |
 
-Der Audience-Scope sorgt dafür, dass die Projekt-ID (= `AUTH_AUDIENCE`) im Token steht. Die Clients fordern die Scopes aus der Protected Resource Metadata an. Der Container ist das Image `ghcr.io/<owner>/stadtfest-mcp` (Port 8001, Health `/health/live` und `/health/ready`).
+Lokal stehen die Werte in `.env` (siehe `.env.example`). Der Audience-Scope sorgt dafür, dass die Projekt-ID (= `AUTH_AUDIENCE`) im Token steht. Die Clients fordern die Scopes aus der Protected Resource Metadata an. Die **Client-IDs** aus Schritt 1 sind keine Server-Variablen; sie werden nur im jeweiligen Client eingetragen (Schritt 3). Der Container ist `stadtfest-mcp` (Image `ghcr.io/harpune/stadtfest-mcp`, Port 8001, Health `/health/live` und `/health/ready`).
 
 ### 3. Clients einrichten
 
 - **Claude Code:**
 
   ```bash
-  claude mcp add --transport http --client-id <Client-ID mcp-claude-code> --callback-port 33418 stadtfest https://mcp.stadtfest.example.eu/mcp
+  claude mcp add --transport http --client-id <Client-ID mcp-claude-code> --callback-port 33418 stadtfest https://stadtfest-mcp.herderstreet.de/mcp
   ```
 
   Danach in Claude Code `/mcp` → `stadtfest` → *Authenticate*.
-- **Claude Desktop / claude.ai:** *Einstellungen → Konnektoren → Benutzerdefinierten Konnektor hinzufügen*. URL `https://mcp.stadtfest.example.eu/mcp` eintragen, unter *Erweiterte Einstellungen* die **OAuth Client ID** von `mcp-claude`. Das Client-Secret bleibt leer.
+- **Claude Desktop / claude.ai:** *Einstellungen → Konnektoren → Benutzerdefinierten Konnektor hinzufügen*. URL `https://stadtfest-mcp.herderstreet.de/mcp` eintragen, unter *Erweiterte Einstellungen* die **OAuth Client ID** von `mcp-claude`. Das Client-Secret bleibt leer.
 - **MCP Inspector** (`npx @modelcontextprotocol/inspector`): Server mit Transport *Streamable HTTP* anlegen, unter *Settings → OAuth Settings* die Client-ID eintragen, Scopes wie `MCP_OAUTH_SCOPES`.
 
 ### Lokal (Keycloak)
@@ -79,7 +79,7 @@ Dabei gehen lokal registrierte Konten verloren, die Testnutzer aus dem Realm ble
 1. Metadaten:
 
    ```bash
-   curl -s https://mcp.stadtfest.example.eu/.well-known/oauth-protected-resource/mcp
+   curl -s https://stadtfest-mcp.herderstreet.de/.well-known/oauth-protected-resource/mcp
    ```
 
    Erwartet: `resource` = `…/mcp`, `authorization_servers` = Zitadel-Issuer, `scopes_supported` wie `MCP_OAUTH_SCOPES`.
@@ -115,5 +115,5 @@ npx -y @modelcontextprotocol/inspector@2.11.0 --cli http://localhost:8001/mcp --
 ## Rollback
 
 - Einzelnen Client sperren: die App in Zitadel deaktivieren oder löschen. Ausgestellte Tokens laufen mit ihrer Lebensdauer ab.
-- MCP-Zugang ganz abschalten: Service `mcp` in Komodo stoppen. API und Worker sind unabhängig davon.
-- Nur die KI-Suche stoppen: `AI_SEARCH_DAILY_LIMIT=0` (gilt für REST und MCP).
+- MCP-Zugang ganz abschalten: `docker stop stadtfest-mcp` (bis zum nächsten Deploy) bzw. den Dienst im HomeLab-Stack entfernen. API und Worker sind unabhängig davon.
+- Nur die KI-Suche stoppen: `AI_SEARCH_DAILY_LIMIT=0` im HomeLab `resources.toml` (gilt für REST und MCP).

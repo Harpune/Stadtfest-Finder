@@ -24,7 +24,7 @@ R11 verschickt Push-Mitteilungen (Erinnerungen, neue Feste am Wohnort, Änderung
    5. Danach die JSON-Datei lokal löschen oder sicher verwahren; Expo braucht sie nicht erneut.
 3. **iOS (APNs):** `npx eas-cli credentials` → iOS → „Push Notifications: Manage your Apple Push Notifications Key“ → neuen Schlüssel erzeugen lassen.
 4. **Zugriffstoken:** expo.dev → Account settings → Access tokens → „Create token“ (Name z. B. `stadtfest-backend`). Unter Projekteinstellungen → „Push notifications“ die Option **Enhanced security for push notifications** einschalten, damit nur das Backend mit diesem Token senden darf.
-5. Secrets hinterlegen: lokal in `.env` `PUSH_PROVIDER=expo` und `EXPO_ACCESS_TOKEN=…` (siehe `.env.example`), in Produktion als Komodo-Secret. **Niemals ins Repo.**
+5. Secrets hinterlegen: lokal in `.env` `PUSH_PROVIDER=expo` und `EXPO_ACCESS_TOKEN=…` (siehe `.env.example`). Produktion nutzt `direct` ([push-apns-fcm.md](push-apns-fcm.md)); soll es doch Expo sein: Komodo-Variable `STADTFEST_EXPO_ACCESS_TOKEN` (*Secret*) anlegen und im HomeLab (`resources.toml`, Stack `stadtfest`) `PUSH_PROVIDER=expo`, `EXPO_ACCESS_TOKEN=[[STADTFEST_EXPO_ACCESS_TOKEN]]` setzen (PR). **Niemals ins Repo.**
 6. API und Worker neu starten. Ohne `EXPO_ACCESS_TOKEN` bricht der Start mit einer Fehlermeldung ab.
 
 ## Prüfung

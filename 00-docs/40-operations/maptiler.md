@@ -8,7 +8,9 @@ Vektorkacheln und Kartenstile (dunkel/hell) für die Karte der App ([ADR 0009](.
 
 - Ein MapTiler-Konto (https://cloud.maptiler.com), für den Produktivbetrieb ein Tarif passend zur erwarteten Nutzung
 - Die Bundle-ID bzw. Paketname der App: `de.stadtfestfinder.app`
-- Zugriff auf die EAS-Secrets bzw. die lokale `mobile/.env`
+- Zugriff auf die EAS-Umgebungsvariablen bzw. die lokale `mobile/.env`
+
+**Werte, die hier entstehen:** Schlüssel `stadtfest-app-prod` → EAS-Variable `EXPO_PUBLIC_MAPTILER_KEY` in den Umgebungen `production` und `preview` (Sichtbarkeit *Sensitive*); Schlüssel `stadtfest-app-dev` → lokal `mobile/.env`. Kein Backend-Wert.
 
 ## Schritte
 
@@ -26,7 +28,7 @@ Vektorkacheln und Kartenstile (dunkel/hell) für die Karte der App ([ADR 0009](.
      EXPO_PUBLIC_MAPTILER_STYLE_DARK=streets-v2-dark
      EXPO_PUBLIC_MAPTILER_STYLE_LIGHT=streets-v2
      ```
-   - Für Builds als EAS-Secret `EXPO_PUBLIC_MAPTILER_KEY` ([eas-build.md](eas-build.md)).
+   - Für Builds als EAS-Umgebungsvariable `EXPO_PUBLIC_MAPTILER_KEY` in `production` und `preview`, Sichtbarkeit *Sensitive* ([eas-build.md](eas-build.md), Schritt 2). Der Schlüssel steckt danach im App-Bundle; *Sensitive* verbirgt ihn nur in Logs und Dashboard.
 6. Metro bzw. den Build neu starten, damit die Variable übernommen wird.
 
 ## Prüfung

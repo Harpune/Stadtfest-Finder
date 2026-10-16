@@ -18,16 +18,21 @@ jobs:
       matrix:
         include:
           # API, worker and the migration job share one image; the MCP server has its own
-          # (R15-US4). All three are deployed with the same tag by Komodo (R16).
+          # (R15-US4). The HomeLab stack `stadtfest` pins all four to the same SemVer tag
+          # (ADR 0019); Renovate there proposes the bump after a `vX.Y.Z` tag.
           - image: stadtfest-backend
             context: backend
             target: api
           - image: stadtfest-mcp
             context: backend
             target: mcp
-          # Daily database and object-storage backups (ADR 0021).
-          - image: stadtfest-backup
-            context: infra/backup
+          # Host-based routing and the deep-link site behind the HomeLab Caddy.
+          - image: stadtfest-edge
+            context: infra/edge
+            target: ""
+          # SearXNG with the settings of the AI search (ADR 0013).
+          - image: stadtfest-searxng
+            context: infra/searxng
             target: ""
     steps:
       - uses: actions/checkout@v7

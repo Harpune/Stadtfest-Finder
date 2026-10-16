@@ -1,88 +1,80 @@
-# Backups einrichten und wiederherstellen
+# Backups und Wiederherstellung
 
 ## Zweck
 
-Der Dienst `backup` (Image `stadtfest-backup`, R16-US4, [ADR 0021](../25-adr/0021-backups.md)) sichert täglich um 02:30 Uhr
+Die Daten des Stadtfest-Finders sichert das HomeLab mit ([ADR 0021](../25-adr/0021-backups.md), R16-US4). Es gibt keinen eigenen Backup-Dienst im Stack.
 
-- die Datenbank (`pg_dump`, direkt in restic, keine unverschlüsselte Kopie) und
-- den Bilder-Bucket (Spiegel über die S3-API mit rclone)
+| Ebene | Was | Wann | Aufbewahrung | Wo |
+|---|---|---|---|---|
+| `pg_dump` | Datenbank `stadtfest` als gzip-SQL nach `${APPDATA}/stadtfest/backups/stadtfest-pg-<zeit>.sql.gz` | bei jedem `make backup`, vor dem Stoppen | 7 neueste | Server (NVMe) |
+| kalter Btrfs-Snapshot | ganz `${APPDATA}` (u. a. `stadtfest/postgres`, `seaweedfs`, `redis`, `backups`) bei angehaltenen Stacks | `make backup` (Cron des HomeLab) | 7 neueste | `${COMPOSE_ROOT}/appdata-snapshots/` |
+| Offsite (restic → pCloud) | neuester Snapshot, **ohne** `stadtfest/nominatim` (wird neu importiert) | wöchentlich, Mo 04:30 | 7 täglich / 4 wöchentlich / 6 monatlich | pCloud, clientseitig verschlüsselt |
 
-verschlüsselt mit restic auf eine **Hetzner Storage Box** (Deutschland). Aufbewahrung 30 Tage (`BACKUP_KEEP_WITHIN`), sonntags zusätzlich `restic check`. Die Sicherungen enthalten personenbezogene Daten; zur Wirkung von Löschungen siehe [Löschkonzept](../30-privacy/loeschkonzept.md#backups).
+Die Sicherungen enthalten personenbezogene Daten. Gelöschte Daten bleiben bis zu etwa **6 Monate** in älteren Offsite-Sicherungen ([Löschkonzept](../30-privacy/loeschkonzept.md#backups)).
 
 ## Voraussetzungen
 
-- Hetzner-Konto, AV-Vertrag mit Hetzner abgeschlossen ([Auftragsverarbeiter](../30-privacy/auftragsverarbeiter.md))
-- Shell auf dem Heimserver, Zugriff auf Komodo (Secrets, Terminal des Stacks)
-- Stack nach [deployment-komodo.md](deployment-komodo.md) eingerichtet
+- Backups des HomeLab eingerichtet (HomeLab `docs/OPERATIONS.md` §4: `make backup`, `make backup-offsite`, pCloud-Konto mit AV-Vertrag, restic-Passwort offline verwahrt)
+- SSH-Zugang zum Server; der Stack `stadtfest` ist deployt ([deployment-komodo.md](deployment-komodo.md))
+
+Für Stadtfest-Finder entstehen hier **keine neuen Werte**: Die Backup-Zugangsdaten gehören dem HomeLab (`${SECRETS}/restic-password`, `${SECRETS}/rclone.conf`).
 
 ## Schritte
 
-### Einrichten
+### Prüfen, dass der Stack mitgesichert wird
 
-1. **Storage Box bestellen** (z. B. BX11, Standort Falkenstein oder Nürnberg). In der Hetzner-Konsole *SSH-Support* und *Externe Erreichbarkeit* aktivieren.
-2. **SSH-Schlüssel** nur für das Backup erzeugen und hinterlegen (Port 23):
-   ```bash
-   ssh-keygen -t ed25519 -N "" -C stadtfest-backup -f id_ed25519
-   cat id_ed25519.pub | ssh -p 23 uXXXXXX@uXXXXXX.your-storagebox.de install-ssh-key
-   ssh-keyscan -p 23 uXXXXXX.your-storagebox.de > known_hosts
-   ```
-3. **Dateien ablegen** in `/etc/stadtfest/secrets/backup-ssh/` (`id_ed25519`, `known_hosts`) und eine `config`:
-   ```
-   Host storagebox
-     HostName uXXXXXX.your-storagebox.de
-     User uXXXXXX
-     Port 23
-     IdentityFile ~/.ssh/id_ed25519
-   ```
-   Rechte wie in [deployment-komodo.md](deployment-komodo.md), Schritt 2 (`root:10001`, keine Rechte für andere).
-4. **Ordner** auf der Box anlegen: `ssh storagebox mkdir -p stadtfest` (vom Server aus mit der config oben, oder per SFTP).
-5. **Repository-Passwort** erzeugen (`openssl rand -hex 32`), als Komodo-Secret `STADTFEST_RESTIC_PASSWORD` hinterlegen und **zusätzlich offline** aufbewahren (Passwortmanager). Ohne Passwort sind die Sicherungen wertlos.
-6. In der Stack-Umgebung `RESTIC_REPOSITORY=sftp:storagebox:/stadtfest/restic` setzen, Stack deployen.
-7. **Repository anlegen** (einmalig): `docker compose exec backup backup.sh init`
-8. **Erste Sicherung** sofort: `docker compose exec backup backup.sh run`
+1. `stadtfest` steht in `STACKS` im HomeLab-`Makefile` und in `scripts/backup-appdata.sh` (Reihenfolge beim Stoppen/Starten).
+2. Nach dem nächsten `make backup`: `ls -1t /volume2/docker/appdata/stadtfest/backups/` zeigt eine neue Datei `stadtfest-pg-<zeit>.sql.gz`.
 
-### Wiederherstellen: Datenbank
+### Wiederherstellen: Datenbank aus dem Dump
 
-Erst in eine **separate Datenbank** wiederherstellen und prüfen, dann umschalten:
+Erst in eine **separate Datenbank** und prüfen, dann umschalten:
 
 ```bash
-docker compose exec backup restic snapshots --tag postgres
-docker compose exec backup createdb stadtfest_restore
-docker compose exec -T backup sh -c 'restic dump --host stadtfest --tag postgres latest stadtfest.dump | pg_restore --no-owner --no-privileges -d stadtfest_restore'
-docker compose exec backup psql -d stadtfest_restore -c 'select version_num from alembic_version'
+DUMP=/volume2/docker/appdata/stadtfest/backups/stadtfest-pg-<zeit>.sql.gz
+docker exec stadtfest-postgres createdb -U stadtfest stadtfest_restore
+gunzip -c "$DUMP" | docker exec -i stadtfest-postgres psql -U stadtfest -d stadtfest_restore -q -v ON_ERROR_STOP=1
+docker exec stadtfest-postgres psql -U stadtfest -d stadtfest_restore -tAc 'select version_num from alembic_version'
 ```
 
-Statt `latest` geht eine Snapshot-ID aus `restic snapshots`. Zum Umschalten:
+Umschalten:
 
-1. `api`, `worker`, `mcp` in Komodo stoppen.
-2. Alte Datenbank umbenennen, wiederhergestellte übernehmen:
+1. `docker stop stadtfest-api stadtfest-worker stadtfest-mcp`
+2. Datenbanken tauschen:
    ```bash
-   docker compose exec backup psql -d postgres -c 'ALTER DATABASE stadtfest RENAME TO stadtfest_broken'
-   docker compose exec backup psql -d postgres -c 'ALTER DATABASE stadtfest_restore RENAME TO stadtfest'
+   docker exec stadtfest-postgres psql -U stadtfest -d postgres -c 'ALTER DATABASE stadtfest RENAME TO stadtfest_broken'
+   docker exec stadtfest-postgres psql -U stadtfest -d postgres -c 'ALTER DATABASE stadtfest_restore RENAME TO stadtfest'
    ```
-3. Stack deployen (`migrate` bringt das Schema auf den Stand des Images), Smoke-Test.
-4. **Löschungen nachholen:** Konten, die seit dem Sicherungszeitpunkt gelöscht wurden, erneut löschen (Löschkonzept).
-5. `stadtfest_broken` nach der Prüfung löschen (`DROP DATABASE`).
+3. In Komodo den Stack `stadtfest` deployen (`stadtfest-migrate` bringt das Schema auf den Stand des Images), danach Smoke-Test ([deployment-komodo.md](deployment-komodo.md#prüfung)).
+4. **Löschungen nachholen:** Konten, die seit dem Sicherungszeitpunkt gelöscht wurden, erneut löschen ([Löschkonzept](../30-privacy/loeschkonzept.md#backups)).
+5. Nach der Prüfung: `docker exec stadtfest-postgres dropdb -U stadtfest stadtfest_broken`.
 
-### Wiederherstellen: Bilder
+### Wiederherstellen: Bilder aus dem Snapshot
+
+Der Snapshot entsteht bei angehaltenem Stack und ist daher konsistent.
 
 ```bash
-docker compose exec backup restic restore --host stadtfest --tag objects latest --target /tmp/restore
-docker compose exec backup rclone copy /tmp/restore/cache/objects 'objects:stadtfest-images'
+SNAP=/volume2/docker/appdata-snapshots/appdata-<zeit>
+docker stop stadtfest-seaweedfs
+sudo mv /volume2/docker/appdata/stadtfest/seaweedfs /volume2/docker/appdata/stadtfest/seaweedfs.broken
+sudo cp -a "$SNAP/stadtfest/seaweedfs" /volume2/docker/appdata/stadtfest/seaweedfs
+docker start stadtfest-seaweedfs
 ```
 
-Bei einem leeren SeaweedFS vorher den Bucket anlegen ([objektspeicher.md](objektspeicher.md)). `rclone copy` überschreibt nichts Neueres und löscht nichts.
+`seaweedfs.broken` nach der Prüfung entfernen. Datenbank und Bilder möglichst aus **demselben** Zeitpunkt wiederherstellen, sonst zeigen Feste auf fehlende bzw. verwaiste Bilder (verwaiste räumt `purge_images` auf).
+
+### Wiederherstellen aus der Offsite-Kopie
+
+Nach Verlust des Servers bzw. der Snapshots: `restic restore` des gewünschten Snapshots nach HomeLab `docs/OPERATIONS.md` §4, danach `stadtfest/postgres`, `stadtfest/seaweedfs` und `stadtfest/redis` aus dem wiederhergestellten Verzeichnis übernehmen (bzw. den Dump wie oben einspielen). `stadtfest/nominatim` ist nicht enthalten: leer lassen, der nächste Deploy importiert Deutschland neu (mehrere Stunden).
 
 ## Prüfung
 
-- Log-Ereignis `backup_succeeded` jeden Tag (Grafana, Alarm „Backup fehlt“ nach 26 Stunden, [monitoring.md](monitoring.md)); der Container ist *healthy*.
-- `docker compose exec backup restic snapshots` zeigt je Tag einen Snapshot `postgres` und `objects`, keiner älter als 30 Tage.
-- **Probe-Wiederherstellung** (mindestens einmal im Quartal): Datenbank in `stadtfest_restore` wie oben, Stichprobe (`select count(*) from event`), danach `DROP DATABASE stadtfest_restore`.
+- Jede `make backup`-Ausgabe enthält `-> …/stadtfest/backups/stadtfest-pg-<zeit>.sql.gz` (eine Zeile `WARN: … stadtfest` heißt: der Container lief nicht).
+- **Probe-Wiederherstellung** mindestens einmal im Quartal: Dump in `stadtfest_restore` wie oben, Stichprobe (`select count(*) from event`), danach `dropdb … stadtfest_restore`.
 
-**Geprobt am 16.10.2026** lokal mit dem Stack aus `infra/compose.yaml`: Probe-Konto angelegt, gesichert, gelöscht, aus dem Dump in `stadtfest_restore` zurückgeholt (Migrationsstand `0013`); ein Probe-Bild gesichert und in ein **leeres** SeaweedFS mit neuem Bucket wiederhergestellt und gelesen. Eine Kopie der SeaweedFS-Dateien statt der S3-API ließ sich dabei **nicht** wiederherstellen (Bucket fehlte), daher der S3-Spiegel. Nach der Einrichtung in Produktion die Probe einmal wiederholen und hier mit Datum eintragen.
+**Geprobt am 16.10.2026** lokal mit dem HomeLab-Stack `stadtfest`: Probe-Konto angelegt, mit demselben `pg_dump`-Aufruf wie `make backup` gesichert, in `stadtfest_restore` eingespielt (`ON_ERROR_STOP`, PostGIS vorhanden, Migrationsstand `0013`, Probe-Konto da). Nach dem ersten Release in Produktion wiederholen und hier mit Datum eintragen.
 
 ## Rollback
 
-- Backup aussetzen: Dienst `backup` in Komodo stoppen (Alarm „Backup fehlt“ beachten).
-- Kompromittierter SSH-Schlüssel: in der Hetzner-Konsole entfernen, neuen Schlüssel nach Schritt 2 erzeugen.
-- Kompromittiertes Repository-Passwort: `restic key add` mit neuem Passwort, alten Schlüssel mit `restic key remove <id>` entfernen, Komodo-Secret ersetzen.
+- Fehlgeschlagene Wiederherstellung: die umbenannte Datenbank `stadtfest_broken` bzw. das Verzeichnis `seaweedfs.broken` zurückbenennen und den Stack deployen.
+- Backups für den Stack aussetzen geht nur im HomeLab (Eintrag aus `STACKS`/`dump_pg` entfernen, PR); davon ist abzuraten.

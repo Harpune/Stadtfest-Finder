@@ -1,3 +1,4 @@
+import base64
 from pathlib import Path
 
 import pytest
@@ -318,7 +319,33 @@ def test_direct_needs_apns_and_fcm_credentials(
     with pytest.raises(SettingsError, match="FCM_CREDENTIALS_PATH is not a readable file"):
         load_settings()
     credentials.write_text("{}")
+    with pytest.raises(SettingsError, match="no service account key"):
+        load_settings()
+    credentials.write_text('{"client_email": "push@x.iam", "private_key": "pem"}')
     assert load_settings().push_provider.value == "direct"
+
+
+def test_direct_accepts_credentials_as_base64(monkeypatch: pytest.MonkeyPatch) -> None:
+    _base(monkeypatch)
+    secret_key = "-----BEGIN PRIVATE KEY-----\nsecret-apns\n-----END PRIVATE KEY-----"
+    account = '{"client_email": "push@x.iam", "private_key": "secret-fcm"}'
+    monkeypatch.setenv("PUSH_PROVIDER", "direct")
+    monkeypatch.setenv("APNS_KEY_ID", "KEY")
+    monkeypatch.setenv("APNS_TEAM_ID", "TEAM")
+    monkeypatch.setenv("FCM_PROJECT_ID", "stadtfest")
+    monkeypatch.setenv("APNS_KEY_BASE64", base64.b64encode(secret_key.encode()).decode())
+    monkeypatch.setenv("FCM_CREDENTIALS_BASE64", "not base64 secret-fcm!")
+
+    with pytest.raises(SettingsError) as exc_info:
+        load_settings()
+    assert "FCM_CREDENTIALS_BASE64 is no valid base64" in str(exc_info.value)
+    assert "secret" not in str(exc_info.value)
+
+    monkeypatch.setenv("FCM_CREDENTIALS_BASE64", base64.b64encode(account.encode()).decode())
+    settings = load_settings()
+
+    assert settings.apns_private_key() == secret_key
+    assert settings.fcm_credentials()["private_key"] == "secret-fcm"
 
 
 def test_empty_values_count_as_unset(monkeypatch: pytest.MonkeyPatch) -> None:

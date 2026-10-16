@@ -1,39 +1,35 @@
-# 0019 · Produktionsstack: SeaweedFS, Caddy und Deployment mit festem Image-Tag über Komodo
+# 0019 · Produktion als HomeLab-Stack `stadtfest`
 
 - **Status:** angenommen
-- **Datum:** 2026-10-16
+- **Datum:** 2026-10-16 (am selben Tag überarbeitet: erst eigener Stack mit eigenem Caddy, dann Einbindung ins vorhandene HomeLab)
 
 ## Kontext
 
-R16 bringt den Stadtfest-Finder auf den eigenen Server in der EU. Offen waren:
+R16 bringt den Stadtfest-Finder auf den eigenen Server in der EU. Auf diesem Server läuft bereits ein HomeLab ([github.com/Harpune/HomeLab](https://github.com/Harpune/HomeLab)) mit festen Regeln: ein Repo beschreibt alle Stacks, Komodo deployt sie per Klick aus dessen Klon, Images sind auf SemVer-Tags gepinnt und Renovate hebt sie, Secrets liegen nur in Komodos Variablenspeicher, öffentliche Dienste laufen über einen Cloudflare Tunnel zu einem Caddy im Docker-Netz `edge`, Daten liegen als Bind-Mounts unter `${APPDATA}`, Backups und Monitoring sind laborweit. Eigene Anwendungen werden nach `docs/CUSTOM-APPS.md` dort eingebunden („der Server zieht nur Images“).
 
-- der Objektspeicher in Produktion ([ADR 0007](0007-objektspeicher-seaweedfs.md) nannte SeaweedFS nur als Kandidaten),
-- der Reverse Proxy mit TLS (Caddy oder Traefik),
-- wie Komodo „eine festgelegte Version“ deployt und wie Migrationen vor der neuen API-Version laufen,
-- der produktive Push-Weg ([ADR 0016](0016-benachrichtigungen-und-push.md) lässt `expo` und `direct` zu).
+Offen waren außerdem der Objektspeicher in Produktion ([ADR 0007](0007-objektspeicher-seaweedfs.md) nannte SeaweedFS nur als Kandidaten) und der produktive Push-Weg ([ADR 0016](0016-benachrichtigungen-und-push.md)).
 
 ## Entscheidung
 
-1. **SeaweedFS selbst gehostet** (Image `chrislusf/seaweedfs`, feste Version) auf dem Heimserver, wie lokal und in den Tests. Identitäten stehen in einer Datei außerhalb des Repos (`$SECRETS_DIR/seaweedfs-s3.json`, Vorlage `infra/prod/seaweedfs/s3.example.json`): eine Backend-Identität nur für den Bucket, eine Admin-Identität für die Einrichtung, anonym lesbar nur `public/`.
-2. **Caddy** als einziger Dienst mit offenen Ports (80/443), Konfiguration `infra/caddy/Caddyfile`:
-   - `api.…` → API, `mcp.…` → MCP-Server (Streaming ohne Puffer),
-   - `bilder.…` → SeaweedFS, aber nur `GET`/`HEAD` auf `/<bucket>/public/*` und signierte `PUT` auf `/<bucket>/uploads/*` (höchstens 11 MB); der Rest der S3-API bleibt intern,
-   - die Deep-Link-Domain mit Fallback-Seiten, `assetlinks.json`, `apple-app-site-association`, Impressum, Datenschutzerklärung und Nutzungsbedingungen. Fingerabdrücke, Team-ID und Impressumsangaben kommen per Caddy-Templates aus der Stack-Umgebung, nicht aus dem Repo.
-   - Automatisches TLS (Let's Encrypt), keine Access-Logs.
-3. **Ein Image-Tag für alle eigenen Images** (`stadtfest-backend`, `stadtfest-mcp`, `stadtfest-backup`): `sha-<commit>` von `main` oder eine SemVer-Version. Der Tag steht in der Komodo-Variable `STADTFEST_IMAGE_TAG`. Der Workflow `deploy.yml` setzt sie nach erfolgreichem Release über die Komodo-API, startet `DeployStack`, wartet auf das Ergebnis und führt den Smoke-Test aus. Rollback = derselbe Workflow mit dem vorherigen Tag.
-4. **Migrationen als eigener Dienst `migrate`** (`alembic upgrade head`, einmalig). API, Worker und MCP-Server starten erst, wenn er mit 0 endet. Bei laufendem Betrieb sind nur rückwärtskompatible Migrationen erlaubt (Expand/Contract, siehe [deployment-komodo.md](../40-operations/deployment-komodo.md)); so bleibt ein Rollback auf das vorherige Image ohne Rückmigration möglich.
-5. **Produktive Standards:** `LLM_PROVIDER=mistral` (oder `ollama`), `WEB_SEARCH_PROVIDER=searxng`, `PUSH_PROVIDER=direct` (kein Expo als zusätzlicher Verarbeiter). Interne Adressen (Datenbank, Redis, Nominatim, SearXNG, S3) und `ENV=prod`/`LOG_FORMAT=json` setzt `infra/compose.yaml`; alles andere steht in der Stack-Umgebung in Komodo (Vorlage `infra/komodo-environment.example`, im CI gegen die Settings geprüft).
+1. **Stack im HomeLab:** `stacks/stadtfest/compose.yaml` mit `stadtfest-edge`, `-api`, `-worker`, `-mcp`, `-migrate`, `-postgres` (PostGIS), `-redis`, `-nominatim`, `-searxng`, `-seaweedfs`. Komodo-Ressource mit `[[STADTFEST_*]]`-Variablen. Dieses Repo enthält keine Produktions-Compose-Datei mehr, nur den Umgebungsvertrag des Backends ([`infra/komodo-environment.example`](../../infra/komodo-environment.example), im CI gegen die Settings geprüft).
+2. **Images aus diesem Repo:** `stadtfest-backend` (API, Worker, Migration), `stadtfest-mcp`, `stadtfest-edge` und `stadtfest-searxng`, alle mit demselben Tag. Ein Tag `vX.Y.Z` baut sie als `X.Y.Z`; Renovate im HomeLab hebt alle vier in einem PR; deployt wird von Hand in Komodo. Rollback = vorheriger Tag.
+3. **`stadtfest-edge` als anwendungseigener Proxy** (Caddy-Image aus `infra/edge/`): einziger Container im Netz `edge`. Der HomeLab-Caddy leitet vier Hosts unverändert dorthin; `stadtfest-edge` routet nach Host, gibt vom Objektspeicher nur `GET`/`HEAD` auf `public/` und signierte `PUT` auf `uploads/` frei und liefert die Deep-Link-Seiten, `assetlinks.json`, `apple-app-site-association`, Impressum und Datenschutzerklärung aus (Werte per Template aus der Umgebung). Das Routing gehört hierher, weil es an Pfade und Dateien der App gebunden ist.
+4. **Hosts eine Ebene unter der Domain:** `stadtfest.`, `stadtfest-api.`, `stadtfest-mcp.`, `stadtfest-bilder.herderstreet.de`. Das kostenlose Cloudflare-Zertifikat deckt nur `*.herderstreet.de` ab.
+5. **SeaweedFS selbst gehostet** (wie lokal und in Tests). Die S3-Identität erzeugt der Container beim Start aus der Umgebung (kein Secret auf der Platte): Backend-Identität nur auf den Bucket, anonymes Lesen nur unter `public/`.
+6. **Konfiguration ohne Dateien:** SearXNG-Einstellungen im Image `stadtfest-searxng`; APNs- und FCM-Schlüssel als base64 in Komodo-Secrets (`APNS_KEY_BASE64`, `FCM_CREDENTIALS_BASE64`; Dateipfade bleiben für lokal).
+7. **Migrationen als Dienst `stadtfest-migrate`** (`alembic upgrade head`); API, Worker und MCP-Server starten erst nach Exit 0. Nur rückwärtskompatible Migrationen (Expand/Contract), damit ein Rollback ohne Rückmigration geht.
+8. **Produktive Standards:** `LLM_PROVIDER=mistral` (Ollama des HomeLab möglich), `WEB_SEARCH_PROVIDER=searxng`, `PUSH_PROVIDER=direct` (kein Expo als zusätzlicher Verarbeiter).
 
 ## Konsequenzen
 
-- Kein zusätzlicher Auftragsverarbeiter für Bilder; Bilder liegen auf dem eigenen Server und sind im täglichen Backup ([ADR 0021](0021-backups.md)).
-- Der Heimserver braucht für den ganzen Stack mindestens 16 GB RAM (Nominatim bis 12 GB) und etwa 150 GB SSD.
-- Komodo Core muss für GitHub Actions per HTTPS erreichbar sein (API-Schlüssel nur für Variable und Deploy).
-- `make infra-check` und der CI-Job „Production stack“ prüfen Compose-Datei und Caddyfile mit der Vorlage.
+- Anleitung mit der Herkunft jedes Werts: [deployment-komodo.md](../40-operations/deployment-komodo.md). Die GHCR-Pakete müssen öffentlich sein (das HomeLab zieht anonym).
+- Kein automatisches Deployment nach einem Merge; `make smoke` prüft nach dem Deploy.
+- Öffentlicher Eingang über Cloudflare ([ADR 0022](0022-eingang-cloudflare-tunnel.md)), Backups ([ADR 0021](0021-backups.md)) und Logs ([ADR 0020](0020-beobachtbarkeit.md)) kommen aus dem HomeLab.
+- Der Server braucht für Nominatim (Deutschland) rund 100 GB und bis zu 12 GB RAM; der Server hat 64 GB.
 
 ## Verworfene Alternativen
 
-- **S3-Dienst in der EU** (z. B. Hetzner Object Storage, Scaleway): weniger Betrieb auf dem Heimserver, aber ein weiterer Auftragsverarbeiter mit Bilddaten.
-- **Traefik:** Routing über Container-Labels, aber mehr Konfiguration für statische Dateien und Templates; die Deep-Link-Seite lief schon mit Caddy.
-- **`latest`-Tag mit Auto-Update in Komodo:** kein reproduzierbarer Stand, kein gezielter Rollback.
-- **Migrationen beim Start der API:** mehrere Replikate oder Neustarts würden gleichzeitig migrieren; ein Fehler bliebe im API-Log versteckt.
+- **Eigener Stack mit eigenem Caddy auf 80/443 und Deploy per GitHub-Workflow über die Komodo-API:** kollidiert mit dem vorhandenen Caddy und mit der HomeLab-Regel, dass Deploys von Hand erfolgen.
+- **Routen direkt im HomeLab-Caddyfile statt `stadtfest-edge`:** Deep-Link-Dateien und Pfadregeln der App lägen dann im HomeLab und müssten bei jedem App-Release dort mitgeändert werden.
+- **S3-Dienst in der EU:** ein weiterer Auftragsverarbeiter mit Bilddaten.
+- **Zwei Ebenen (`api.stadtfest.…`):** bräuchte Cloudflare Advanced Certificate Manager.
