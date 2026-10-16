@@ -1,7 +1,8 @@
 /**
- * Dynamic Expo config on top of app.json. The link domain for App Links (and later iOS
- * Universal Links) comes from EXPO_PUBLIC_LINK_HOST at build time (R04-US6); the same
- * variable builds share links in the app (features/event-detail/links.ts).
+ * Dynamic Expo config on top of app.json. The link domain for App Links and iOS Universal
+ * Links comes from EXPO_PUBLIC_LINK_HOST at build time (R04-US6); the same variable builds
+ * share links in the app (features/event-detail/links.ts). The server side (assetlinks.json,
+ * apple-app-site-association) is rendered by Caddy from the stack environment (R16).
  */
 import type {ConfigContext, ExpoConfig} from 'expo/config';
 
@@ -10,6 +11,12 @@ const LINK_HOST =
 
 export default ({config}: ConfigContext): ExpoConfig => ({
   ...(config as ExpoConfig),
+  ios: {
+    ...config.ios,
+    associatedDomains: [`applinks:${LINK_HOST}`],
+    // Only HTTPS through the OS: no export compliance question per TestFlight build (R16).
+    config: {...config.ios?.config, usesNonExemptEncryption: false},
+  },
   android: {
     ...config.android,
     intentFilters: [

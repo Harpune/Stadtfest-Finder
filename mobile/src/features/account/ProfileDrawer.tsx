@@ -3,7 +3,9 @@
  * bell with the unread counter next to the user (R11), the timeline "Deine Festsaison" and the
  * footer (dark mode, moderator view, logout). "Gemeinsame Listen" (R13) is not shown yet.
  * Deviation from the design: the notifications sit with the user, not in the footer.
+ * Both variants end with links to the imprint and the privacy policy (store requirement, R16).
  */
+import * as WebBrowser from 'expo-web-browser';
 import React, {useEffect, useState} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 
@@ -24,6 +26,7 @@ import {navigate} from '@/features/navigation/navigate';
 import {initialsOf, useAuth} from '@/features/auth/AuthProvider';
 import {todayInBerlin} from '@/features/events/dates';
 import {FestSaison} from '@/features/favorites/FestSaison';
+import {LEGAL_URLS} from '@/features/legal/links';
 import {useFavorites} from '@/features/favorites/useFavorites';
 import {stackPerson} from '@/features/lists/people';
 import {useLists} from '@/features/lists/useLists';
@@ -86,8 +89,11 @@ export function ProfileDrawer({visible, onClose}: ProfileDrawerProps) {
         }}
         testID="drawer.logout"
       />
+      <LegalLinks />
     </View>
-  ) : undefined;
+  ) : (
+    <LegalLinks />
+  );
 
   return (
     <>
@@ -105,6 +111,27 @@ export function ProfileDrawer({visible, onClose}: ProfileDrawerProps) {
       </SideDrawer>
       <NameSheet visible={askName} onClose={() => setAskName(false)} />
     </>
+  );
+}
+
+function LegalLinks() {
+  const link = (label: string, url: string, testID: string) => (
+    <Text
+      variant="meta"
+      tone="muted"
+      accessibilityRole="link"
+      onPress={() => WebBrowser.openBrowserAsync(url)}
+      testID={testID}
+    >
+      {label}
+    </Text>
+  );
+  return (
+    <Text variant="meta" tone="muted" style={styles.legal}>
+      {link(strings.drawer.imprint, LEGAL_URLS.imprint, 'drawer.imprint')}
+      {strings.drawer.legalSeparator}
+      {link(strings.drawer.privacy, LEGAL_URLS.privacy, 'drawer.privacy')}
+    </Text>
   );
 }
 
@@ -266,4 +293,5 @@ const styles = StyleSheet.create({
   user: {flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12},
   userText: {flex: 1},
   footer: {gap: 4},
+  legal: {textAlign: 'center', paddingVertical: 8},
 });

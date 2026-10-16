@@ -9,17 +9,12 @@ import {Platform, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {Button, Icon, IconButton, Text} from '@/components';
-import {LINK_HOST} from '@/features/event-detail/links';
+import {LEGAL_URLS} from '@/features/legal/links';
 import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
 
 import {useAuth} from './AuthProvider';
 import type {LoginMethod} from './config';
-
-const LEGAL_URLS = {
-  terms: `https://${LINK_HOST}/nutzungsbedingungen`,
-  privacy: `https://${LINK_HOST}/datenschutz`,
-};
 
 export function LoginScreen() {
   const theme = useTheme();

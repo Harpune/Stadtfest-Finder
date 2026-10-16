@@ -1,5 +1,6 @@
 import {fireEvent, screen, waitFor} from '@testing-library/react-native';
 import {router} from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import React from 'react';
 
 import {useAuth} from '@/features/auth/AuthProvider';
@@ -44,6 +45,19 @@ beforeEach(async () => {
 });
 
 describe('ProfileDrawer', () => {
+  it('links the imprint and the privacy policy for guests', async () => {
+    mockMeApi();
+    await renderDrawer();
+    await fireEvent.press(screen.getByTestId('drawer.imprint'));
+    expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith(
+      'https://stadtfest.herderstreet.de/impressum',
+    );
+    await fireEvent.press(screen.getByTestId('drawer.privacy'));
+    expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith(
+      'https://stadtfest.herderstreet.de/datenschutz',
+    );
+  });
+
   it('shows the guest variant with login', async () => {
     mockMeApi();
     await renderDrawer();
@@ -90,6 +104,15 @@ describe('ProfileDrawer', () => {
     await renderDrawer();
     await fireEvent.press(await screen.findByTestId('drawer.logout'));
     expect(await screen.findByText('Du bist abgemeldet')).toBeOnTheScreen();
+  });
+
+  it('keeps the legal links in the footer when signed in', async () => {
+    await authSession.start(testTokens());
+    mockMeApi();
+    await renderDrawer();
+    await screen.findByTestId('drawer.logout');
+    expect(screen.getByTestId('drawer.imprint')).toBeOnTheScreen();
+    expect(screen.getByTestId('drawer.privacy')).toBeOnTheScreen();
   });
 
   it('asks for the name if the IdP did not provide one', async () => {

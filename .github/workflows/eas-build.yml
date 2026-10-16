@@ -1,0 +1,78 @@
+# Mobile builds via EAS Build (R16-US6), separate from the Docker images (release.yml).
+# - Manual: choose profile (preview = internal distribution, production = store) and platform.
+# - Tags v*.*.*: production builds for iOS and Android, submitted to TestFlight and the
+#   Play Console internal track (eas.json "submit.production").
+# Needs the repository secret EXPO_TOKEN (00-docs/40-operations/eas-build.md).
+name: EAS build
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Build profile from mobile/eas.json
+        type: choice
+        options: [preview, production]
+        default: preview
+      platform:
+        description: Platform
+        type: choice
+        options: [all, ios, android]
+        default: all
+      submit:
+        description: Submit production builds to TestFlight / Play internal track
+        type: boolean
+        default: false
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eas-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: EAS build (${{ inputs.profile || 'production' }}, ${{ inputs.platform || 'all' }})
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      PROFILE: ${{ inputs.profile || 'production' }}
+      PLATFORM: ${{ inputs.platform || 'all' }}
+      SUBMIT: ${{ github.event_name == 'push' || inputs.submit }}
+    steps:
+      - name: Require EXPO_TOKEN
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::Repository secret EXPO_TOKEN is missing (00-docs/40-operations/eas-build.md)."
+            exit 1
+          fi
+        working-directory: .
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: mobile/package.json
+          version: 11
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: mobile/pnpm-lock.yaml
+      - uses: expo/expo-github-action@v9
+        with:
+          eas-version: latest
+          packager: pnpm
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: pnpm install --frozen-lockfile
+      - name: Build (EAS environment = profile, see eas.json)
+        run: |
+          args=(--platform "$PLATFORM" --profile "$PROFILE" --non-interactive --no-wait)
+          if [ "$PROFILE" = production ] && [ "$SUBMIT" = true ]; then
+            args+=(--auto-submit)
+          fi
+          npx eas-cli@latest build "${args[@]}"
