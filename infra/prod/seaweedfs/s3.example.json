@@ -1,0 +1,33 @@
+{
+  "identities": [
+    {
+      "name": "stadtfest-backend",
+      "credentials": [
+        {
+          "accessKey": "REPLACE_WITH_S3_ACCESS_KEY_ID",
+          "secretKey": "REPLACE_WITH_S3_SECRET_ACCESS_KEY"
+        }
+      ],
+      "actions": [
+        "Read:stadtfest-images",
+        "List:stadtfest-images",
+        "Tagging:stadtfest-images",
+        "Write:stadtfest-images"
+      ]
+    },
+    {
+      "name": "stadtfest-admin",
+      "credentials": [
+        {
+          "accessKey": "REPLACE_WITH_ADMIN_ACCESS_KEY",
+          "secretKey": "REPLACE_WITH_ADMIN_SECRET_KEY"
+        }
+      ],
+      "actions": ["Admin", "Read", "List", "Tagging", "Write"]
+    },
+    {
+      "name": "anonymous",
+      "actions": ["Read:stadtfest-images/public/*"]
+    }
+  ]
+}

@@ -1,0 +1,133 @@
+# Alert rules of the production stack (R16-US5, ADR 0020), evaluated by Grafana on Loki.
+# Sources are the JSON log lines of the backend (`request`, job events, `outbox_backlog`)
+# and of the backup job. Notifications go to the default contact point; it is set up in
+# 00-docs/40-operations/monitoring.md (not provisioned here).
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: stadtfest
+    folder: Stadtfest-Finder
+    interval: 1m
+    rules:
+      # More than 5 % server errors (at least 5) in 5 minutes on API or MCP server.
+      - uid: stadtfest-5xx-rate
+        title: 5xx-Rate API/MCP
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: loki
+            model:
+              refId: A
+              queryType: instant
+              expr: 'sum(count_over_time({stack="stadtfest", service=~"api|mcp"} | json | event="request" | status >= 500 [5m]))'
+          - refId: B
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: loki
+            model:
+              refId: B
+              queryType: instant
+              expr: 'sum(count_over_time({stack="stadtfest", service=~"api|mcp"} | json | event="request" [5m]))'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: math
+              expression: '$A >= 5 && $A / $B > 0.05'
+              datasource: {type: __expr__, uid: __expr__}
+        # No 5xx lines at all is the normal case.
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Mehr als 5 % Serverfehler in 5 Minuten
+          runbook: 00-docs/40-operations/monitoring.md#5xx-rate
+        labels:
+          severity: critical
+
+      # Failed jobs: push batches given up, IdP deletions given up, failed AI searches,
+      # outbox relay errors, failed backups and any other error-level line of worker/backup.
+      - uid: stadtfest-failed-jobs
+        title: Fehlgeschlagene Jobs
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 900, to: 0}
+            datasourceUid: loki
+            model:
+              refId: A
+              queryType: instant
+              expr: 'sum by (service, event) (count_over_time({stack="stadtfest", service=~"worker|backup"} | json | level=~"error|critical" or event=~"ai_search_job_failed|outbox_relay_failed" [15m]))'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: math
+              expression: '$A > 0'
+              datasource: {type: __expr__, uid: __expr__}
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: 'Job fehlgeschlagen: {{ $labels.service }} / {{ $labels.event }}'
+          runbook: 00-docs/40-operations/monitoring.md#fehlgeschlagene-jobs
+        labels:
+          severity: warning
+
+      # The relay empties the outbox every second; pending messages older than 5 minutes
+      # mean the relay or Redis is stuck. No gauge at all means the worker is down.
+      - uid: stadtfest-outbox-backlog
+        title: Outbox-Rückstau
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 900, to: 0}
+            datasourceUid: loki
+            model:
+              refId: A
+              queryType: instant
+              expr: 'max(max_over_time({stack="stadtfest", service="worker"} | json | event="outbox_backlog" | unwrap oldest_age_s [15m]))'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: math
+              expression: '$A > 300'
+              datasource: {type: __expr__, uid: __expr__}
+        noDataState: Alerting
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: Outbox-Rückstau oder Worker meldet sich nicht
+          runbook: 00-docs/40-operations/monitoring.md#outbox-rückstau
+        labels:
+          severity: critical
+
+      # The daily backup must succeed at least once in 26 hours.
+      - uid: stadtfest-backup-missing
+        title: Backup fehlt
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 93600, to: 0}
+            datasourceUid: loki
+            model:
+              refId: A
+              queryType: instant
+              expr: 'sum(count_over_time({stack="stadtfest", service="backup"} | json | event="backup_succeeded" [26h]))'
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: math
+              expression: '$A < 1'
+              datasource: {type: __expr__, uid: __expr__}
+        noDataState: Alerting
+        execErrState: Error
+        for: 1h
+        annotations:
+          summary: Seit mehr als 26 Stunden kein erfolgreiches Backup
+          runbook: 00-docs/40-operations/backup-restore.md
+        labels:
+          severity: critical

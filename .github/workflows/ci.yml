@@ -70,6 +70,14 @@ jobs:
           # Accepted breaking changes, each backed by an ADR (e.g. ADR 0015).
           err-ignore: api/oasdiff-err-ignore.txt
 
+  infra:
+    name: Production stack (compose, Caddyfile)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate infra/compose.yaml and infra/caddy/Caddyfile with the Komodo template
+        run: make infra-check
+
   mobile:
     name: Mobile (lint, types, tests)
     runs-on: ubuntu-latest

@@ -255,3 +255,29 @@ async def test_purge_removes_old_dispatched_messages_only(
             ).all()
         )
     assert ids == {recent, pending}
+
+
+async def test_backlog_counts_pending_messages_and_finds_the_oldest(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    store = SqlOutboxStore(sessions)
+    before = await store.backlog()
+    stuck_since = datetime.now(UTC) - timedelta(days=400)  # older than anything else
+    async with sessions.begin() as session:
+        session.add_all(
+            [
+                OutboxRow(id=uuid4(), type="event.updated", payload={}, occurred_at=stuck_since),
+                OutboxRow(
+                    id=uuid4(),
+                    type="event.updated",
+                    payload={},
+                    occurred_at=stuck_since - timedelta(days=1),
+                    dispatched_at=stuck_since,
+                ),
+            ]
+        )
+
+    backlog = await store.backlog()
+
+    assert backlog.pending == before.pending + 1
+    assert backlog.oldest_occurred_at == stuck_since

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import delete, exists, func, select, update
+from sqlalchemy import Text, delete, exists, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -13,6 +13,7 @@ from stadtfest.adapters.outbound.persistence.models import (
     EventRow,
     FavoriteRow,
     ListMemberRow,
+    OutboxRow,
     SharedListRow,
 )
 from stadtfest.application.identity.ports import UserRecord
@@ -69,7 +70,8 @@ class SqlUserRepository:
         same way, as do friendships, the friend link and notifications naming the user as actor
         (R12). Memberships of shared lists cascade, `created_by` / `added_by` become null and
         lists without members are deleted (R13). Own invitations as host (with their
-        invitees and notifications) and own invitee rows cascade (R14).
+        invitees and notifications) and own invitee rows cascade (R14). Outbox messages
+        naming the user (friend, list and invitation events) are deleted (R16-US7).
         """
         async with self._sessions.begin() as session:
             user_id = await session.scalar(
@@ -88,6 +90,11 @@ class SqlUserRepository:
                 update(EventRow)
                 .where(EventRow.id.in_(favorites))
                 .values(favorite_count=func.greatest(EventRow.favorite_count - 1, 0))
+            )
+            # Domain events of R12-R14 carry user IDs; their consumers would only notify
+            # about rows that go with the account, so they are dropped, pending or not.
+            await session.execute(
+                delete(OutboxRow).where(OutboxRow.payload.cast(Text).contains(str(user_id)))
             )
             await session.delete(await session.get_one(AppUserRow, user_id))
             await session.flush()

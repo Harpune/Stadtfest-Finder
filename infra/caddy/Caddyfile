@@ -1,0 +1,95 @@
+# Reverse proxy of the production stack (infra/compose.yaml, ADR 0019).
+# Caddy obtains and renews TLS certificates automatically (Let's Encrypt, ACME_EMAIL).
+# No `log` directive anywhere: Caddy writes no access logs, so no IP addresses are stored
+# (00-docs/30-privacy/toms.md). Hosts come from the stack environment.
+{
+	email {$ACME_EMAIL}
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+}
+
+# REST API (flow A/B/C).
+{$API_HOST} {
+	import security_headers
+	encode zstd gzip
+	reverse_proxy api:8000
+}
+
+# MCP server (flow D, Streamable HTTP; responses are streamed without buffering).
+{$MCP_HOST_NAME} {
+	import security_headers
+	reverse_proxy mcp:8001 {
+		flush_interval -1
+	}
+}
+
+# Object storage (SeaweedFS): only anonymous reads of public/ and signed uploads (ADR 0011).
+# The rest of the S3 API stays internal; the backend talks to http://seaweedfs:8333.
+{$IMAGES_HOST} {
+	import security_headers
+	@public {
+		method GET HEAD
+		path /{$S3_BUCKET}/public/*
+	}
+	@upload {
+		method PUT
+		path /{$S3_BUCKET}/uploads/*
+		query X-Amz-Signature=*
+	}
+	handle @public {
+		# Cache-Control comes from the object metadata (immutable variants, ADR 0011).
+		reverse_proxy seaweedfs:8333
+	}
+	handle @upload {
+		# Uploads are at most 10 MB (MAX_UPLOAD_BYTES); the signature binds host, key and expiry.
+		request_body {
+			max_size 11MB
+		}
+		reverse_proxy seaweedfs:8333
+	}
+	handle {
+		respond 404
+	}
+}
+
+# Deep-link domain (R04-US6, R12, R14): App Links, fallback pages, imprint and privacy policy.
+{$LINK_HOST} {
+	import security_headers
+	root * /srv/deeplinks
+	encode zstd gzip
+
+	# App Links / Universal Links are rendered from ANDROID_CERT_SHA256 and APPLE_TEAM_ID.
+	rewrite /.well-known/apple-app-site-association /.well-known/apple-app-site-association.json
+	@wellKnown path /.well-known/assetlinks.json /.well-known/apple-app-site-association.json
+	header @wellKnown Content-Type application/json
+	templates @wellKnown {
+		mime application/json
+	}
+
+	# The imprint is rendered from IMPRINT_NAME, IMPRINT_ADDRESS and IMPRINT_EMAIL.
+	@legal path /impressum /impressum/ /datenschutz /datenschutz/ /nutzungsbedingungen /nutzungsbedingungen/
+	templates @legal
+
+	# Every event link without the installed app shows the same fallback page.
+	@event path_regexp event ^/f/[A-Za-z0-9-]+/?$
+	rewrite @event /f/index.html
+
+	# Friend links (R12): the token carries no personal data.
+	@friend path_regexp friend ^/freund/[A-Za-z0-9_-]+/?$
+	rewrite @friend /freund/index.html
+
+	# Invitation links (R14) and received invitations; same rules as friend links.
+	@invitationLink path_regexp invitationLink ^/e/[A-Za-z0-9_-]+/?$
+	rewrite @invitationLink /e/index.html
+	@invitation path_regexp invitation ^/einladung/[A-Za-z0-9-]+/?$
+	rewrite @invitation /einladung/index.html
+
+	file_server
+}

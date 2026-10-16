@@ -71,6 +71,28 @@ App (EAS-Umgebung, zur Build-Zeit eingebettet, **nicht geheim**):
 | `EXPO_PUBLIC_AUTH_PROJECT_ID` | Projekt-ID aus Schritt 1 |
 | `EXPO_PUBLIC_AUTH_APPLE_IDP` / `EXPO_PUBLIC_AUTH_GOOGLE_IDP` | IdP-IDs aus Schritt 3 |
 
+### 7. Produktion vervollständigen (R16-US3)
+
+1. **E-Mail-Absender:** *Instanz → Einstellungen → Benachrichtigungsanbieter → SMTP* mit einem EU-Mailanbieter einrichten, Absender z. B. `noreply@herderstreet.de`, Name „Stadtfest-Finder“. Für die Domain SPF, DKIM und DMARC setzen (Werte vom Mailanbieter). Ohne eigenen Absender versendet Zitadel mit seiner Standardadresse, die oft im Spam landet. Testmail über *Testen* senden.
+2. **Texte und Branding:** *Organisation → Branding* Logo und Farben (Design-Tokens aus `mobile/src/theme`); *Nachrichtentexte* (Bestätigung, Passwort zurücksetzen) auf Deutsch prüfen.
+3. **Links im Hosted Login:** *Organisation → Datenschutzrichtlinie*: Nutzungsbedingungen `https://stadtfest.herderstreet.de/nutzungsbedingungen/`, Datenschutz `https://stadtfest.herderstreet.de/datenschutz/`, Hilfe-/Support-E-Mail.
+4. **Sicherheit:** *Login-Richtlinie* Passwort-Komplexität (mind. 10 Zeichen), Sperre nach 5 Fehlversuchen, Zwei-Faktor optional (TOTP, Passkeys). Für Admin-Konten der Instanz MFA **Pflicht**.
+5. **Token-Laufzeiten** (*Instanz → OIDC-Einstellungen*): Access-Token 30 Minuten, Refresh-Token 30 Tage (gleitend). Kurze Access-Tokens verkürzen die Sperre nach einer Kontolöschung (Löschkonzept, Schritt 0).
+6. **MCP-Clients:** je bekanntem Client eine eigene öffentliche App nach [mcp-client-anbinden.md](mcp-client-anbinden.md); in der Stack-Umgebung `MCP_OAUTH_SCOPES=openid profile urn:zitadel:iam:org:project:id:<projektId>:aud`.
+7. **Rollen vergeben:** Moderatoren und Kategorie-Admins nach [moderator-einrichten.md](moderator-einrichten.md).
+8. **Werte übernehmen:** Backend-Variablen aus Schritt 6 in die Komodo-Stack-Umgebung ([`infra/komodo-environment.example`](../../infra/komodo-environment.example)), App-Variablen in die EAS-Umgebung `production` ([eas-build.md](eas-build.md)).
+
+**Checkliste Produktion**
+
+- [ ] Instanz in der EU-Region, AV-Vertrag abgeschlossen
+- [ ] Projekt `stadtfest` mit Rollen `user`, `moderator`, `category_admin`, „Assert Roles“ aktiv
+- [ ] Native App (PKCE, JWT-Access-Token, Refresh-Token), Redirect `stadtfest://auth`
+- [ ] Apple- und Google-IdP mit automatischer Kontoerstellung
+- [ ] Service-User mit `ORG_USER_MANAGER`, PAT mit Ablaufdatum im Betriebskalender
+- [ ] SMTP-Absender mit SPF/DKIM, Testmail angekommen
+- [ ] Datenschutz-/Nutzungsbedingungs-Links im Hosted Login
+- [ ] MCP-Apps für die freigegebenen Clients
+
 ## Prüfung
 
 1. Backend neu starten; es startet nur, wenn alle Variablen gültig sind (Fehlermeldung nennt die fehlende Variable, nie den Wert).

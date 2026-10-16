@@ -4,7 +4,7 @@
 
 Festbilder (R08, [ADR 0011](../25-adr/0011-bildauslieferung.md)) liegen in einem S3-kompatiblen Bucket.
 - **Lokal:** SeaweedFS aus `infra/compose.dev.yaml` ([ADR 0007](../25-adr/0007-objektspeicher-seaweedfs.md)).
-- **Produktiv:** SeaweedFS auf dem Heimserver (EU) oder ein S3-Dienst mit Rechenzentrum in der EU. Die Entscheidung fällt in R16.
+- **Produktiv:** SeaweedFS auf dem Heimserver (EU), Dienst `seaweedfs` in `infra/compose.yaml` ([ADR 0019](../25-adr/0019-produktionsstack.md)). Öffentlich erreichbar ist nur `https://bilder.stadtfest.herderstreet.de` über Caddy: Lesen unter `public/` und signierte Uploads unter `uploads/`.
 
 Das Backend spricht nur die S3-API. Ein Anbieterwechsel braucht keine Codeänderung.
 
@@ -14,7 +14,21 @@ Das Backend spricht nur die S3-API. Ein Anbieterwechsel braucht keine Codeänder
 - Für SeaweedFS: Shell im Container (`weed shell`)
 - Komodo-Zugang für die Secrets der API und des Workers
 
-## Schritte
+## Schritte in Produktion (SeaweedFS im Stack)
+
+1. **Identitäten:** `infra/prod/seaweedfs/s3.example.json` kopieren, für `stadtfest-backend` und `stadtfest-admin` je einen Access Key und ein Secret erzeugen (`openssl rand -hex 20` bzw. `openssl rand -hex 32`) und als `/etc/stadtfest/secrets/seaweedfs-s3.json` ablegen ([deployment-komodo.md](deployment-komodo.md), Schritt 2). Das Backend-Secret zusätzlich als Komodo-Secret `STADTFEST_S3_SECRET_ACCESS_KEY`.
+2. **Bucket anlegen** (einmalig, nach dem ersten Start, im Komodo-Terminal des Stacks):
+   ```bash
+   docker compose exec seaweedfs sh -c 'echo "s3.bucket.create -name stadtfest-images" | weed shell -master=localhost:9333'
+   ```
+3. **Lifecycle für `uploads/`** (Sicherheitsnetz zu `purge_images`): Originale nach 2 Tagen löschen.
+   ```bash
+   docker compose exec seaweedfs sh -c 'echo "fs.configure -locationPrefix=/buckets/stadtfest-images/uploads/ -ttl=2d -apply" | weed shell -master=localhost:9333'
+   ```
+4. **Variablen:** `S3_ENDPOINT_URL`, `S3_PRESIGN_ENDPOINT_URL` und `S3_PUBLIC_BASE_URL` setzt `infra/compose.yaml` aus `IMAGES_HOST`; in der Stack-Umgebung stehen nur `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID` und das Secret.
+5. **Backup:** Der Bucket wird täglich über die S3-API gesichert ([backup-restore.md](backup-restore.md)).
+
+## Schritte für einen anderen S3-Anbieter
 
 1. **Bucket anlegen:** Name `stadtfest-images`, Region in der EU.
    - Lokal legt der Worker den Bucket beim Start selbst an.

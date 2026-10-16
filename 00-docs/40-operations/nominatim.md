@@ -12,7 +12,7 @@ Geocoding für PLZ-/Ortssuche (mit Autocomplete), Straßenadressen in der Modera
 
 ## Schritte
 
-1. **Dienst anlegen:** Service `nominatim` im Produktions-Compose (R16), nur im internen Netz erreichbar, kein öffentlicher Port:
+1. **Dienst:** `nominatim` steht in `infra/compose.yaml` (R16, Speicherlimit 12 GB, 4 CPUs), nur im internen Netz erreichbar, kein öffentlicher Port. Das Datenbank-Passwort kommt aus dem Komodo-Secret `STADTFEST_NOMINATIM_DB_PASSWORD`:
    ```yaml
    nominatim:
      image: mediagis/nominatim:5.1
@@ -28,7 +28,7 @@ Geocoding für PLZ-/Ortssuche (mit Autocomplete), Straßenadressen in der Modera
    ```
    `IMPORT_STYLE=address` reicht für Adressen, PLZ und Orte und spart Speicher.
 2. **Initialimport** starten (`docker compose up -d nominatim`). Er dauert für Deutschland je nach Hardware **mehrere Stunden**. Fortschritt: `docker compose logs -f nominatim`.
-3. **Backend konfigurieren** (Komodo-Secrets bzw. Umgebung):
+3. **Backend:** `infra/compose.yaml` setzt die Werte selbst; nur `GEOCODING_TIMEOUT_SECONDS` steht in der Stack-Umgebung:
    ```bash
    GEOCODING_PROVIDER=nominatim
    NOMINATIM_URL=http://nominatim:8080

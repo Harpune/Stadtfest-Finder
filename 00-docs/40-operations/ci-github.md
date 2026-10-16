@@ -27,7 +27,7 @@ Die PR-Pipeline (`.github/workflows/ci.yml`, `codeql.yml`, `ai-review.yml`) und 
      - `Security scan (Trivy)`
      - `CodeQL (python)`, `CodeQL (javascript-typescript)`, `CodeQL (actions)`
    - „Do not allow bypassing“ und kein Force-Push
-5. **GHCR:** Nach dem ersten Lauf von `release.yml` erscheint das Paket `stadtfest-backend` unter *Packages*. Sichtbarkeit bleibt privat. Komodo erhält später einen Read-Token (R16).
+5. **GHCR:** Nach dem ersten Lauf von `release.yml` erscheinen die Pakete `stadtfest-backend`, `stadtfest-mcp` und `stadtfest-backup` unter *Packages*. Sichtbarkeit bleibt privat; Komodo liest sie mit einem Token (`read:packages`, [deployment-komodo.md](deployment-komodo.md), Schritt 4). Das Deployment danach übernimmt `deploy.yml`.
 
 ## Prüfung
 

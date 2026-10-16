@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nutzungsbedingungen · Stadtfest-Finder</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #FBF8F4; --text: #231A2E; --muted: #6F6480; --amber: #FFB547; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #15111C; --text: #F4EEF8; --muted: #A89BB8; } }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, sans-serif; }
+    main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 28px; margin: 0 0 16px; }
+    h2 { font-size: 19px; margin: 28px 0 8px; }
+    p, li { color: var(--text); }
+    .muted { color: var(--muted); }
+    a { color: inherit; text-decoration-color: var(--amber); text-underline-offset: 3px; }
+    table { border-collapse: collapse; width: 100%; font-size: 15px; }
+    th, td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid color-mix(in srgb, var(--muted) 30%, transparent); }
+  </style>
+</head>
+<body>
+  <!-- Rendered by Caddy templates from the stack environment (infra/caddy/Caddyfile).
+       Legal texts: review before the store release (00-docs/40-operations/store-release.md). -->
+  <main>
+    <h1>Nutzungsbedingungen</h1>
+    <p class="muted">Stand: Oktober 2026</p>
+    <h2>1. Angebot</h2>
+    <p>Stadtfest-Finder zeigt Stadtfeste, Volksfeste, Kirmes, Weihnachtsmärkte und Märkte in Deutschland. Die Nutzung ist kostenlos. Ein Anspruch auf Verfügbarkeit besteht nicht.</p>
+    <h2>2. Festdaten</h2>
+    <p>Termine und Angaben stammen von Veranstaltern und öffentlichen Quellen und werden vor der Veröffentlichung geprüft. Verbindlich sind die Angaben der Veranstalter; bitte prüfe sie vor dem Besuch über die verlinkte Quelle.</p>
+    <h2>3. Konto</h2>
+    <p>Für Favoriten, Freunde, Listen und Einladungen brauchst du ein Konto. Halte deine Zugangsdaten geheim. Du kannst dein Konto jederzeit in der App löschen.</p>
+    <h2>4. Verhalten</h2>
+    <p>Nachrichten in Einladungen und Listennamen dürfen keine rechtswidrigen, beleidigenden oder fremden personenbezogenen Inhalte enthalten. Bei Verstößen können wir Inhalte entfernen und Konten sperren.</p>
+    <h2>5. Haftung</h2>
+    <p>Wir haften unbeschränkt für Vorsatz und grobe Fahrlässigkeit sowie nach dem Produkthaftungsgesetz. Im Übrigen haften wir nur für die Verletzung wesentlicher Pflichten und begrenzt auf den vorhersehbaren Schaden.</p>
+    <h2>6. Kontakt</h2>
+    <p>
+      {{env "IMPRINT_NAME"}}<br>
+      {{range splitList "|" (env "IMPRINT_ADDRESS")}}{{trim .}}<br>{{end}}
+      E-Mail: <a href="mailto:{{env "IMPRINT_EMAIL"}}">{{env "IMPRINT_EMAIL"}}</a>
+    </p>
+    <p class="muted"><a href="/impressum/">Impressum</a> · <a href="/datenschutz/">Datenschutz</a> · <a href="/nutzungsbedingungen/">Nutzungsbedingungen</a></p>
+  </main>
+</body>
+</html>

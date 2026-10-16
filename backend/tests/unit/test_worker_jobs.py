@@ -14,6 +14,7 @@ from stadtfest.adapters.inbound.worker.jobs import (
 )
 from stadtfest.application.identity.use_cases import DeleteIdpUser
 from stadtfest.application.notifications.use_cases import CheckPushReceipts, PushNotifications
+from stadtfest.bootstrap.settings import Environment, GeocodingProvider, Settings
 from tests.fakes import (
     FakeDeviceStore,
     FakeIdpAdmin,
@@ -70,3 +71,26 @@ async def test_push_job_retries_while_the_service_is_down(
     assert await check_push_receipts(_push_ctx(down, job_try=PUSH_MAX_TRIES), {"t": "x"}) == 0
     assert "push_failed" in caplog.text
     assert await push_notifications(_push_ctx(FakePushSender()), [str(uuid4())]) == 0
+
+
+def test_worker_entry_point_rejects_unknown_arguments(capsys: pytest.CaptureFixture[str]) -> None:
+    from stadtfest.bootstrap.worker import main
+
+    assert main(["--bogus"]) == 2
+    assert "--check" in capsys.readouterr().err
+
+
+async def test_worker_shutdown_after_failed_startup_keeps_the_original_error() -> None:
+    from stadtfest.bootstrap.worker import build_worker_settings
+    from tests.settings_values import TEST_STORAGE
+
+    settings = Settings(
+        env=Environment.TEST,
+        geocoding_provider=GeocodingProvider.FAKE,
+        database_url="postgresql+asyncpg://u:p@127.0.0.1:9/db",
+        redis_url="redis://127.0.0.1:9/0",
+        **TEST_STORAGE,  # type: ignore[arg-type]
+    )
+    worker_settings = build_worker_settings(settings)
+
+    await worker_settings.on_shutdown({})  # type: ignore[attr-defined]

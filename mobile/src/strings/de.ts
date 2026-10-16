@@ -154,6 +154,9 @@ export const strings = {
     darkModeHint: 'Lange drücken: wieder wie das System',
     darkModeSystem: 'Darstellung folgt wieder dem System',
     moderator: 'Moderator-Ansicht',
+    imprint: 'Impressum',
+    privacy: 'Datenschutz',
+    legalSeparator: ' · ',
   },
   notifications: {
     title: 'Benachrichtigungen',

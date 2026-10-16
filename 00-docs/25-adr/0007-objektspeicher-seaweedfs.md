@@ -9,7 +9,7 @@ CLAUDE.md sah MinIO als lokalen Objektspeicher für Festbilder vor. MinIO veröf
 
 ## Entscheidung
 
-- **SeaweedFS** (Apache-2.0-Lizenz, Image `chrislusf/seaweedfs`, feste Version) ersetzt MinIO lokal und in Tests. Es ist auch Kandidat für den Heimserver (Entscheidung in R16).
+- **SeaweedFS** (Apache-2.0-Lizenz, Image `chrislusf/seaweedfs`, feste Version) ersetzt MinIO lokal und in Tests. Es ist auch Kandidat für den Heimserver (Entscheidung in R16: SeaweedFS auch in Produktion, [ADR 0019](0019-produktionsstack.md)).
 - Das Backend spricht ausschließlich die **S3-API** über den Storage-Port an. Ein Wechsel des S3-Anbieters braucht keine Codeänderung.
 - **Lokal** gibt es eine Identität `stadtfest-dev` mit vollen Rechten und anonymes Lesen nur auf `stadtfest-images/public/` (für R08).
 

@@ -83,6 +83,8 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
+        # `NAME=` (common in Komodo stack environments) means "not set", not an empty value.
+        env_ignore_empty=True,
     )
 
     env: Environment = Environment.DEV
@@ -185,11 +187,23 @@ class Settings(BaseSettings):
         self._check_auth()
         self._check_ai()
         self._check_push()
-        if self.env is Environment.PROD and self.s3_public_base_url.scheme != "https":
-            raise ValueError("S3_PUBLIC_BASE_URL must use https in prod")
-        if self.env is Environment.PROD and self.mcp_public_url.scheme != "https":
-            raise ValueError("MCP_PUBLIC_URL must use https in prod")
+        if self.env is Environment.PROD:
+            self._check_production_urls()
         return self
+
+    def _check_production_urls(self) -> None:
+        """Public URLs must use https in prod; JSON logs feed the log pipeline (R16-US5)."""
+        public_urls = {
+            "S3_PUBLIC_BASE_URL": self.s3_public_base_url,
+            "S3_PRESIGN_ENDPOINT_URL": self.s3_presign_endpoint_url,
+            "MCP_PUBLIC_URL": self.mcp_public_url,
+            "DEEP_LINK_BASE_URL": self.deep_link_base_url,
+        }
+        for name, url in public_urls.items():
+            if url is not None and url.scheme != "https":
+                raise ValueError(f"{name} must use https in prod")
+        if self.log_format is not LogFormat.JSON:
+            raise ValueError("LOG_FORMAT must be json in prod")
 
     def _check_ai(self) -> None:
         if self.ai_search_prompt_file is not None:

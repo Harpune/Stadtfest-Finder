@@ -26,7 +26,7 @@ Vektorkacheln und Kartenstile (dunkel/hell) für die Karte der App ([ADR 0009](.
      EXPO_PUBLIC_MAPTILER_STYLE_DARK=streets-v2-dark
      EXPO_PUBLIC_MAPTILER_STYLE_LIGHT=streets-v2
      ```
-   - Für Builds als EAS-Secret `EXPO_PUBLIC_MAPTILER_KEY` (Einrichtung der EAS-Builds folgt in R16).
+   - Für Builds als EAS-Secret `EXPO_PUBLIC_MAPTILER_KEY` ([eas-build.md](eas-build.md)).
 6. Metro bzw. den Build neu starten, damit die Variable übernommen wird.
 
 ## Prüfung

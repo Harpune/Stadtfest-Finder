@@ -55,6 +55,7 @@ def test_valid_environment_loads(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("NOMINATIM_URL", "http://nominatim:8080")
     # `make` exports the local .env (often GEOCODING_PROVIDER=fake) into the environment.
     monkeypatch.delenv("GEOCODING_PROVIDER", raising=False)
+    monkeypatch.setenv("LOG_FORMAT", "json")
     _set_prod_auth(monkeypatch)
 
     settings = load_settings()
@@ -101,6 +102,8 @@ def _prod(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ENV", "prod")
     monkeypatch.setenv("GEOCODING_PROVIDER", "nominatim")
     monkeypatch.setenv("NOMINATIM_URL", "http://nominatim:8080")
+    # `make` exports the local .env (often LOG_FORMAT=console) into the environment.
+    monkeypatch.setenv("LOG_FORMAT", "json")
     _set_prod_auth(monkeypatch)
 
 
@@ -114,11 +117,23 @@ def test_http_issuer_is_rejected_in_prod(monkeypatch: pytest.MonkeyPatch) -> Non
     assert "AUTH_ISSUER" in str(exc_info.value)
 
 
-def test_http_mcp_url_is_rejected_in_prod(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    "name",
+    ["MCP_PUBLIC_URL", "DEEP_LINK_BASE_URL", "S3_PRESIGN_ENDPOINT_URL", "S3_PUBLIC_BASE_URL"],
+)
+def test_http_public_urls_are_rejected_in_prod(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
     _prod(monkeypatch)
-    monkeypatch.setenv("MCP_PUBLIC_URL", "http://mcp.stadtfest.example.eu")
+    monkeypatch.setenv(name, "http://public.stadtfest.example.eu/stadtfest-images")
 
-    with pytest.raises(SettingsError, match="MCP_PUBLIC_URL"):
+    with pytest.raises(SettingsError, match=name):
+        load_settings()
+
+
+def test_console_logs_are_rejected_in_prod(monkeypatch: pytest.MonkeyPatch) -> None:
+    _prod(monkeypatch)
+    monkeypatch.setenv("LOG_FORMAT", "console")
+
+    with pytest.raises(SettingsError, match="LOG_FORMAT"):
         load_settings()
 
 
@@ -304,3 +319,14 @@ def test_direct_needs_apns_and_fcm_credentials(
         load_settings()
     credentials.write_text("{}")
     assert load_settings().push_provider.value == "direct"
+
+
+def test_empty_values_count_as_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    _prod(monkeypatch)
+    monkeypatch.setenv("LLM_BASE_URL", "")
+    monkeypatch.setenv("AUTH_JWKS_URL", "")
+
+    settings = load_settings()
+
+    assert settings.llm_base_url is None
+    assert settings.auth_jwks_url is None
