@@ -13,7 +13,9 @@ Das Sprachmodell der KI-Suche per PLZ (R10, Flow C). Ein generischer Adapter (Py
   - **Anthropic:** Konto auf https://console.anthropic.com mit Guthaben bzw. Zahlungsart.
   - **Google Gemini:** Google-Konto mit Zugang zu Google AI Studio (https://aistudio.google.com). Der kostenlose Tarif reicht nur zum Ausprobieren: Er erlaubt je Modell ca. 20 Anfragen pro Tag (gemessen am 05.10.2026 mit `gemini-3.8-flash`, aktuelle Werte unter *AI Studio → Usage & limits*). Eine KI-Suche braucht bis zu `AI_SEARCH_MAX_TOOL_CALLS` + 2 Anfragen (eine pro Web-Suche plus Start und Ergebnis), also bei Standardwerten etwa 2 Suchen pro Tag. Für den Betrieb die Abrechnung im zugehörigen Google-Cloud-Projekt aktivieren.
   - **Ollama:** ein Rechner bzw. Container mit Ollama (https://ollama.com) und genug RAM/GPU für ein Modell mit Tool-Calling (z. B. `qwen3`, `llama3.1`).
-- Zugriff auf die lokale `.env` bzw. die Secrets in Komodo (Produktion).
+- Zugriff auf die lokale `.env` bzw. auf die Komodo-Variablen (Produktion).
+
+**Wert, der hier entsteht:** API-Schlüssel des Anbieters → Komodo-Variable `STADTFEST_LLM_API_KEY` (*Secret*); lokal `LLM_API_KEY` in `.env`.
 
 ## Schritte
 
@@ -27,7 +29,10 @@ Das Sprachmodell der KI-Suche per PLZ (R10, Flow C). Ein generischer Adapter (Py
    - Ollama: kein Schlüssel. Modell laden: `ollama pull <modell>`.
 3. **Ausgabelimit setzen:** Im Dashboard des Anbieters ein monatliches Budget bzw. Limit für das Projekt bzw. den Workspace einstellen (Gemini: Budget-Alarm unter *Billing → Budgets & alerts* im Cloud-Projekt; im kostenlosen Tarif begrenzen die Rate-Limits). Die App begrenzt zusätzlich selbst: `AI_SEARCH_DAILY_LIMIT` (Suchen je Moderator und Tag), `AI_SEARCH_MAX_TOOL_CALLS` (Web-Suchen je Job), `AI_SEARCH_TIMEOUT_S`.
 4. **Modell wählen:** Es muss Tool-Calling und strukturierte Ausgabe können. Beispiele: `mistral-large-latest`, `gpt-4.1-mini`, `claude-sonnet-4-5`, für Gemini ein aktuelles `gemini-…-flash`- oder `-pro`-Modell (Liste: https://ai.google.dev/gemini-api/docs/models). Den genauen Namen aus der Modellliste des Anbieters übernehmen.
-5. **Secrets hinterlegen** – lokal in `.env` (siehe `.env.example`), in Produktion als Komodo-Secret. **Niemals ins Repo.**
+5. **Secrets hinterlegen** – **Niemals ins Repo.**
+   - **Produktion (Mistral):** den Schlüssel als Komodo-Variable `STADTFEST_LLM_API_KEY` (*Secret*) anlegen ([deployment-komodo.md](deployment-komodo.md), Schritt 4). `LLM_PROVIDER=mistral` und `LLM_MODEL=mistral-large-latest` stehen fest im HomeLab-Stack (`komodo/homelab/resources.toml`); ein anderer Anbieter oder ein anderes Modell ist ein PR dort.
+   - **Produktion mit dem Ollama des HomeLab** (Stack `ai`, Container `ollama`): im HomeLab `LLM_PROVIDER=ollama`, `LLM_MODEL=<modell>`, `LLM_BASE_URL=http://ollama:11434/v1`, `LLM_API_KEY=` setzen und `stadtfest-worker` zusätzlich ins Netz `ai` hängen (Kommentar in `stacks/stadtfest/compose.yaml`); das Modell vorher in `ollama-init` aufnehmen.
+   - **Lokal** in `.env` (siehe `.env.example`):
    ```bash
    LLM_PROVIDER=mistral          # mistral | openai | anthropic | google | ollama
    LLM_MODEL=mistral-large-latest
@@ -40,7 +45,7 @@ Das Sprachmodell der KI-Suche per PLZ (R10, Flow C). Ein generischer Adapter (Py
    LLM_MODEL=<gemini-modell aus der Modellliste>
    LLM_API_KEY=<schlüssel aus AI Studio>
    ```
-6. **API und Worker neu starten.** Beide lesen die Einstellungen beim Start; ein fehlender Schlüssel oder ein unbekannter Anbieter beendet den Start mit einer klaren Meldung.
+6. **Neu starten:** lokal API und Worker, in Produktion den Stack `stadtfest` in Komodo neu deployen. Beide lesen die Einstellungen beim Start; ein fehlender Schlüssel oder ein unbekannter Anbieter beendet den Start mit einer klaren Meldung.
 
 ## Prüfung
 
@@ -62,7 +67,7 @@ Das Sprachmodell der KI-Suche per PLZ (R10, Flow C). Ein generischer Adapter (Py
 ## Rollback
 
 - **Gemini überlastet oder Kontingent erschöpft** (`llm_unavailable`): Der Adapter wiederholt `429`/`503` bis zu fünfmal mit wachsender Pause (ca. 30 s). Das Worker-Log zeigt dann `Retrying … 503 UNAVAILABLE` (Google überlastet, vorübergehend) bzw. `429 RESOURCE_EXHAUSTED` (Kontingent). Beim Tageskontingent hilft nur warten (Reset um Mitternacht US-Pazifikzeit), ein anderes Gemini-Modell (eigenes Kontingent je Modell), Abrechnung aktivieren oder ein anderer Anbieter.
-- **Zurück auf die EU:** `LLM_PROVIDER=mistral` (bzw. `ollama`) mit passendem `LLM_MODEL` und `LLM_API_KEY` setzen, API und Worker neu starten.
-- **KI-Suche vorübergehend stoppen:** `AI_SEARCH_DAILY_LIMIT=0` setzen und neu starten; neue Suchen enden dann mit `429`. Hängende Jobs markiert der Wächter (alle 10 Minuten) nach der doppelten `AI_SEARCH_TIMEOUT_S` als `timeout`.
-- **Schlüssel kompromittiert:** im Dashboard des Anbieters widerrufen, neuen Schlüssel anlegen, Secret ersetzen, neu starten.
+- **Zurück auf die EU:** `LLM_PROVIDER=mistral` (bzw. `ollama`) mit passendem `LLM_MODEL` und `LLM_API_KEY` (Produktion: im HomeLab `resources.toml` per PR, Schlüssel in `STADTFEST_LLM_API_KEY`) setzen, API und Worker neu starten.
+- **KI-Suche vorübergehend stoppen:** `AI_SEARCH_DAILY_LIMIT=0` setzen (Produktion: HomeLab `resources.toml`, PR) und neu starten bzw. deployen; neue Suchen enden dann mit `429`. Hängende Jobs markiert der Wächter (alle 10 Minuten) nach der doppelten `AI_SEARCH_TIMEOUT_S` als `timeout`.
+- **Schlüssel kompromittiert:** im Dashboard des Anbieters widerrufen, neuen Schlüssel anlegen, Komodo-Variable `STADTFEST_LLM_API_KEY` ersetzen, Stack `stadtfest` deployen.
 - In Entwicklung und Tests: `LLM_PROVIDER=fake` liefert drei feste Funde ohne externen Aufruf.

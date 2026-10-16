@@ -2,20 +2,36 @@
 
 ## Zweck
 
-Zitadel Cloud (EU-Region) ist in Produktion der Identity Provider der App (ADR 0003): Anmeldung per Apple, Google oder E-Mail im Hosted Login, Rollen `user`, `moderator`, `category_admin` und die Moderationsregion als Claim. Das Backend prüft die Access-Tokens über das JWKS von Zitadel und löscht Konten über die User API (ADR 0010). Eingeführt mit R05. Lokal ersetzt Keycloak Zitadel ([Lokale Entwicklung](lokale-entwicklung.md)).
+Zitadel Cloud (EU-Region) ist in Produktion der Identity Provider der App (ADR 0003): Anmeldung per Apple, Google oder E-Mail im Hosted Login, Rollen `user`, `moderator` und `category_admin` als Claim. Das Backend prüft die Access-Tokens über das JWKS von Zitadel und löscht Konten über die User API (ADR 0010). Eingeführt mit R05. Lokal ersetzt Keycloak Zitadel ([Lokale Entwicklung](lokale-entwicklung.md)).
 
 ## Voraussetzungen
 
-- Zitadel-Cloud-Konto mit einer Instanz in der **EU-Region**, Rolle `IAM_OWNER` bzw. `ORG_OWNER`
-- Apple Developer Account (Sign in with Apple: Services ID, Key) und Google Cloud Console (OAuth-Client)
-- Zugriff auf die Komodo-Secrets der Produktion und auf die EAS-Umgebungsvariablen der App
-- AV-Vertrag mit Zitadel abgeschlossen ([Auftragsverarbeiter](../30-privacy/auftragsverarbeiter.md))
+- Konto bei [zitadel.com](https://zitadel.com) (Schritt 0 legt die Instanz an)
+- Apple-Developer-Programm (Rolle Admin) und ein Google-Konto für die [Google Cloud Console](https://console.cloud.google.com)
+- Admin-Zugang zu Komodo (Variablen) und zum Expo-Projekt (EAS-Umgebungsvariablen)
+
+### Werte, die in dieser Anleitung entstehen
+
+| Wert | entsteht in | wird eingetragen in |
+|---|---|---|
+| Instanz-URL `https://<instanz>.eu1.zitadel.cloud` | Schritt 0 | Komodo-Variable `STADTFEST_AUTH_ISSUER`; EAS `EXPO_PUBLIC_AUTH_ISSUER` |
+| Projekt-ID (Resource ID) | Schritt 1 | Komodo-Variable `STADTFEST_ZITADEL_PROJECT_ID` (Backend-Audience und MCP-Scope); EAS `EXPO_PUBLIC_AUTH_PROJECT_ID`; Action-Skript (Schritt 1a) |
+| Client-ID der App | Schritt 2 | EAS `EXPO_PUBLIC_AUTH_CLIENT_ID` |
+| IdP-ID Apple / Google | Schritt 3 | EAS `EXPO_PUBLIC_AUTH_APPLE_IDP` / `EXPO_PUBLIC_AUTH_GOOGLE_IDP` |
+| Personal Access Token des Service-Users | Schritt 5 | Komodo-Variable `STADTFEST_IDP_ADMIN_TOKEN` (**secret**) |
+| Client-IDs der MCP-Apps | [mcp-client-anbinden.md](mcp-client-anbinden.md) | nur im jeweiligen MCP-Client |
 
 ## Schritte
 
+### 0. Instanz anlegen
+
+1. Auf [zitadel.com](https://zitadel.com) registrieren, *Create Instance* → Name z. B. `stadtfest`, **Region: Europe**. Im Abrechnungsbereich den Tarif wählen und unter *Legal* den **Data Processing Agreement** akzeptieren ([Auftragsverarbeiter](../30-privacy/auftragsverarbeiter.md)).
+2. Die **Instanz-URL** steht im Zitadel-Kunden-Portal bei der Instanz (*Domain*), z. B. `https://stadtfest-abc123.eu1.zitadel.cloud`. Prüfen: `curl -s https://<instanz>/.well-known/openid-configuration` liefert `"issuer": "https://<instanz>"`. Genau dieser Wert (ohne Schrägstrich am Ende) ist `STADTFEST_AUTH_ISSUER`.
+3. In der Konsole der Instanz (*Console* öffnen) als Admin der Standard-Organisation arbeiten. Für das eigene Admin-Konto unter *Persönliches Profil → Multi-Faktor* einen zweiten Faktor einrichten.
+
 ### 1. Projekt und Rollen
 
-1. In der Organisation ein **Projekt** `stadtfest` anlegen. Die **Projekt-ID** notieren.
+1. In der Organisation ein **Projekt** `stadtfest` anlegen. Die **Projekt-ID** steht danach oben auf der Projektseite als *Resource Id* (nur Ziffern) → Komodo-Variable `STADTFEST_ZITADEL_PROJECT_ID`.
 2. Unter *Rollen* die Rollen `user`, `moderator` und `category_admin` anlegen (Schlüssel genau so schreiben).
 3. In den Projekteinstellungen **„Assert Roles on Authentication“** und **„Check authorization on Authentication“** aktivieren. Damit steht der Claim `urn:zitadel:iam:org:project:roles` im Access-Token.
 4. Neue Nutzer bekommen die Rolle `user` über die Action `add_user_role_on_registration` (nächster Abschnitt). Sie ist **Pflicht**: Wegen „Check authorization on Authentication“ kann sich ein Konto ohne Rolle im Projekt nicht anmelden. (Das Backend behandelt jeden angemeldeten Nutzer ohnehin als `user`.)
@@ -41,17 +57,26 @@ Die Action (Actions v1, JavaScript) liegt in [`infra/zitadel/actions/add_user_ro
 1. Im Projekt eine Anwendung vom Typ **Native** anlegen, Authentifizierung **PKCE**.
 2. Redirect-URI: `stadtfest://auth`. Post-Logout-URI: `stadtfest://auth`. Für Entwicklungs-Builds mit Expo Go zusätzlich die `exp://…`-Adresse (nur in einer Test-Instanz).
 3. *Token-Einstellungen:* **Auth Token Type = JWT** (sonst sind Access-Tokens opak und das Backend kann sie nicht prüfen), **Refresh Token** aktivieren.
-4. Die **Client-ID** notieren.
+4. Die **Client-ID** wird nach dem Anlegen angezeigt (später unter der App → *Konfiguration*) → EAS-Variable `EXPO_PUBLIC_AUTH_CLIENT_ID`. Ein Client-Secret gibt es nicht (öffentlicher Client mit PKCE).
 
 MCP-Clients (Claude, MCP Inspector) bekommen eigene öffentliche Apps im selben Projekt: [mcp-client-anbinden.md](mcp-client-anbinden.md) (R15).
 
 ### 3. Apple und Google anbinden
 
-1. *Organisation → Identity Providers → Neu → Apple*: Services ID, Team ID, Key ID und den privaten Schlüssel aus dem Apple Developer Account eintragen. In Apple die von Zitadel angezeigte Callback-URL als Return-URL hinterlegen.
-2. *Neu → Google*: Client-ID und Secret des Google-OAuth-Clients (Typ Webanwendung) eintragen; die Callback-URL von Zitadel als autorisierte Weiterleitungs-URI in Google hinterlegen.
+Die **Callback-URL** für beide Anbieter ist `https://<instanz>/idps/callback`; Zitadel zeigt sie beim Anlegen des IdP noch einmal an.
+
+1. **Apple** (Sign in with Apple, [developer.apple.com](https://developer.apple.com/account/resources/identifiers/list)):
+   1. *Identifiers* → App-ID `de.stadtfestfinder.app` öffnen (legt EAS beim ersten Build an, sonst *+ → App IDs*) → Capability **Sign in with Apple** aktivieren → speichern.
+   2. *Identifiers → + → Services IDs*, Beschreibung „Stadtfest-Finder Login“, Identifier z. B. `de.stadtfestfinder.login` → anlegen → öffnen → **Sign in with Apple** aktivieren → *Configure*: Primary App ID `de.stadtfestfinder.app`, *Domains*: `<instanz>` (ohne `https://`), *Return URLs*: die Callback-URL → speichern.
+   3. *Keys → +*, Name „Stadtfest-Finder Zitadel“, **Sign in with Apple** aktivieren → *Configure* → Primary App ID wählen → anlegen → `.p8` herunterladen (nur einmal möglich). Die **Key ID** steht beim Schlüssel, die **Team ID** oben rechts bzw. unter *Membership*.
+   4. Zitadel: *Organisation → Identity Providers → Neu → Apple*: Client ID = Services ID (`de.stadtfestfinder.login`), Team ID, Key ID, privater Schlüssel = Inhalt der `.p8`-Datei. Scopes `name email`.
+2. **Google** ([Google Cloud Console](https://console.cloud.google.com)):
+   1. Projekt `stadtfest` anlegen bzw. wählen. *APIs & Services → OAuth consent screen*: User Type **External**, App-Name „Stadtfest-Finder“, Support-E-Mail, Links zu Datenschutz (`https://stadtfest.herderstreet.de/datenschutz/`) und Nutzungsbedingungen, *Authorized domains*: `zitadel.cloud` und `herderstreet.de`, Scopes `openid`, `email`, `profile`. Danach **Publish app** (sonst können sich nur Testnutzer anmelden).
+   2. *Credentials → Create credentials → OAuth client ID*, Typ **Web application**, *Authorized redirect URIs*: die Callback-URL. Client-ID und Client-Secret werden angezeigt.
+   3. Zitadel: *Organisation → Identity Providers → Neu → Google*: Client-ID und Client-Secret eintragen (das Secret bleibt in Zitadel, kein Komodo- oder EAS-Wert).
 3. Bei beiden **„Automatic creation“** und **„Automatic update“** aktivieren, damit beim ersten Login ein Konto entsteht.
 4. In der Login-Richtlinie der Organisation die beiden IdPs aktivieren sowie „Registrierung erlauben“ und „Benutzername/Passwort erlauben“.
-5. Die **IdP-IDs** (in der URL der IdP-Detailseite) notieren; die App springt mit ihnen direkt zu Apple bzw. Google.
+5. Die **IdP-IDs** stehen in der Adresszeile der jeweiligen IdP-Detailseite (`…/idp/<id>`) → EAS-Variablen `EXPO_PUBLIC_AUTH_APPLE_IDP` bzw. `EXPO_PUBLIC_AUTH_GOOGLE_IDP`; die App springt mit ihnen direkt zu Apple bzw. Google.
 
 ### 4. Region als Claim (entfallen)
 
@@ -61,27 +86,25 @@ Seit [ADR 0015](../25-adr/0015-regionen-abgeschafft.md) gibt es keine Moderation
 
 1. *Organisation → Benutzer → Service-User → Neu*, Name `stadtfest-backend`, Token-Typ **Bearer**.
 2. Unter *Organisation → Manager* den Service-User mit der Rolle **`ORG_USER_MANAGER`** hinzufügen.
-3. Beim Service-User unter *Personal Access Tokens* ein Token mit Ablaufdatum (höchstens 12 Monate) erzeugen. Es wird nur einmal angezeigt. Ablaufdatum im Betriebskalender eintragen.
+3. Beim Service-User unter *Personal Access Tokens* ein Token mit Ablaufdatum (höchstens 12 Monate) erzeugen. Es wird nur einmal angezeigt → Komodo-Variable `STADTFEST_IDP_ADMIN_TOKEN` (**secret**). Ablaufdatum im Kalender eintragen; zum Ablauf ein neues Token erzeugen, die Variable ersetzen und den Stack neu deployen.
 
-### 6. Secrets und Variablen hinterlegen
+### 6. Werte eintragen
 
-Backend (Komodo, **nie ins Repo**):
+**Backend** – Komodo → *Settings → Variables* (der HomeLab-Stack `stadtfest` setzt daraus die Backend-Variablen, [deployment-komodo.md](deployment-komodo.md), Schritt 4):
 
-| Variable | Wert |
+| Komodo-Variable | Secret | Wert | Backend-Variable |
+|---|---|---|---|
+| `STADTFEST_AUTH_ISSUER` | nein | Instanz-URL aus Schritt 0 | `AUTH_ISSUER` |
+| `STADTFEST_ZITADEL_PROJECT_ID` | nein | Projekt-ID aus Schritt 1 | `AUTH_AUDIENCE`, Teil von `MCP_OAUTH_SCOPES` |
+| `STADTFEST_IDP_ADMIN_TOKEN` | ja | PAT aus Schritt 5 | `IDP_ADMIN_TOKEN` |
+
+Fest im HomeLab gesetzt (keine Eingabe nötig): `AUTH_ROLES_CLAIM=urn:zitadel:iam:org:project:roles`, `IDP_ADMIN_PROVIDER=zitadel`, `AUTH_LEEWAY_SECONDS=30`, `AUTH_TIMEOUT_SECONDS=5`. `AUTH_JWKS_URL` bleibt leer; das Backend liest den JWKS-Endpunkt aus `AUTH_ISSUER/.well-known/openid-configuration`.
+
+**App** – EAS-Umgebungen `production` **und** `preview` ([eas-build.md](eas-build.md), Schritt 2; Sichtbarkeit *Plain text*, die Werte sind öffentlich):
+
+| EAS-Variable | Wert |
 |---|---|
-| `AUTH_ISSUER` | `https://<instanz>.eu1.zitadel.cloud` (ohne Schrägstrich am Ende) |
-| `AUTH_AUDIENCE` | Projekt-ID aus Schritt 1 |
-| `AUTH_ROLES_CLAIM` | `urn:zitadel:iam:org:project:roles` |
-| `IDP_ADMIN_PROVIDER` | `zitadel` |
-| `IDP_ADMIN_TOKEN` | PAT aus Schritt 5 (Secret) |
-
-`AUTH_JWKS_URL` bleibt leer; das Backend liest den JWKS-Endpunkt aus `AUTH_ISSUER/.well-known/openid-configuration`.
-
-App (EAS-Umgebung, zur Build-Zeit eingebettet, **nicht geheim**):
-
-| Variable | Wert |
-|---|---|
-| `EXPO_PUBLIC_AUTH_ISSUER` | wie `AUTH_ISSUER` |
+| `EXPO_PUBLIC_AUTH_ISSUER` | Instanz-URL aus Schritt 0 (identisch mit `STADTFEST_AUTH_ISSUER`) |
 | `EXPO_PUBLIC_AUTH_CLIENT_ID` | Client-ID aus Schritt 2 |
 | `EXPO_PUBLIC_AUTH_IDP` | `zitadel` |
 | `EXPO_PUBLIC_AUTH_PROJECT_ID` | Projekt-ID aus Schritt 1 |
@@ -94,9 +117,9 @@ App (EAS-Umgebung, zur Build-Zeit eingebettet, **nicht geheim**):
 3. **Links im Hosted Login:** *Organisation → Datenschutzrichtlinie*: Nutzungsbedingungen `https://stadtfest.herderstreet.de/nutzungsbedingungen/`, Datenschutz `https://stadtfest.herderstreet.de/datenschutz/`, Hilfe-/Support-E-Mail.
 4. **Sicherheit:** *Login-Richtlinie* Passwort-Komplexität (mind. 10 Zeichen), Sperre nach 5 Fehlversuchen, Zwei-Faktor optional (TOTP, Passkeys). Für Admin-Konten der Instanz MFA **Pflicht**.
 5. **Token-Laufzeiten** (*Instanz → OIDC-Einstellungen*): Access-Token 30 Minuten, Refresh-Token 30 Tage (gleitend). Kurze Access-Tokens verkürzen die Sperre nach einer Kontolöschung (Löschkonzept, Schritt 0).
-6. **MCP-Clients:** je bekanntem Client eine eigene öffentliche App nach [mcp-client-anbinden.md](mcp-client-anbinden.md); in der Stack-Umgebung `MCP_OAUTH_SCOPES=openid profile urn:zitadel:iam:org:project:id:<projektId>:aud`.
+6. **MCP-Clients:** je bekanntem Client eine eigene öffentliche App nach [mcp-client-anbinden.md](mcp-client-anbinden.md). `MCP_OAUTH_SCOPES` baut der HomeLab-Stack aus `STADTFEST_ZITADEL_PROJECT_ID`.
 7. **Rollen vergeben:** Moderatoren und Kategorie-Admins nach [moderator-einrichten.md](moderator-einrichten.md).
-8. **Werte übernehmen:** Backend-Variablen aus Schritt 6 in die Komodo-Stack-Umgebung ([`infra/komodo-environment.example`](../../infra/komodo-environment.example)), App-Variablen in die EAS-Umgebung `production` ([eas-build.md](eas-build.md)).
+8. **Werte übernehmen:** siehe Schritt 6.
 
 **Checkliste Produktion**
 
@@ -130,5 +153,5 @@ curl -X DELETE "$AUTH_ISSUER/v2/users/<subject>" -H "Authorization: Bearer $IDP_
 ## Rollback
 
 - Action fehlerhaft (Anmeldungen neuer Nutzer schlagen fehl): die Action in den beiden Flows entfernen und neuen Konten die Rolle `user` von Hand geben, bis sie korrigiert ist. „Check authorization on Authentication“ **nicht** abschalten, ohne zu prüfen, dass das Backend weiter jeden Nutzer nur als `user` behandelt.
-- Kompromittiertes PAT: beim Service-User löschen, neues Token erzeugen, `IDP_ADMIN_TOKEN` in Komodo ersetzen und das Backend neu starten.
+- Kompromittiertes PAT: beim Service-User löschen, neues Token erzeugen, Komodo-Variable `STADTFEST_IDP_ADMIN_TOKEN` ersetzen und den Stack `stadtfest` neu deployen.
 - Kein Umschalten auf `IDP_ADMIN_PROVIDER=fake` in Produktion (der Start schlägt fehl); bei einem Zitadel-Ausfall bleiben Kontolöschungen im Retry-Job, bis Zitadel wieder erreichbar ist.

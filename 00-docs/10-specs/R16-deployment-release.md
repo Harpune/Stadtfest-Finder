@@ -66,15 +66,17 @@ Runbooks: `deployment-komodo.md`, `zitadel.md`, `backup-restore.md`, `eas-build.
 
 ## Definition of Done
 
-- [ ] Ein Merge auf `main` führt über GHCR und Komodo zu einer laufenden Produktionsversion. Ein Rollback auf die vorherige Version ist dokumentiert und geprobt. *(Im Repo fertig: `release.yml` → `deploy.yml` → Komodo → Smoke-Test, Rollback per `deploy.yml` mit Tag, dokumentiert in `deployment-komodo.md`; lokal mit dem Stack geprobt. Offen: Einrichtung von Komodo, DNS und Secrets nach dem Runbook und die Rollback-Probe in Produktion.)*
-- [ ] Die Apps sind als TestFlight- bzw. interne Testversion verfügbar. *(Im Repo fertig: `eas-build.yml`, `eas.json`, App-Konfiguration; offen: Store-Konten, `EXPO_TOKEN`, erster Build nach `eas-build.md` und `store-release.md`.)*
-- [x] Datenschutz-Doku vollständig, der Löschtest ist grün. *(VVT Nr. 18–19, TOMs, Löschkonzept inkl. Backups, Auftragsverarbeiter; `test_delete_account_complete.py`. Vor dem Produktivstart: AV-Verträge und rechtliche Prüfung der Rechtstexte.)*
+- [ ] Ein Merge auf `main` führt über GHCR und Komodo zu einer laufenden Produktionsversion. Ein Rollback auf die vorherige Version ist dokumentiert und geprobt. *(Umgesetzt als HomeLab-Ablauf: Tag → Images → Renovate-PR im HomeLab → Deploy von Hand in Komodo, Rollback = vorheriger Tag; dokumentiert in `deployment-komodo.md`, lokal mit dem HomeLab-Stack geprobt. Offen: externe Einrichtung nach dem Runbook und die Rollback-Probe in Produktion.)*
+- [ ] Die Apps sind als TestFlight- bzw. interne Testversion verfügbar. *(Im Repo fertig: `eas-build.yml`, `eas.json`, App-Konfiguration; offen: Store-Konten, `EXPO_TOKEN`, `ascAppId`, erster Build nach `eas-build.md` und `store-release.md`.)*
+- [x] Datenschutz-Doku vollständig, der Löschtest ist grün. *(VVT Nr. 18–19, TOMs, Löschkonzept inkl. Backups, Auftragsverarbeiter; `test_delete_account_complete.py`. Vor dem Produktivstart: AV-Verträge, Entscheidung zu Cloudflare (ADR 0022) und rechtliche Prüfung der Rechtstexte.)*
 
 ## Umsetzungsnotizen
 
-- Entscheidungen: SeaweedFS und Caddy ([ADR 0019](../25-adr/0019-produktionsstack.md)), Grafana/Loki/Alloy ([ADR 0020](../25-adr/0020-beobachtbarkeit.md)), restic auf Hetzner Storage Box mit rclone-Spiegel des Buckets ([ADR 0021](../25-adr/0021-backups.md)), `PUSH_PROVIDER=direct`, Subdomains `api.`, `mcp.`, `bilder.` von `stadtfest.herderstreet.de`.
-- Eine Kopie der laufenden SeaweedFS-Dateien ließ sich im Wiederherstellungstest nicht zurückspielen; deshalb sichert der Backup-Job den Bucket über die S3-API.
+- Produktion läuft als HomeLab-Stack `stadtfest` (github.com/Harpune/HomeLab), nicht mit eigener Compose-Datei in diesem Repo. Dieses Repo liefert die Images `stadtfest-backend`, `-mcp`, `-edge`, `-searxng` und den Umgebungsvertrag `infra/komodo-environment.example` ([ADR 0019](../25-adr/0019-produktionsstack.md)).
+- Entscheidungen: SeaweedFS, `stadtfest-edge` hinter dem HomeLab-Caddy, Hosts eine Ebene unter der Domain (Cloudflare-Zertifikat), `PUSH_PROVIDER=direct`; Loki/Alloy/Grafana im HomeLab-Stack `monitoring` ([ADR 0020](../25-adr/0020-beobachtbarkeit.md)); Backups über das HomeLab mit bis zu 6 Monaten Aufbewahrung ([ADR 0021](../25-adr/0021-backups.md)); Cloudflare als Eingang vorgeschlagen, Entscheidung offen ([ADR 0022](../25-adr/0022-eingang-cloudflare-tunnel.md)).
+- Eine Kopie der laufenden SeaweedFS-Dateien ließ sich im Wiederherstellungstest nicht zurückspielen; der kalte Snapshot des HomeLab (Stack angehalten) ist konsistent.
 - Der Schema-Scan fand Nutzer-IDs in Outbox-Payloads (Freunde, Listen, Einladungen); `delete_personal_data` löscht diese Nachrichten jetzt mit.
-- Leere Variablen (`NAME=`) gelten als nicht gesetzt (`env_ignore_empty`), weil Komodo-Umgebungen sie enthalten.
+- Leere Variablen (`NAME=`) gelten als nicht gesetzt (`env_ignore_empty`); APNs/FCM-Schlüssel gehen auch als base64 (`APNS_KEY_BASE64`, `FCM_CREDENTIALS_BASE64`).
+- Postgres-Healthcheck über TCP (`pg_isready -h 127.0.0.1`): Über den Socket meldet er sich beim ersten Start gesund, bevor die Datenbank existiert.
 - Der Kontaktpunkt für Grafana-Alarme ist noch offen ([monitoring.md](../40-operations/monitoring.md)).
-- Offen: die vollständige Maestro-Suite gegen einen Staging-Build. Sie braucht eine Staging-Umgebung, z. B. einen zweiten Komodo-Stack mit `ENV=dev`, weil `ENV=prod` den Fake-KI-Anbieter ablehnt.
+- Offen: die vollständige Maestro-Suite gegen einen Staging-Build. Sie braucht eine Staging-Umgebung, z. B. einen zweiten Stack mit `ENV=dev`, weil `ENV=prod` den Fake-KI-Anbieter ablehnt.

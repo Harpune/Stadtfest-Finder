@@ -2,7 +2,7 @@
 
 ## Zweck
 
-Die PR-Pipeline (`.github/workflows/ci.yml`, `codeql.yml`, `ai-review.yml`) und der Image-Build auf `main` (`release.yml`) laufen auf GitHub Actions. Eingeführt mit [R01](../10-specs/R01-fundament.md). Merges nach `main` nur mit grüner Pipeline (CLAUDE.md).
+Die PR-Pipeline (`.github/workflows/ci.yml`, `codeql.yml`, `ai-review.yml`), der Image-Build auf `main` und auf Tags (`release.yml`) und die App-Builds (`eas-build.yml`) laufen auf GitHub Actions. Eingeführt mit [R01](../10-specs/R01-fundament.md). Merges nach `main` nur mit grüner Pipeline (CLAUDE.md).
 
 ## Voraussetzungen
 
@@ -25,14 +25,16 @@ Die PR-Pipeline (`.github/workflows/ci.yml`, `codeql.yml`, `ai-review.yml`) und 
      - `Mobile (lint, types, tests)`
      - `Generated code is up to date`
      - `Security scan (Trivy)`
+     - `Production images (edge, searxng)`
      - `CodeQL (python)`, `CodeQL (javascript-typescript)`, `CodeQL (actions)`
    - „Do not allow bypassing“ und kein Force-Push
-5. **GHCR:** Nach dem ersten Lauf von `release.yml` erscheinen die Pakete `stadtfest-backend`, `stadtfest-mcp` und `stadtfest-backup` unter *Packages*. Sichtbarkeit bleibt privat; Komodo liest sie mit einem Token (`read:packages`, [deployment-komodo.md](deployment-komodo.md), Schritt 4). Das Deployment danach übernimmt `deploy.yml`.
+5. **GHCR:** Nach dem ersten Lauf von `release.yml` erscheinen die Pakete `stadtfest-backend`, `stadtfest-mcp`, `stadtfest-edge` und `stadtfest-searxng` unter *Packages*. Alle vier auf **Public** stellen; das HomeLab zieht anonym ([deployment-komodo.md](deployment-komodo.md), Schritt 1).
+6. **Secrets und Variablen** (*Settings → Secrets and variables → Actions*): `EXPO_TOKEN` ([eas-build.md](eas-build.md), Schritt 1), optional `ANTHROPIC_API_KEY` (Schritt 2) und `CODE_SCANNING_ENABLED` (Schritt 3). Für das Deployment gibt es keine: das HomeLab deployt von Hand.
 
 ## Prüfung
 
 - Ein PR zeigt alle genannten Checks. Ein absichtlich falsch formatierter Commit lässt „Backend“ bzw. „Mobile“ rot werden.
-- Nach einem Merge auf `main` gibt es ein Image `ghcr.io/harpune/stadtfest-backend:sha-<commit>`.
+- Nach einem Merge auf `main` gibt es ein Image `ghcr.io/harpune/stadtfest-backend:sha-<commit>`, nach einem Tag `v1.2.3` alle vier Images mit Tag `1.2.3`.
 
 ## Rollback
 

@@ -2,7 +2,7 @@
 
 Markdown-Fassung von [`00-Design.pdf`](00-Design.pdf) (C4-Container-Ebene). Die Flows A–D stimmen mit dem Diagramm und mit CLAUDE.md „Core flows“ überein. Die Entscheidungen dazu stehen in [`25-adr/`](../25-adr/0001-adrs-verwenden.md).
 
-**Betrieb:** Der Kern läuft auf einem eigenen Server in der EU. Externe Dienste sind per ENV austauschbar (DSGVO: Kern in der EU, Rest per ENV).
+**Betrieb:** Der Kern läuft als Stack `stadtfest` im HomeLab auf einem eigenen Server in der EU ([ADR 0019](../25-adr/0019-produktionsstack.md)). Externe Dienste sind per ENV austauschbar (DSGVO: Kern in der EU, Rest per ENV).
 
 ## Container
 
@@ -24,9 +24,8 @@ flowchart LR
     AI["KI-Modul<br/>LLM-Port, ein generischer Adapter<br/>festes Ausgabeschema"]
     GEO["Geocoding<br/>selbst gehostetes Nominatim"]
     WEB["Web-Suche<br/>selbst gehostetes SearXNG, ADR 0013"]
-    PROXY["Reverse Proxy<br/>Caddy, TLS, Deep-Link-Seite, ADR 0019"]
-    BAK["Backup-Job<br/>pg_dump, rclone, restic, ADR 0021"]
-    OBS["Logs + Alarme<br/>Alloy, Loki, Grafana, ADR 0020"]
+    PROXY["stadtfest-edge<br/>Routing nach Host, Deep-Link-Seite, ADR 0019"]
+    LAB["HomeLab<br/>Caddy (TLS), Backups, Loki/Grafana<br/>ADR 0020, 0021"]
   end
 
   subgraph Extern["Externe Dienste"]
@@ -35,7 +34,8 @@ flowchart LR
     ENG["Suchmaschinen<br/>Google, Bing, DuckDuckGo …<br/>(optional Brave Search API)"]
     PUSH["Push<br/>Expo Push oder APNs/FCM direkt"]
     TILES["Kartenkacheln<br/>MapTiler Cloud (CH), ADR 0009"]
-    BOX["Backup-Ziel<br/>Hetzner Storage Box (DE)"]
+    CF["Cloudflare Tunnel<br/>öffentlicher Eingang, ADR 0022"]
+    BOX["Offsite-Backup<br/>pCloud (verschlüsselt)"]
   end
 
   APP -- "A1/B2/C1/C8 · HTTPS/REST, JWT" --> API
@@ -60,14 +60,14 @@ flowchart LR
   API -. "B3 · JWKS, JWT-Signatur prüfen" .-> IDP
   MCP -. "JWKS (wie B3)" .-> IDP
   SVC -. "Kontolöschung · Admin-API (ADR 0010)" .-> IDP
-  PROXY -. "api. · mcp. · bilder. (HTTPS-Endpunkte oben)" .- API
-  BAK -- "Dump, S3-Spiegel" --> DB
-  BAK --> OBJ
-  BAK -. "verschlüsselt, SFTP" .-> BOX
-  OBS -. "Container-Logs" .- WRK
+  CF -. "HTTPS" .- LAB
+  LAB -- "HTTP, Netz edge" --> PROXY
+  PROXY -.- API
+  LAB -. "pg_dump, Snapshot" .- DB
+  LAB -. "restic, verschlüsselt" .-> BOX
 ```
 
-Alle HTTPS-Verbindungen von App, MCP-Client und Bild-Uploads enden an Caddy (`api.`, `mcp.`, `bilder.` und die Deep-Link-Domain); nur Caddy hat offene Ports.
+Alle HTTPS-Verbindungen von App, MCP-Client und Bild-Uploads laufen über den Cloudflare Tunnel zum HomeLab-Caddy und von dort zu `stadtfest-edge` (Hosts `stadtfest.`, `stadtfest-api.`, `stadtfest-mcp.`, `stadtfest-bilder.herderstreet.de`), das an API, MCP-Server und Objektspeicher weiterleitet. Kein Dienst hat eingehende Ports.
 
 ## Flows
 
@@ -105,16 +105,16 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  PR[PR grün] -->|Merge auf main| REL[release.yml<br/>Images mit Tag sha-Commit in GHCR]
-  REL --> DEP[deploy.yml<br/>Komodo-Variable STADTFEST_IMAGE_TAG]
-  DEP --> KOM[Komodo DeployStack<br/>migrate → api, worker, mcp]
-  KOM --> SMK[Smoke-Test<br/>Health, Kategorien, Feste, MCP search_events]
-  TAG[Git-Tag vX.Y.Z] --> EAS[eas-build.yml<br/>EAS Build + Submit]
+  TAG[Git-Tag vX.Y.Z] --> REL[release.yml<br/>4 Images X.Y.Z in GHCR]
+  REL --> REN[Renovate-PR im HomeLab<br/>Pins der 4 Images]
+  REN -->|Merge| DEP[Komodo: Deploy von Hand<br/>migrate → api, worker, mcp, edge]
+  DEP --> SMK[make smoke<br/>Health, Kategorien, Feste, MCP]
+  TAG --> EAS[eas-build.yml<br/>EAS Build + Submit]
 ```
 
-- Produktionsstack: `infra/compose.yaml`, Stack-Umgebung aus `infra/komodo-environment.example` ([deployment-komodo.md](../40-operations/deployment-komodo.md)).
-- Rollback: `deploy.yml` mit dem vorherigen Tag; Migrationen nur rückwärtskompatibel (Expand/Contract).
-- Backups täglich 02:30 Uhr ([backup-restore.md](../40-operations/backup-restore.md)), Alarme in Grafana ([monitoring.md](../40-operations/monitoring.md)).
+- Stack: HomeLab `stacks/stadtfest/compose.yaml`; Umgebungsvertrag des Backends: [`infra/komodo-environment.example`](../../infra/komodo-environment.example); Anleitung: [deployment-komodo.md](../40-operations/deployment-komodo.md).
+- Rollback: vorherigen Tag deployen; Migrationen nur rückwärtskompatibel (Expand/Contract).
+- Backups und Alarme kommen aus dem HomeLab ([backup-restore.md](../40-operations/backup-restore.md), [monitoring.md](../40-operations/monitoring.md)).
 
 ## Abbildung im Code
 
@@ -125,10 +125,10 @@ flowchart LR
 | FastMCP-Server | `python -m stadtfest.bootstrap.mcp` (Image `stadtfest-mcp`, Port 8001) | `adapters/inbound/mcp`; Bearer-Prüfung gemeinsam mit REST in `adapters/inbound/auth` |
 | Service-Schicht | – | `application/<context>` + `domain/<context>`; Kontexte `events`, `collections`, `ai_ingestion`, `moderation`, `notifications` (ADR 0016) |
 | Datenbank, Objektspeicher, Redis, KI-Modul, Geocoding, Push | – | `adapters/outbound/<tech>` (hinter Ports) |
-| Migration (Dienst `migrate`) | `alembic upgrade head` (Image `stadtfest-backend`) | `backend/migrations` |
-| Reverse Proxy | `infra/caddy/Caddyfile` | statische Dateien `infra/deeplinks/public` |
-| Backup-Job | Image `stadtfest-backup` | `infra/backup` |
-| Logs + Alarme | Alloy, Loki, Grafana | `infra/observability` |
+| Migration (Container `stadtfest-migrate`) | `alembic upgrade head` (Image `stadtfest-backend`) | `backend/migrations` |
+| Routing + Deep-Link-Seite (`stadtfest-edge`) | Image `stadtfest-edge` | `infra/edge/` (Caddyfile, `public/`) |
+| Web-Suche (`stadtfest-searxng`) | Image `stadtfest-searxng` | `infra/searxng/` |
+| Stack, Backups, Logs + Alarme | HomeLab | `github.com/Harpune/HomeLab`: `stacks/stadtfest/`, `scripts/backup-*.{sh,py}`, `stacks/monitoring/` |
 | Smoke-Test | `python -m stadtfest.bootstrap.smoke` (`make smoke`) | `bootstrap/smoke.py` |
 
 Lokal ersetzt Keycloak Zitadel (ADR 0003) und SeaweedFS den Objektspeicher (ADR 0007).

@@ -1,120 +1,116 @@
-# Produktion mit Komodo deployen
+# Produktion im HomeLab (Komodo) betreiben
 
 ## Zweck
 
-Der Produktionsstack (`infra/compose.yaml`) läuft auf dem Heimserver (EU) und wird von Komodo deployt (R16-US1, [ADR 0019](../25-adr/0019-produktionsstack.md)). Ein Merge auf `main` baut die Images in GHCR (`release.yml`), danach setzt `deploy.yml` den Image-Tag in Komodo, startet das Deployment und prüft es mit dem Smoke-Test. Rollback = Deployment mit dem vorherigen Tag.
+Der Stadtfest-Finder läuft als Stack `stadtfest` im HomeLab ([github.com/Harpune/HomeLab](https://github.com/Harpune/HomeLab), `stacks/stadtfest/`) auf dem eigenen Server in der EU ([ADR 0019](../25-adr/0019-produktionsstack.md)). Dieses Repo liefert nur Images und den Umgebungsvertrag; Stack, Reverse Proxy, Backups und Logs gehören dem HomeLab.
 
-| Dienst | Aufgabe | öffentlich |
+**Ablauf eines Releases:** Git-Tag `vX.Y.Z` hier → `release.yml` baut `stadtfest-backend`, `stadtfest-mcp`, `stadtfest-edge`, `stadtfest-searxng` mit Tag `X.Y.Z` in GHCR → Renovate im HomeLab öffnet einen PR, der alle vier Pins hebt → Merge → in Komodo *Deploy* (von Hand, wie jeder Stack im HomeLab) → `stadtfest-migrate` migriert, danach starten API, Worker und MCP → Smoke-Test. Rollback = vorherigen Tag deployen.
+
+**Weg einer Anfrage:** App bzw. MCP-Client → Cloudflare Tunnel → Caddy des HomeLab (TLS, `*.herderstreet.de`) → `stadtfest-edge` (Routing nach Host) → API, MCP-Server, Objektspeicher oder statische Seiten.
+
+| Host | Ziel | Zweck |
 |---|---|---|
-| `caddy` | TLS, Routen für `api.`, `mcp.`, `bilder.` und die Deep-Link-Domain | 80/443 |
-| `migrate` | `alembic upgrade head`, einmalig vor API, Worker und MCP | – |
-| `api`, `worker`, `mcp` | Backend (Image `stadtfest-backend` bzw. `stadtfest-mcp`) | über Caddy |
-| `postgres`, `redis`, `seaweedfs`, `nominatim`, `searxng` | Daten, Queue/Cache, Bilder, Geocoding, Web-Suche | nein |
-| `backup` | tägliche Sicherung ([backup-restore.md](backup-restore.md)) | nein |
-| `loki`, `alloy`, `grafana` | Logs und Alarme ([monitoring.md](monitoring.md)) | Grafana nur `127.0.0.1` |
+| `stadtfest.herderstreet.de` | `stadtfest-edge` → statische Dateien | Deep Links, `assetlinks.json`, `apple-app-site-association`, Impressum, Datenschutz, Nutzungsbedingungen |
+| `stadtfest-api.herderstreet.de` | → `stadtfest-api:8000` | REST-API der App |
+| `stadtfest-mcp.herderstreet.de` | → `stadtfest-mcp:8001` | MCP-Server (`/mcp`) |
+| `stadtfest-bilder.herderstreet.de` | → `stadtfest-seaweedfs:8333` | nur Lesen von `public/` und signierte Uploads nach `uploads/` |
+
+Die Hosts liegen eine Ebene unter der Domain, weil das kostenlose Cloudflare-Zertifikat nur `*.herderstreet.de` abdeckt. Beispiele gehen von `DOMAIN=herderstreet.de` im HomeLab aus.
 
 ## Voraussetzungen
 
-- Heimserver mit Docker Engine und Compose-Plugin, **mindestens 16 GB RAM, 4 Kerne, 150 GB SSD**
-- Komodo Core und Periphery auf dem Server ([komo.do](https://komo.do)), Komodo Core per HTTPS erreichbar (für GitHub Actions)
-- DNS-Zugriff für `herderstreet.de`, Ports 80 und 443 vom Internet auf den Server weitergeleitet
-- Admin-Rechte im GitHub-Repository (Variablen, Secrets, Environment `production`)
-- Erledigt: [Zitadel](zitadel.md), [LLM-Anbieter](llm-anbieter.md), [Push APNs/FCM](push-apns-fcm.md), [Deep Links](deep-links-domain.md); für die Bilder [Objektspeicher](objektspeicher.md)
+- Zugriff auf den Server per SSH, auf Komodo (`https://komodo.herderstreet.de`, Admin-Konto für Variablen), auf das Cloudflare-Dashboard (Zone und Tunnel) und Admin-Rechte in beiden GitHub-Repos
+- Erledigt, weil ihre Werte hier gebraucht werden: [Zitadel](zitadel.md), [LLM-Anbieter](llm-anbieter.md), [Push APNs/FCM](push-apns-fcm.md). Für die Rechtstexte: Impressumsangaben.
+- Der HomeLab-PR mit `stacks/stadtfest/` ist gemergt und auf dem Server gezogen (`git pull` in `/volume2/docker`).
 
 ## Schritte
 
-### 1. DNS
+### 1. Images öffentlich machen und ersten Release bauen
 
-A- bzw. AAAA-Einträge auf die öffentliche IP des Servers (bei dynamischer IP über den vorhandenen DynDNS-Mechanismus):
+1. In diesem Repo einen Tag setzen: `git tag v1.0.0 && git push origin v1.0.0`. `release.yml` baut die vier Images mit Tag `1.0.0`.
+2. GitHub → Profil → *Packages* → je Paket (`stadtfest-backend`, `stadtfest-mcp`, `stadtfest-edge`, `stadtfest-searxng`) → *Package settings* → *Change visibility* → **Public**. Neue GHCR-Pakete sind privat; das HomeLab zieht anonym (wie bei `feststadt`). Die Images enthalten keine Secrets.
+3. Prüfen: `docker manifest inspect ghcr.io/harpune/stadtfest-backend:1.0.0` liefert ein Manifest.
+4. Der Pin im HomeLab (`stacks/stadtfest/compose.yaml`) steht auf `1.0.0`. Spätere Versionen hebt Renovate per PR.
 
-| Name | Zweck |
-|---|---|
-| `stadtfest.herderstreet.de` | Deep Links, Impressum, Datenschutz |
-| `api.stadtfest.herderstreet.de` | REST-API |
-| `mcp.stadtfest.herderstreet.de` | MCP-Server |
-| `bilder.stadtfest.herderstreet.de` | öffentliche Festbilder und signierte Uploads |
+### 2. Cloudflare Tunnel
 
-### 2. Secret-Dateien auf dem Server
+Cloudflare-Dashboard → *Zero Trust* → *Networks* → *Tunnels* → Tunnel des HomeLab → *Public Hostname* → je Host **Add a public hostname**:
+
+| Subdomain | Domain | Service |
+|---|---|---|
+| `stadtfest` | `herderstreet.de` | `HTTPS` · `caddy:443` |
+| `stadtfest-api` | `herderstreet.de` | `HTTPS` · `caddy:443` |
+| `stadtfest-mcp` | `herderstreet.de` | `HTTPS` · `caddy:443` |
+| `stadtfest-bilder` | `herderstreet.de` | `HTTPS` · `caddy:443` |
+
+Keine Cloudflare-Access-Policy (die App, MCP-Clients und geteilte Links müssen ohne Login durchkommen). Die DNS-Einträge legt Cloudflare dabei selbst an. Der Caddy des HomeLab liefert das echte Zertifikat, „No TLS Verify“ bleibt aus.
+
+### 3. Verzeichnisse auf dem Server
 
 ```bash
-sudo mkdir -p /etc/stadtfest/secrets/push /etc/stadtfest/secrets/backup-ssh
-# APNs-Schlüssel und FCM-Dienstkonto (push-apns-fcm.md)
-sudo cp AuthKey_XXXX.p8 /etc/stadtfest/secrets/push/apns.p8
-sudo cp firebase-service-account.json /etc/stadtfest/secrets/push/fcm.json
-# SeaweedFS-Identitäten aus der Vorlage infra/prod/seaweedfs/s3.example.json (objektspeicher.md)
-sudo cp s3.json /etc/stadtfest/secrets/seaweedfs-s3.json
-# SSH-Schlüssel, known_hosts und config für die Storage Box (backup-restore.md)
-sudo chown -R root:10001 /etc/stadtfest/secrets
-sudo chmod -R u=rwX,g=rX,o= /etc/stadtfest/secrets
+cd /volume2/docker && make bootstrap
 ```
 
-Die Backend-Container laufen als uid 10001 und lesen die Dateien über die Gruppe. **Nichts davon kommt ins Repo.**
+oder nur die zwei Zeilen aus `scripts/bootstrap.sh` für `${APPDATA}/stadtfest` (SeaweedFS läuft als `1000:1000`).
 
-### 3. Komodo: Variablen und Secrets
+### 4. Komodo-Variablen
 
-Unter *Settings → Variables* (Secrets als „secret“ markieren, Werte mit `openssl rand -hex 32` erzeugen):
+Komodo → *Settings* → *Variables* → **New Variable**. Bei „Secret“ den Schalter *Secret* setzen. Die Namen müssen genau so lauten, der Stack `stadtfest` verweist mit `[[NAME]]` darauf (HomeLab `komodo/homelab/resources.toml`).
 
-| Variable | Inhalt |
-|---|---|
-| `STADTFEST_IMAGE_TAG` | erster Tag, z. B. `sha-<commit>` des letzten `main`-Builds (setzt danach der Deploy-Workflow) |
-| `STADTFEST_POSTGRES_PASSWORD`, `STADTFEST_NOMINATIM_DB_PASSWORD` | Datenbankpasswörter |
-| `STADTFEST_S3_SECRET_ACCESS_KEY` | Secret der Backend-Identität aus `seaweedfs-s3.json` |
-| `STADTFEST_IDP_ADMIN_TOKEN` | PAT des Zitadel-Service-Users |
-| `STADTFEST_LLM_API_KEY` | Mistral-Schlüssel |
-| `STADTFEST_SEARXNG_SECRET` | SearXNG-Secret |
-| `STADTFEST_RESTIC_PASSWORD` | Passwort des Backup-Repositorys (zusätzlich offline aufbewahren) |
-| `STADTFEST_GRAFANA_ADMIN_PASSWORD` | Grafana-Admin |
+| Komodo-Variable | Secret | Wert | Woher |
+|---|---|---|---|
+| `STADTFEST_POSTGRES_PASSWORD` | ja | `openssl rand -hex 32` | selbst erzeugen (hex, weil es in einer URL steht) |
+| `STADTFEST_NOMINATIM_DB_PASSWORD` | ja | `openssl rand -hex 32` | selbst erzeugen |
+| `STADTFEST_S3_SECRET_ACCESS_KEY` | ja | `openssl rand -hex 32` | selbst erzeugen; der Stack baut daraus die SeaweedFS-Identität `stadtfest-backend` |
+| `STADTFEST_SEARXNG_SECRET` | ja | `openssl rand -hex 32` | selbst erzeugen ([web-suche.md](web-suche.md)) |
+| `STADTFEST_AUTH_ISSUER` | nein | `https://<instanz>.eu1.zitadel.cloud` | [zitadel.md](zitadel.md), Schritt 0 |
+| `STADTFEST_ZITADEL_PROJECT_ID` | nein | Ressourcen-ID des Projekts `stadtfest` | [zitadel.md](zitadel.md), Schritt 1; wird auch für `MCP_OAUTH_SCOPES` verwendet |
+| `STADTFEST_IDP_ADMIN_TOKEN` | ja | Personal Access Token | [zitadel.md](zitadel.md), Schritt 5 |
+| `STADTFEST_LLM_API_KEY` | ja | Mistral-API-Schlüssel | [llm-anbieter.md](llm-anbieter.md), Schritt 2 |
+| `STADTFEST_APNS_KEY_ID` | nein | Key-ID des APNs-Schlüssels | [push-apns-fcm.md](push-apns-fcm.md), Schritt 1 |
+| `STADTFEST_APPLE_TEAM_ID` | nein | Apple-Team-ID | [push-apns-fcm.md](push-apns-fcm.md), Schritt 1; zugleich für Universal Links |
+| `STADTFEST_APNS_KEY_BASE64` | ja | `base64 -i AuthKey_<KEYID>.p8 \| tr -d '\n'` | [push-apns-fcm.md](push-apns-fcm.md), Schritt 1 |
+| `STADTFEST_FCM_PROJECT_ID` | nein | Firebase-Projekt-ID | [push-apns-fcm.md](push-apns-fcm.md), Schritt 2 |
+| `STADTFEST_FCM_CREDENTIALS_BASE64` | ja | `base64 -i <dienstkonto>.json \| tr -d '\n'` | [push-apns-fcm.md](push-apns-fcm.md), Schritt 2 |
+| `STADTFEST_ANDROID_CERT_SHA256` | nein | SHA-256-Fingerabdrücke, kommagetrennt; anfangs leer | [eas-build.md](eas-build.md), Schritt 3, und [store-release.md](store-release.md), Schritt 1 |
+| `STADTFEST_IMPRINT_NAME` | nein | Name für das Impressum | selbst |
+| `STADTFEST_IMPRINT_ADDRESS` | nein | Anschrift, Zeilen mit `\|` getrennt, z. B. `Musterweg 1\|12345 Musterstadt` | selbst |
+| `STADTFEST_IMPRINT_EMAIL` | nein | Kontakt-E-Mail | selbst |
 
-### 4. Komodo: Stack anlegen
+Alle anderen Werte (Anbieter, Modell, Limits, Bucket, Ports, interne Adressen, öffentliche URLs) stehen fest im HomeLab (`resources.toml` bzw. `compose.yaml`) und im Vertrag [`infra/komodo-environment.example`](../../infra/komodo-environment.example). Eine Änderung dort geht per PR.
 
-1. *Stacks → New Stack* `stadtfest`, Server = Heimserver.
-2. *Source:* Git-Repository `Harpune/Stadtfest-Finder`, Branch `main`, **Run Directory** `infra`, **File Paths** `compose.yaml`.
-3. *Environment:* Inhalt von [`infra/komodo-environment.example`](../../infra/komodo-environment.example) einfügen und die `REPLACE_WITH_…`-Werte ersetzen. Die `[[…]]`-Verweise bleiben stehen, Komodo setzt die Variablen aus Schritt 3 ein. Komodo schreibt die Umgebung als `.env` ins Run Directory; die Backend-Dienste lesen sie als `env_file`.
-4. *Ignore Services:* `migrate` (endet absichtlich nach der Migration).
-5. *Auto Update* und *Poll for Updates* **aus**: Versionen kommen nur über `STADTFEST_IMAGE_TAG`.
-6. GHCR: Sind die Pakete privat, unter *Settings → Registry Accounts* einen GitHub-Nutzer mit Token (`read:packages`) für `ghcr.io` hinterlegen und im Stack auswählen.
+### 5. Deployen
 
-### 5. Erstes Deployment
-
-1. *Deploy* im Stack. Reihenfolge: Datenbanken → `migrate` → `api`, `worker`, `mcp` → `caddy`.
-2. **Nominatim** importiert beim ersten Start Deutschland (mehrere Stunden, [nominatim.md](nominatim.md)). Bis dahin antwortet `/v1/geocode*` mit `503` und `search_events` im MCP-Server mit einem Tool-Fehler; die Festsuche läuft.
-3. Bucket anlegen und Lifecycle-Regel setzen ([objektspeicher.md](objektspeicher.md)).
-4. Backup-Repository einmalig anlegen: `docker compose exec backup backup.sh init` (im Komodo-Terminal des Stacks).
-
-### 6. GitHub: automatisches Deployment
-
-1. *Settings → Environments → New environment* `production` (optional mit Required reviewers).
-2. *Settings → Secrets and variables → Actions*:
-   - Variablen: `KOMODO_URL` (z. B. `https://komodo.herderstreet.de`), `KOMODO_STACK=stadtfest`, `API_URL=https://api.stadtfest.herderstreet.de`, `MCP_URL=https://mcp.stadtfest.herderstreet.de`
-   - Secrets (im Environment `production`): `KOMODO_API_KEY`, `KOMODO_API_SECRET` (Komodo → *Profile → API Keys*, Nutzer mit Schreibrecht auf Variable und Stack)
-3. Ab jetzt läuft nach jedem Merge auf `main`: `Release images` → `Deploy` (Tag `sha-<commit>`) → Smoke-Test.
+1. Komodo → *Stacks* → `stadtfest` → **Deploy**. Reihenfolge: Datenbanken → `stadtfest-migrate` → API, Worker, MCP → `stadtfest-edge`.
+2. **Nominatim** importiert beim ersten Start Deutschland (mehrere Stunden, [nominatim.md](nominatim.md)). Bis dahin antwortet `/v1/geocode*` mit `503`, und `search_events` im MCP-Server meldet einen Tool-Fehler; alles andere läuft.
+3. **Bucket anlegen** (einmalig) und die Lifecycle-Regel setzen ([objektspeicher.md](objektspeicher.md)):
+   ```bash
+   docker exec stadtfest-seaweedfs sh -c 'echo "s3.bucket.create -name stadtfest-images" | weed shell -master=localhost:9333'
+   ```
+4. Uptime Kuma (optional): HTTP-Monitor auf `https://stadtfest-api.herderstreet.de/v1/health/ready`.
 
 ### Migrationen bei laufendem Betrieb (Expand/Contract)
 
-Während eines Deployments läuft kurz die alte API gegen das neue Schema. Deshalb:
-
-1. **Expand:** neue Spalten nullable oder mit Default, neue Tabellen; alte Spalten bleiben. Code liest und schreibt beides, wo nötig.
-2. Deployen, prüfen.
-3. **Contract** in einem späteren Release: alte Spalten entfernen, `NOT NULL` setzen.
-
-Nie Spalten in derselben Migration umbenennen oder löschen, die der laufende Code noch nutzt. So bleibt jeder Rollback auf den vorherigen Tag ohne Rückmigration möglich.
+Beim Deploy läuft die alte API kurz gegen das neue Schema. Deshalb nur rückwärtskompatible Migrationen: erst **Expand** (neue Spalten nullable oder mit Default, neue Tabellen, alte Spalten bleiben), deployen, später **Contract** (alte Spalten entfernen, `NOT NULL`) in einem eigenen Release. So geht jeder Rollback auf den vorherigen Tag ohne Rückmigration.
 
 ## Prüfung
 
 ```bash
-make smoke API_URL=https://api.stadtfest.herderstreet.de MCP_URL=https://mcp.stadtfest.herderstreet.de
+make smoke API_URL=https://stadtfest-api.herderstreet.de MCP_URL=https://stadtfest-mcp.herderstreet.de
 ```
 
-Erwartet: fünf Zeilen mit `ok` (Health live/ready, `GET /v1/categories`, `GET /v1/events`, MCP `search_events`). Zusätzlich:
+Erwartet fünf Zeilen `ok` (Health live/ready, `GET /v1/categories`, `GET /v1/events`, MCP `search_events`; Letzteres erst nach dem Nominatim-Import). Außerdem:
 
-- Komodo zeigt alle Dienste *healthy*, `migrate` *exited (0)*.
+- Komodo zeigt alle Container *healthy*, `stadtfest-migrate` *exited (0)*.
 - `curl -sI https://stadtfest.herderstreet.de/impressum/` liefert `200`.
-- Der Workflow `Deploy` ist grün und nennt den deployten Tag.
+- Grafana zeigt Logs von `stadtfest-api` ([monitoring.md](monitoring.md)).
+
+**Lokal geprobt (16.10.2026):** der HomeLab-Stack mit lokal gebauten Images hinter einem Caddy im Netz `edge`: Migration → API, Worker, MCP, Edge gesund; alle vier Hosts liefern die erwarteten Antworten, MCP listet seine Tools, der Objektspeicher nimmt Schreibzugriffe nur mit der erzeugten Identität an und liefert `public/` anonym aus, `pg_dump` aus `make backup` funktioniert.
 
 ## Rollback
 
-1. *Actions → Deploy → Run workflow*, `tag` = vorheriger Tag (aus dem letzten grünen Deploy-Lauf oder GHCR).
-2. Der Workflow setzt `STADTFEST_IMAGE_TAG`, deployt und prüft. Wegen Expand/Contract läuft der alte Code gegen das neue Schema; eine Rückmigration (`alembic downgrade`) ist nur nötig, wenn eine Migration ausnahmsweise nicht rückwärtskompatibel war, und dann vorher ein Backup zurückspielen ([backup-restore.md](backup-restore.md)).
-3. Ohne GitHub: in Komodo die Variable `STADTFEST_IMAGE_TAG` von Hand setzen und *Deploy* drücken.
+1. Im HomeLab den Pin in `stacks/stadtfest/compose.yaml` auf den vorherigen Tag zurücksetzen (PR, oder den Renovate-Merge-Commit reverten), mergen, in Komodo *Deploy*.
+2. Wegen Expand/Contract läuft der alte Code gegen das neue Schema. Eine Rückmigration (`alembic downgrade`) nur, wenn eine Migration ausnahmsweise nicht rückwärtskompatibel war, und dann vorher sichern (`make backup`, [backup-restore.md](backup-restore.md)).
+3. Stack ganz anhalten: Komodo → `stadtfest` → *Stop*. Andere Stacks sind nicht betroffen.
 
-**Geprobt:** lokal mit dem Stack aus `infra/compose.yaml` (Images `:local`, Migration → API/Worker/MCP gesund, Smoke-Test). In Produktion nach dem ersten Deployment einmal ein Rollback auf den vorherigen Tag durchspielen und hier mit Datum vermerken.
+Rollback in Produktion nach dem ersten Release einmal durchspielen und hier mit Datum eintragen.

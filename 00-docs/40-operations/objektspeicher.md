@@ -4,7 +4,7 @@
 
 Festbilder (R08, [ADR 0011](../25-adr/0011-bildauslieferung.md)) liegen in einem S3-kompatiblen Bucket.
 - **Lokal:** SeaweedFS aus `infra/compose.dev.yaml` ([ADR 0007](../25-adr/0007-objektspeicher-seaweedfs.md)).
-- **Produktiv:** SeaweedFS auf dem Heimserver (EU), Dienst `seaweedfs` in `infra/compose.yaml` ([ADR 0019](../25-adr/0019-produktionsstack.md)). Öffentlich erreichbar ist nur `https://bilder.stadtfest.herderstreet.de` über Caddy: Lesen unter `public/` und signierte Uploads unter `uploads/`.
+- **Produktiv:** SeaweedFS auf dem Heimserver (EU), Container `stadtfest-seaweedfs` im HomeLab-Stack `stadtfest` ([ADR 0019](../25-adr/0019-produktionsstack.md)). Öffentlich erreichbar ist nur `https://stadtfest-bilder.herderstreet.de`: Lesen unter `public/` und signierte Uploads unter `uploads/`.
 
 Das Backend spricht nur die S3-API. Ein Anbieterwechsel braucht keine Codeänderung.
 
@@ -14,19 +14,19 @@ Das Backend spricht nur die S3-API. Ein Anbieterwechsel braucht keine Codeänder
 - Für SeaweedFS: Shell im Container (`weed shell`)
 - Komodo-Zugang für die Secrets der API und des Workers
 
-## Schritte in Produktion (SeaweedFS im Stack)
+## Schritte in Produktion (SeaweedFS im HomeLab-Stack)
 
-1. **Identitäten:** `infra/prod/seaweedfs/s3.example.json` kopieren, für `stadtfest-backend` und `stadtfest-admin` je einen Access Key und ein Secret erzeugen (`openssl rand -hex 20` bzw. `openssl rand -hex 32`) und als `/etc/stadtfest/secrets/seaweedfs-s3.json` ablegen ([deployment-komodo.md](deployment-komodo.md), Schritt 2). Das Backend-Secret zusätzlich als Komodo-Secret `STADTFEST_S3_SECRET_ACCESS_KEY`.
-2. **Bucket anlegen** (einmalig, nach dem ersten Start, im Komodo-Terminal des Stacks):
+1. **Identität:** Es gibt keine Konfigurationsdatei. `stadtfest-seaweedfs` erzeugt beim Start aus `S3_ACCESS_KEY_ID` (fest `stadtfest-backend`), `S3_SECRET_ACCESS_KEY` und `S3_BUCKET` eine Identität mit Lese-, Schreib- und Listenrecht nur auf den Bucket, dazu anonymes Lesen nur unter `public/`. Das Secret ist die Komodo-Variable `STADTFEST_S3_SECRET_ACCESS_KEY` (`openssl rand -hex 32`, [deployment-komodo.md](deployment-komodo.md), Schritt 4).
+2. **Bucket anlegen** (einmalig, nach dem ersten Deploy, per SSH auf dem Server):
    ```bash
-   docker compose exec seaweedfs sh -c 'echo "s3.bucket.create -name stadtfest-images" | weed shell -master=localhost:9333'
+   docker exec stadtfest-seaweedfs sh -c 'echo "s3.bucket.create -name stadtfest-images" | weed shell -master=localhost:9333'
    ```
 3. **Lifecycle für `uploads/`** (Sicherheitsnetz zu `purge_images`): Originale nach 2 Tagen löschen.
    ```bash
-   docker compose exec seaweedfs sh -c 'echo "fs.configure -locationPrefix=/buckets/stadtfest-images/uploads/ -ttl=2d -apply" | weed shell -master=localhost:9333'
+   docker exec stadtfest-seaweedfs sh -c 'echo "fs.configure -locationPrefix=/buckets/stadtfest-images/uploads/ -ttl=2d -apply" | weed shell -master=localhost:9333'
    ```
-4. **Variablen:** `S3_ENDPOINT_URL`, `S3_PRESIGN_ENDPOINT_URL` und `S3_PUBLIC_BASE_URL` setzt `infra/compose.yaml` aus `IMAGES_HOST`; in der Stack-Umgebung stehen nur `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID` und das Secret.
-5. **Backup:** Der Bucket wird täglich über die S3-API gesichert ([backup-restore.md](backup-restore.md)).
+4. **Öffentlicher Zugang:** nur über `https://stadtfest-bilder.herderstreet.de` (Cloudflare Tunnel → HomeLab-Caddy → `stadtfest-edge`), dort nur `GET`/`HEAD` auf `/stadtfest-images/public/*` und signierte `PUT` auf `/stadtfest-images/uploads/*` (max. 11 MB). Die URLs (`S3_ENDPOINT_URL`, `S3_PRESIGN_ENDPOINT_URL`, `S3_PUBLIC_BASE_URL`) setzt die HomeLab-Compose-Datei aus `DOMAIN`.
+5. **Backup:** Die Daten liegen unter `${APPDATA}/stadtfest/seaweedfs` und sind im kalten Snapshot von `make backup` und in der Offsite-Kopie enthalten ([backup-restore.md](backup-restore.md)).
 
 ## Schritte für einen anderen S3-Anbieter
 
