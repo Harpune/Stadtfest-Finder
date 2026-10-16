@@ -198,7 +198,12 @@ from stadtfest.application.notifications.use_cases import (
     SendReminders,
     UpdateNotificationSettings,
 )
-from stadtfest.application.outbox.use_cases import HandleDomainEvent, PurgeOutbox, RelayOutbox
+from stadtfest.application.outbox.use_cases import (
+    HandleDomainEvent,
+    PurgeOutbox,
+    RelayOutbox,
+    ReportOutboxBacklog,
+)
 from stadtfest.application.shared.ports import RateLimiter
 from stadtfest.bootstrap.settings import (
     GeocodingProvider,
@@ -310,6 +315,7 @@ class Container:
     relay_outbox: RelayOutbox
     handle_domain_event: HandleDomainEvent
     purge_outbox: PurgeOutbox
+    report_outbox_backlog: ReportOutboxBacklog
     delete_idp_user: DeleteIdpUser
     storage: S3ObjectStorage
     image_urls: ImageUrls
@@ -537,6 +543,7 @@ class Container:
                 notify_for_domain_event,
             ),
             purge_outbox=PurgeOutbox(outbox),
+            report_outbox_backlog=ReportOutboxBacklog(outbox),
             storage=storage,
             image_urls=image_urls,
             create_upload=CreateUpload(*mod, ensure_account, images, storage),

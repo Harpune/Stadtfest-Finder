@@ -73,7 +73,7 @@ from stadtfest.application.notifications.ports import (
 from stadtfest.application.notifications.ports import (
     PageCursor as NotificationCursor,
 )
-from stadtfest.application.outbox.ports import OutboxMessage
+from stadtfest.application.outbox.ports import OutboxBacklog, OutboxMessage
 from stadtfest.application.shared.ports import JsonValue
 from stadtfest.domain.ai_ingestion.finds import FoundEvent
 from stadtfest.domain.ai_ingestion.job import AiSearchEventType, AiSearchJob, AiSearchStatus
@@ -382,6 +382,7 @@ class FakeOutboxStore:
     pending: list[OutboxMessage] = field(default_factory=list)
     dispatched: list[OutboxMessage] = field(default_factory=list)
     purged_before: list[datetime] = field(default_factory=list)
+    oldest_pending_at: datetime | None = None
 
     async def dispatch_pending(
         self, limit: int, send: Callable[[OutboxMessage], Awaitable[None]]
@@ -395,6 +396,9 @@ class FakeOutboxStore:
     async def purge_dispatched(self, before: datetime) -> int:
         self.purged_before.append(before)
         return 0
+
+    async def backlog(self) -> OutboxBacklog:
+        return OutboxBacklog(len(self.pending), self.oldest_pending_at)
 
 
 @dataclass

@@ -145,3 +145,26 @@ class PurgeOutbox:
     async def __call__(self) -> int:
         """Delete old dispatched messages; returns the number deleted."""
         return await self._outbox.purge_dispatched(self._now() - RETENTION)
+
+
+class ReportOutboxBacklog:
+    """Logs the outbox backlog as `outbox_backlog` (every 5 minutes, alert source, R16-US5).
+
+    The relay empties the outbox every second; a growing age of the oldest pending message
+    means the relay or Redis is stuck. The log line holds counts only.
+    """
+
+    def __init__(
+        self, outbox: OutboxStore, now: Callable[[], datetime] = lambda: datetime.now(UTC)
+    ) -> None:
+        """Create the use case."""
+        self._outbox = outbox
+        self._now = now
+
+    async def __call__(self) -> int:
+        """Log the backlog; returns the age of the oldest pending message in seconds."""
+        backlog = await self._outbox.backlog()
+        oldest = backlog.oldest_occurred_at
+        age = 0 if oldest is None else max(0, int((self._now() - oldest).total_seconds()))
+        logger.info("outbox_backlog", extra={"pending": backlog.pending, "oldest_age_s": age})
+        return age

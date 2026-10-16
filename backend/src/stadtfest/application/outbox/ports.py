@@ -18,6 +18,14 @@ class OutboxMessage:
     payload: dict[str, object] = field(default_factory=dict)
 
 
+@dataclass(frozen=True, slots=True)
+class OutboxBacklog:
+    """Undispatched messages: how many, and when the oldest one occurred."""
+
+    pending: int
+    oldest_occurred_at: datetime | None
+
+
 class OutboxStore(Protocol):
     """The outbox table."""
 
@@ -36,6 +44,10 @@ class OutboxStore(Protocol):
 
     async def purge_dispatched(self, before: datetime) -> int:
         """Delete messages dispatched before the given time; returns the number deleted."""
+        ...
+
+    async def backlog(self) -> OutboxBacklog:
+        """Count the undispatched messages and find the oldest one."""
         ...
 
 

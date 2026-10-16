@@ -22,6 +22,7 @@ from stadtfest.adapters.inbound.worker.jobs import (
     purge_invitations,
     purge_notifications,
     purge_outbox,
+    report_outbox_backlog,
     run_outbox_relay,
     send_reminders,
 )
@@ -72,6 +73,7 @@ def build_worker_settings(settings: Settings) -> type:
             cron(purge_outbox, hour={3}, minute={30}, unique=True),
             cron(purge_images, hour={3}, minute={45}, unique=True),
             cron(fail_stuck_searches, minute={0, 10, 20, 30, 40, 50}, unique=True),
+            cron(report_outbox_backlog, minute=set(range(0, 60, 5)), unique=True),
             cron(compact_ai_search_logs, weekday="sun", hour={4}, minute={15}, unique=True),
             cron(purge_notifications, hour={3}, minute={50}, unique=True),
             cron(purge_invitations, hour={3}, minute={55}, unique=True),

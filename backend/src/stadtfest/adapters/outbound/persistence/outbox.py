@@ -10,7 +10,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from stadtfest.adapters.outbound.persistence.models import FavoriteRow, OutboxRow
-from stadtfest.application.outbox.ports import OutboxMessage
+from stadtfest.application.outbox.ports import OutboxBacklog, OutboxMessage
 
 
 class SqlOutboxStore:
@@ -57,6 +57,18 @@ class SqlOutboxStore:
                 .returning(OutboxRow.id)
             )
             return len(result.all())
+
+    async def backlog(self) -> OutboxBacklog:
+        """Count undispatched messages; the oldest one comes from the same query."""
+        async with self._sessions() as session:
+            pending, oldest = (
+                await session.execute(
+                    select(func.count(), func.min(OutboxRow.occurred_at)).where(
+                        OutboxRow.dispatched_at.is_(None)
+                    )
+                )
+            ).one()
+            return OutboxBacklog(pending=pending, oldest_occurred_at=oldest)
 
 
 class SqlEventFavorites:

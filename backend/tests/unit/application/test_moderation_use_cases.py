@@ -1,5 +1,6 @@
+import logging
 from collections.abc import Mapping
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -16,7 +17,12 @@ from stadtfest.application.moderation.use_cases import (
     UpdateModEvent,
 )
 from stadtfest.application.outbox.ports import OutboxMessage
-from stadtfest.application.outbox.use_cases import HandleDomainEvent, PurgeOutbox, RelayOutbox
+from stadtfest.application.outbox.use_cases import (
+    HandleDomainEvent,
+    PurgeOutbox,
+    RelayOutbox,
+    ReportOutboxBacklog,
+)
 from stadtfest.application.shared.errors import (
     ConflictError,
     ForbiddenError,
@@ -345,3 +351,23 @@ async def test_purge_keeps_14_days() -> None:
     outbox = FakeOutboxStore()
     await PurgeOutbox(outbox, now=lambda: datetime(2026, 10, 15, tzinfo=UTC))()
     assert outbox.purged_before == [datetime(2026, 10, 1, tzinfo=UTC)]
+
+
+async def test_backlog_report_logs_counts_and_age(caplog: pytest.LogCaptureFixture) -> None:
+    now = datetime(2026, 10, 15, 12, tzinfo=UTC)
+    outbox = FakeOutboxStore(
+        pending=[OutboxMessage(uuid4(), "event.updated", {"eventId": "e-1"})],
+        oldest_pending_at=now - timedelta(minutes=7),
+    )
+
+    with caplog.at_level(logging.INFO):
+        age = await ReportOutboxBacklog(outbox, now=lambda: now)()
+
+    assert age == 420
+    (record,) = [r for r in caplog.records if r.getMessage() == "outbox_backlog"]
+    assert (record.pending, record.oldest_age_s) == (1, 420)  # type: ignore[attr-defined]
+    assert "e-1" not in str(record.__dict__)
+
+
+async def test_empty_outbox_reports_age_zero() -> None:
+    assert await ReportOutboxBacklog(FakeOutboxStore())() == 0

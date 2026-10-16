@@ -294,6 +294,9 @@ services:
     image: grafana/alloy:v1.16.0
     restart: unless-stopped
     command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+    environment:
+      # Only containers of this compose project are collected.
+      COMPOSE_PROJECT: ${COMPOSE_PROJECT_NAME:-stadtfest}
     volumes:
       - ./observability/config.alloy:/etc/alloy/config.alloy:ro
       # Read-only access to discover containers and read their logs (TOMs).
@@ -324,6 +327,7 @@ services:
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_LOG_LEVEL: warn
     volumes:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana

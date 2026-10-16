@@ -28,6 +28,7 @@ from stadtfest.application.outbox.use_cases import (
     HandleDomainEvent,
     PurgeOutbox,
     RelayOutbox,
+    ReportOutboxBacklog,
 )
 
 logger = logging.getLogger(__name__)
@@ -120,6 +121,19 @@ async def purge_outbox(ctx: dict[str, Any]) -> int:
         Number of deleted messages.
     """
     use_case: PurgeOutbox = ctx["container"].purge_outbox
+    return await use_case()
+
+
+async def report_outbox_backlog(ctx: dict[str, Any]) -> int:
+    """Log the outbox backlog for the alert on a stuck relay (every 5 minutes, R16-US5).
+
+    Args:
+        ctx: arq job context with the container.
+
+    Returns:
+        Age of the oldest pending message in seconds.
+    """
+    use_case: ReportOutboxBacklog = ctx["container"].report_outbox_backlog
     return await use_case()
 
 
@@ -267,6 +281,7 @@ JOBS: list[Callable[..., Awaitable[object]]] = [
     delete_idp_user,
     handle_domain_event,
     purge_outbox,
+    report_outbox_backlog,
     purge_images,
     fail_stuck_searches,
     compact_ai_search_logs,
