@@ -1,0 +1,114 @@
+# Stack environment of the production stack (infra/compose.yaml), maintained in Komodo
+# (Stack -> Environment). Komodo writes it to the env file in the run directory `infra` and
+# passes it with --env-file; the backend services also read it as env_file. Template only:
+# no real values here. Guide: 00-docs/40-operations/deployment-komodo.md.
+# Values marked [secret] reference Komodo secret variables ([[NAME]], Settings -> Variables);
+# never commit them. Generate passwords with `openssl rand -hex 32` (hex keeps URLs valid).
+# Checked in CI: every backend setting is listed here (tests/unit/test_production_config.py).
+
+# --- Release ----------------------------------------------------------------------
+# Image tag of stadtfest-backend, stadtfest-mcp and stadtfest-backup: sha-<40-char commit>
+# or a SemVer version (1.2.3). The deploy workflow sets the Komodo variable
+# STADTFEST_IMAGE_TAG; rollback = previous tag (deployment-komodo.md).
+IMAGE_TAG=[[STADTFEST_IMAGE_TAG]]
+GHCR_OWNER=harpune
+# Host directory with secret files (push/, seaweedfs-s3.json, backup-ssh/), owner root:10001.
+SECRETS_DIR=/etc/stadtfest/secrets
+
+# --- Hosts and TLS (Caddy) ------------------------------------------------------------
+ACME_EMAIL=REPLACE_WITH_OPS_EMAIL
+LINK_HOST=stadtfest.herderstreet.de
+API_HOST=api.stadtfest.herderstreet.de
+MCP_HOST_NAME=mcp.stadtfest.herderstreet.de
+IMAGES_HOST=bilder.stadtfest.herderstreet.de
+# App Links: SHA-256 fingerprints of the Android signing keys, comma-separated (AB:CD:...).
+ANDROID_CERT_SHA256=
+# Universal Links: Apple Developer Team ID; empty until the Apple account exists.
+APPLE_TEAM_ID=
+# Imprint (/impressum) and contact in the privacy policy; "|" separates address lines.
+IMPRINT_NAME=REPLACE_WITH_NAME
+IMPRINT_ADDRESS=REPLACE_WITH_STREET|REPLACE_WITH_ZIP_AND_CITY
+IMPRINT_EMAIL=REPLACE_WITH_CONTACT_EMAIL
+
+# --- Data stores ------------------------------------------------------------------------
+# [secret] Password of the PostgreSQL user `stadtfest` (DATABASE_URL is built in compose).
+POSTGRES_PASSWORD=[[STADTFEST_POSTGRES_PASSWORD]]
+# [secret] Password of Nominatim's internal database.
+NOMINATIM_DB_PASSWORD=[[STADTFEST_NOMINATIM_DB_PASSWORD]]
+# Object storage (SeaweedFS, ADR 0019). Endpoints and public URL are built in compose.
+S3_BUCKET=stadtfest-images
+S3_REGION=eu-central-1
+# Backend identity from $SECRETS_DIR/seaweedfs-s3.json.
+S3_ACCESS_KEY_ID=stadtfest-backend
+# [secret]
+S3_SECRET_ACCESS_KEY=[[STADTFEST_S3_SECRET_ACCESS_KEY]]
+S3_TIMEOUT_SECONDS=10
+
+# --- General ------------------------------------------------------------------------
+# ENV=prod and LOG_FORMAT=json are fixed in compose.
+LOG_LEVEL=INFO
+GEOCODING_TIMEOUT_SECONDS=3
+
+# --- Authentication: Zitadel Cloud, EU region (00-docs/40-operations/zitadel.md) -------------
+AUTH_ISSUER=https://REPLACE_WITH_INSTANCE.eu1.zitadel.cloud
+# Project ID of the Zitadel project `stadtfest`.
+AUTH_AUDIENCE=REPLACE_WITH_PROJECT_ID
+AUTH_ROLES_CLAIM=urn:zitadel:iam:org:project:roles
+AUTH_LEEWAY_SECONDS=30
+AUTH_TIMEOUT_SECONDS=5
+IDP_ADMIN_PROVIDER=zitadel
+# [secret] Personal access token of the service user (expires after at most 12 months).
+IDP_ADMIN_TOKEN=[[STADTFEST_IDP_ADMIN_TOKEN]]
+
+# --- AI search (ADR 0012-0014): production default is Mistral (EU) or Ollama ----------------
+LLM_PROVIDER=mistral
+LLM_MODEL=mistral-large-latest
+# [secret] Not needed for ollama.
+LLM_API_KEY=[[STADTFEST_LLM_API_KEY]]
+# Only for ollama, e.g. http://ollama:11434/v1.
+LLM_BASE_URL=
+# Self-hosted SearXNG of the stack (WEB_SEARCH_BASE_URL defaults to http://searxng:8080).
+WEB_SEARCH_PROVIDER=searxng
+# [secret] brave only.
+WEB_SEARCH_API_KEY=
+# [secret] SearXNG secret key.
+SEARXNG_SECRET=[[STADTFEST_SEARXNG_SECRET]]
+AI_SEARCH_RADIUS_KM=25
+# 0 stops the AI search.
+AI_SEARCH_DAILY_LIMIT=10
+AI_SEARCH_MAX_TOOL_CALLS=8
+AI_SEARCH_TIMEOUT_S=300
+AI_SEARCH_PROMPT_VERSION=v3
+AI_SEARCH_MAX_PAGE_READS=6
+
+# --- Push (ADR 0016): production default `direct` (no Expo as extra processor) -------------
+# direct | expo | disabled. Guides: push-apns-fcm.md, push-expo.md.
+PUSH_PROVIDER=direct
+APNS_KEY_ID=REPLACE_WITH_APNS_KEY_ID
+APNS_TEAM_ID=REPLACE_WITH_APPLE_TEAM_ID
+# Files in $SECRETS_DIR/push, mounted read-only at /run/secrets/push.
+APNS_KEY_PATH=/run/secrets/push/apns.p8
+APNS_TOPIC=de.stadtfestfinder.app
+APNS_SANDBOX=false
+FCM_PROJECT_ID=REPLACE_WITH_FIREBASE_PROJECT_ID
+FCM_CREDENTIALS_PATH=/run/secrets/push/fcm.json
+# [secret] expo only.
+EXPO_ACCESS_TOKEN=
+
+# --- MCP server (R15, ADR 0018) -----------------------------------------------------------
+# MCP_PUBLIC_URL and the listen address are built in compose.
+MCP_OAUTH_SCOPES=openid profile urn:zitadel:iam:org:project:id:REPLACE_WITH_PROJECT_ID:aud
+
+# --- Backups (ADR 0021, 00-docs/40-operations/backup-restore.md) ------------------------------
+# restic repository on the Hetzner Storage Box (sftp; host alias from backup-ssh/config).
+RESTIC_REPOSITORY=sftp:storagebox:/stadtfest/restic
+# [secret] Repository password; without it the backups cannot be restored. Keep a copy offline.
+RESTIC_PASSWORD=[[STADTFEST_RESTIC_PASSWORD]]
+# Daily start time (Europe/Berlin) and retention.
+BACKUP_TIME=02:30
+BACKUP_KEEP_WITHIN=30d
+
+# --- Observability (ADR 0020, 00-docs/40-operations/monitoring.md) --------------------------
+# [secret] Grafana admin password; Grafana listens on 127.0.0.1 only.
+GRAFANA_ADMIN_PASSWORD=[[STADTFEST_GRAFANA_ADMIN_PASSWORD]]
+GRAFANA_HOST_PORT=3000

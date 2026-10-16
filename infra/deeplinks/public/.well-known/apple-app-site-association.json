@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [{{- if env "APPLE_TEAM_ID"}}
+      {
+        "appIDs": ["{{env "APPLE_TEAM_ID"}}.de.stadtfestfinder.app"],
+        "components": [
+          {"/": "/f/*"},
+          {"/": "/freund/*"},
+          {"/": "/e/*"},
+          {"/": "/einladung/*"}
+        ]
+      }
+    {{- end}}]
+  }
+}

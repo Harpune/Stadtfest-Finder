@@ -9,6 +9,9 @@ SHELL := /bin/bash
 export
 
 COMPOSE_DEV := docker compose -f infra/compose.dev.yaml
+# Production stack checked with the Komodo template instead of the real stack environment.
+COMPOSE_PROD_CHECK := STADTFEST_ENV_FILE=komodo-environment.example docker compose --env-file infra/komodo-environment.example -f infra/compose.yaml
+CADDY_IMAGE := caddy:2.11-alpine
 BACKEND := cd backend &&
 MOBILE := cd mobile &&
 API_PORT ?= 8000
@@ -77,6 +80,18 @@ lint: ## Lint + type check + architecture rules + OpenAPI lint
 	npx --yes @stoplight/spectral-cli@6 lint --fail-severity=warn api/openapi.yaml
 	$(MOBILE) pnpm lint
 	$(MOBILE) pnpm typecheck
+	$(MAKE) infra-check
+
+.PHONY: infra-check
+infra-check: ## Validate the production stack (compose.yaml + Caddyfile) against the Komodo template
+	$(COMPOSE_PROD_CHECK) config --quiet
+	@grep -E '^(ACME_EMAIL|LINK_HOST|API_HOST|MCP_HOST_NAME|IMAGES_HOST|S3_BUCKET)=' infra/komodo-environment.example > infra/.caddy-check.tmp
+	docker run --rm --env-file infra/.caddy-check.tmp -v "$(CURDIR)/infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro" $(CADDY_IMAGE) \
+		caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; status=$$?; rm -f infra/.caddy-check.tmp; exit $$status
+
+.PHONY: smoke
+smoke: ## Smoke-test a running deployment, e.g. API_URL=https://api.example.eu MCP_URL=https://mcp.example.eu
+	$(BACKEND) uv run python -m stadtfest.bootstrap.smoke --api-url $(or $(API_URL),http://localhost:$(API_PORT)) --mcp-url $(or $(MCP_URL),http://localhost:$${MCP_PORT:-8001})
 
 .PHONY: test
 test: ## Unit + integration + contract tests (integration/contract need Docker) + mobile Jest

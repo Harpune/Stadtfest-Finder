@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Datenschutz · Stadtfest-Finder</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #FBF8F4; --text: #231A2E; --muted: #6F6480; --amber: #FFB547; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #15111C; --text: #F4EEF8; --muted: #A89BB8; } }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, sans-serif; }
+    main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 28px; margin: 0 0 16px; }
+    h2 { font-size: 19px; margin: 28px 0 8px; }
+    p, li { color: var(--text); }
+    .muted { color: var(--muted); }
+    a { color: inherit; text-decoration-color: var(--amber); text-underline-offset: 3px; }
+    table { border-collapse: collapse; width: 100%; font-size: 15px; }
+    th, td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid color-mix(in srgb, var(--muted) 30%, transparent); }
+  </style>
+</head>
+<body>
+  <!-- Rendered by Caddy templates from the stack environment (infra/caddy/Caddyfile).
+       Legal texts: review before the store release (00-docs/40-operations/store-release.md). -->
+  <main>
+    <h1>Datenschutzerklärung</h1>
+    <p class="muted">Stand: Oktober 2026</p>
+
+    <h2>1. Verantwortlicher</h2>
+    <p>
+      {{env "IMPRINT_NAME"}}<br>
+      {{range splitList "|" (env "IMPRINT_ADDRESS")}}{{trim .}}<br>{{end}}
+      E-Mail: <a href="mailto:{{env "IMPRINT_EMAIL"}}">{{env "IMPRINT_EMAIL"}}</a>
+    </p>
+
+    <h2>2. Grundsätze</h2>
+    <p>Stadtfest-Finder speichert nur, was für die Funktionen nötig ist. Es gibt keine Werbung, kein Tracking und keine Analyse-Werkzeuge. Server, Datenbank, Bildspeicher und Geocoding laufen auf einem eigenen Server in Deutschland. Protokolle enthalten keine IP-Adressen, Namen, E-Mail-Adressen oder Suchtexte.</p>
+
+    <h2>3. Nutzung ohne Konto</h2>
+    <ul>
+      <li><strong>Festsuche:</strong> Die App fragt Feste für den sichtbaren Kartenausschnitt ab. Dein eigener Standort verlässt das Gerät nicht; Entfernungen rechnet die App selbst. Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO.</li>
+      <li><strong>Orts- und PLZ-Suche:</strong> Suchtext bzw. eine auf etwa 100 m gerundete Position gehen an unser selbst betriebenes Geocoding (Nominatim) und werden nicht gespeichert.</li>
+      <li><strong>Karte:</strong> Kartenkacheln lädt die App direkt bei MapTiler AG (Schweiz, Angemessenheitsbeschluss). Dabei werden deine IP-Adresse und der angezeigte Kartenausschnitt übertragen.</li>
+      <li><strong>Missbrauchsschutz:</strong> Für Anfrage-Limits wird deine IP-Adresse nur als Hash für wenige Sekunden zwischengespeichert.</li>
+    </ul>
+
+    <h2>4. Konto und Anmeldung</h2>
+    <p>Die Anmeldung (E-Mail, Apple oder Google) läuft über ZITADEL Cloud (Rechenzentrum in der EU). Dort liegen E-Mail-Adresse, Name, Anmeldedaten und Rollen. Unser Server speichert nur eine Kennung des Kontos sowie Vor- und Nachnamen. Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Nutzungsvertrag).</p>
+
+    <h2>5. Funktionen mit Konto</h2>
+    <table>
+      <tr><th>Funktion</th><th>Daten</th><th>Speicherdauer</th></tr>
+      <tr><td>Favoriten</td><td>gemerkte Feste, Zeitpunkt</td><td>bis zum Entfernen oder zur Kontolöschung</td></tr>
+      <tr><td>Freunde</td><td>Verbindungen, persönlicher Freundschaftslink</td><td>bis zum Entfernen oder zur Kontolöschung</td></tr>
+      <tr><td>Gemeinsame Listen</td><td>Listenname, Mitglieder, Feste</td><td>bis zum Löschen, Verlassen oder zur Kontolöschung</td></tr>
+      <tr><td>Einladungen</td><td>Fest, Eingeladene, Nachricht, Zu- und Absagen</td><td>6 Monate nach Festende</td></tr>
+      <tr><td>Benachrichtigungen</td><td>Art, betroffenes Fest, gelesen</td><td>12 Monate</td></tr>
+      <tr><td>Einstellungen</td><td>Schalter, Radius, Wohnort als PLZ und Ort</td><td>bis zur Änderung oder Kontolöschung</td></tr>
+    </table>
+    <p>Freunde, Mitglieder einer Liste und Eingeladene sehen deinen Vor- und Nachnamen. Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO.</p>
+
+    <h2>6. Push-Mitteilungen</h2>
+    <p>Wenn du Mitteilungen erlaubst, speichern wir das Push-Token deines Geräts. Mitteilungen werden über den Apple Push Notification service (Apple Inc.) bzw. Firebase Cloud Messaging (Google LLC) zugestellt. Sie enthalten nur allgemeine Texte und Kennungen, keine Namen, Festnamen oder Orte; Details lädt die App erst nach dem Öffnen von unserem Server. Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO und deine Einwilligung über die Systemabfrage. Du kannst Mitteilungen jederzeit in der App oder den Systemeinstellungen abschalten.</p>
+
+    <h2>7. Moderation und KI-Suche</h2>
+    <p>Moderierende pflegen Feste und laden Bilder hoch. Bei Bildern entfernen wir alle Metadaten (z. B. GPS-Position). Für die KI-Suche nach Festen gehen nur Postleitzahl, Ortsnamen, Radius, Zeitraum und Kategorien an den KI-Anbieter (Standard: Mistral AI, EU) und an Suchmaschinen, niemals personenbezogene Daten.</p>
+
+    <h2>8. Empfänger</h2>
+    <p>Auftragsverarbeiter sind ZITADEL (Anmeldung, EU), MapTiler (Kartenkacheln, Schweiz), Apple und Google (Push-Zustellung, USA, auf Grundlage des EU-U.S. Data Privacy Framework bzw. Standardvertragsklauseln) sowie Hetzner Online GmbH (verschlüsselte Datensicherung, Deutschland). Eine Weitergabe an sonstige Dritte findet nicht statt.</p>
+
+    <h2>9. Datensicherung</h2>
+    <p>Wir sichern die Datenbank und den Bildspeicher täglich verschlüsselt. Sicherungen werden nach 30 Tagen gelöscht; gelöschte Daten verschwinden damit spätestens 30 Tage nach der Löschung auch aus den Sicherungen.</p>
+
+    <h2>10. Konto löschen</h2>
+    <p>Du kannst dein Konto jederzeit in der App unter <em>Konto &rarr; Konto löschen</em> löschen. Dabei entfernen wir alle Daten aus Abschnitt 5 und 6 sowie dein Konto bei ZITADEL.</p>
+
+    <h2>11. Deine Rechte</h2>
+    <p>Du hast das Recht auf Auskunft (Art. 15), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung (Art. 18), Datenübertragbarkeit (Art. 20) und Widerspruch gegen Verarbeitungen auf Grundlage berechtigter Interessen (Art. 21 DSGVO). Schreib uns dazu an die oben genannte Adresse. Du kannst dich außerdem bei einer Datenschutz-Aufsichtsbehörde beschweren.</p>
+
+    <h2>12. Speicherung auf dem Gerät</h2>
+    <p>Die App speichert Anmelde-Tokens im geschützten Schlüsselspeicher des Geräts sowie Darstellungswahl, das letzte Suchergebnis und – nur ohne Standortfreigabe – den letzten Kartenausschnitt lokal. Diese Daten verlassen das Gerät nicht.</p>
+    <p class="muted"><a href="/impressum/">Impressum</a> · <a href="/datenschutz/">Datenschutz</a> · <a href="/nutzungsbedingungen/">Nutzungsbedingungen</a></p>
+  </main>
+</body>
+</html>

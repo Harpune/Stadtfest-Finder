@@ -1,0 +1,50 @@
+# Production SearXNG (infra/compose.yaml): internal only, no port, no proxy route (ADR 0013).
+# Defaults of the image plus the changes below; see 00-docs/40-operations/web-suche.md.
+use_default_settings:
+  engines:
+    # Tor engines need a Tor proxy and fail to load without one.
+    remove:
+      - ahmia
+      - torch
+
+general:
+  # No search logs on the server.
+  enable_metrics: false
+  instance_name: stadtfest-search
+
+server:
+  # Always overridden by SEARXNG_SECRET from the stack environment (Komodo secret).
+  secret_key: "overridden-by-SEARXNG_SECRET"
+  # Internal instance: no bot detection, no public UI traffic.
+  limiter: false
+  public_instance: false
+  image_proxy: false
+
+search:
+  safe_search: 2
+  default_lang: "de-DE"
+  # The backend needs JSON; without it SearXNG answers 403.
+  formats:
+    - html
+    - json
+
+outgoing:
+  request_timeout: 5.0
+  max_request_timeout: 10.0
+
+engines:
+  # Brave rate-limits scraping ("too many requests"); other engines cover it.
+  - name: brave
+    disabled: true
+  # Only DuckDuckGo and Google CSE are on by default; after about 60 queries in an hour
+  # both blocked (CAPTCHA, "too many requests", 05.10.2026). More engines spread the load.
+  - name: bing
+    disabled: false
+  - name: google
+    disabled: false
+  - name: qwant
+    disabled: false
+  - name: yahoo
+    disabled: false
+  - name: gmx
+    disabled: false
