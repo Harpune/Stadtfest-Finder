@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "935857529401",
-    "project_id": "stadtfest-finder-dev",
-    "storage_bucket": "stadtfest-finder-dev.firebasestorage.app"
+    "project_number": "129551490769",
+    "project_id": "stadtfest-finder-homelab",
+    "storage_bucket": "stadtfest-finder-homelab.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:935857529401:android:1302758b2768a9f33fa3e8",
+        "mobilesdk_app_id": "1:129551490769:android:ac62277c257b35671b2ff0",
         "android_client_info": {
           "package_name": "de.stadtfestfinder.app"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBdzgw8GjAntVYa7ndL0873MDx_JT9r8Iw"
+          "current_key": "AIzaSyAB0y_GADwE3nL7zUQU01AU1M8XPRQ2-9Q"
         }
       ],
       "services": {
