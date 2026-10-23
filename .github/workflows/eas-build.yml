@@ -66,7 +66,9 @@ jobs:
       - uses: expo/expo-github-action@v9
         with:
           eas-version: latest
-          packager: pnpm
+          # Only installs eas-cli; pnpm 11 fails that global install on ignored build
+          # scripts (ERR_PNPM_IGNORED_BUILDS). The app itself is installed with pnpm below.
+          packager: npm
           token: ${{ secrets.EXPO_TOKEN }}
       - run: pnpm install --frozen-lockfile
       - name: Build (EAS environment = profile, see eas.json)
