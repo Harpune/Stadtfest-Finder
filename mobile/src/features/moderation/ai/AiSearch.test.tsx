@@ -198,6 +198,45 @@ describe('AI search in the overview (09-01 to 09-03)', () => {
     expect(screen.getByTestId('mod.ai.start')).toBeDisabled();
   });
 
+  it('says so when the geocoding is unavailable', async () => {
+    mockApi(call =>
+      call.path === '/v1/geocode'
+        ? {
+            status: 200,
+            body: [
+              {
+                label: '89073 Ulm',
+                city: 'Ulm',
+                postalCode: '89073',
+                lat: 48.4,
+                lon: 9.99,
+                kind: 'postcode',
+              },
+            ],
+          }
+        : call.path === '/v1/mod/ai-searches' && call.method === 'POST'
+          ? {
+              status: 503,
+              body: {error: 'geocoding_unavailable', message: ''},
+            }
+          : undefined,
+    );
+    await render(<ModEventsScreen />);
+    await fireEvent.press(screen.getByTestId('mod.events.aiSearch'));
+    await fireEvent.changeText(
+      screen.getByTestId('mod.ai.postalCode'),
+      '89073',
+    );
+    await screen.findByTestId('mod.ai.place');
+    await fireEvent.press(screen.getByTestId('mod.ai.start'));
+
+    expect(
+      await screen.findByText(
+        'Die Ortssuche ist gerade nicht erreichbar. Bitte versuche es später erneut.',
+      ),
+    ).toBeOnTheScreen();
+  });
+
   it('restores a running search, polls every 10 s and offers the review', async () => {
     jest.useFakeTimers();
     let status: AiSearch = JOB;

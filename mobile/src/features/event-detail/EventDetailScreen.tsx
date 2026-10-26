@@ -244,11 +244,17 @@ export function EventDetailScreen({eventId}: {eventId: string}) {
               <Text variant="displayXL" testID="detail.title">
                 {base.name}
               </Text>
-              <Text variant="body" tone="muted">
-                {base.place}, {base.city}
-                {typeof distanceKm === 'number'
-                  ? ` · ${strings.detail.distanceAway(strings.discover.distance(distanceKm))}`
-                  : ''}
+              <Text variant="body" tone="muted" testID="detail.locality">
+                {[
+                  [base.place, base.city].filter(Boolean).join(', '),
+                  typeof distanceKm === 'number'
+                    ? strings.detail.distanceAway(
+                        strings.discover.distance(distanceKm),
+                      )
+                    : '',
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </Text>
               {cancelled && detail?.cancelReason ? (
                 <Text

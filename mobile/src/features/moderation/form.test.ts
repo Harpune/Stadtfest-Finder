@@ -44,6 +44,17 @@ describe('publishErrors', () => {
     );
   });
 
+  it.each([{postalCode: null}, {postalCode: '7343'}, {city: '  '}])(
+    'requires postal code and city with the location: %p',
+    changes => {
+      // A pin set while the geocoding is unavailable has coordinates only.
+      expect(publishErrors({...complete(), ...changes}, ACTIVE)).toEqual({
+        location:
+          'Postleitzahl und Stadt fehlen. Wähle eine Adresse aus den Vorschlägen oder setze den Pin neu.',
+      });
+    },
+  );
+
   it('rejects an end before the start, inactive categories and bad websites', () => {
     const errors = publishErrors(
       {
@@ -137,6 +148,13 @@ describe('errorsFromServer', () => {
     ).toEqual({
       startDate: 'Bitte wähle den Beginn.',
       endDate: 'Das Ende liegt vor dem Beginn.',
+    });
+  });
+
+  it('explains an incomplete location', () => {
+    expect(errorsFromServer({location: 'incomplete'})).toEqual({
+      location:
+        'Postleitzahl und Stadt fehlen. Wähle eine Adresse aus den Vorschlägen oder setze den Pin neu.',
     });
   });
 });

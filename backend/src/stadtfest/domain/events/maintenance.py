@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 from stadtfest.domain.events.event import EventStatus
+from stadtfest.domain.events.geo import PostalCode
 
 SHORT_NAME_LENGTH = 18
 
@@ -158,6 +159,9 @@ def publication_problems(
         problems["endDate"] = "before_start"
     if content.lat is None or content.lon is None:
         problems["location"] = "required"
+    elif not PostalCode.is_valid(content.postal_code or "") or not content.city.strip():
+        # The public detail needs both; they come from geocoding the address or pin.
+        problems["location"] = "incomplete"
     if content.website_url and not is_web_url(content.website_url):
         problems["websiteUrl"] = "invalid_url"
     return problems
