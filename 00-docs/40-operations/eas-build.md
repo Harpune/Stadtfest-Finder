@@ -8,7 +8,9 @@ iOS- und Android-Builds entstehen mit EAS Build, getrennt von den Docker-Images 
 |---|---|---|
 | *Actions → EAS build → Run workflow*, Profil `preview` | `preview` | interne Verteilung: Android-APK, iOS Ad-hoc (registrierte Geräte) |
 | *Run workflow*, Profil `production`, optional „submit“ | `production` | Store-Builds (AAB, IPA), mit „submit“ an TestFlight bzw. Play-Testtrack „Intern“ |
-| Git-Tag `v1.2.3` | `production` | Store-Builds für beide Plattformen, automatisch eingereicht |
+| Git-Tag `v1.2.3` | `production` | Store-Build für Android (AAB), automatisch an den Play-Testtrack „Intern“ eingereicht |
+
+**iOS ist vorerst ausgesetzt**, solange es kein Apple-Developer-Konto gibt: Tags bauen nur Android, und *Run workflow* steht standardmäßig auf `android`. Ein iOS-Build geht weiterhin von Hand (Plattform `ios` oder `all`), sobald die iOS-Zugangsdaten bei EAS eingerichtet sind (Schritt 3).
 
 Profile und Submit-Ziele stehen in `mobile/eas.json`; die Build-Nummer zählt EAS hoch (`appVersionSource: remote`, `autoIncrement`). Derselbe Tag baut auch die Backend-Images ([deployment-komodo.md](deployment-komodo.md)).
 
