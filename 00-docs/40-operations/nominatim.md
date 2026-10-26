@@ -38,35 +38,33 @@ Die erste Anfrage liefert Aalen, die zweite `[{"label":"73430 Aalen", ...}]`. Is
 
 ## Fehlerbehebung
 
-### Neustart-Schleife mit `curl: (22) … error: 416`
+### Neustart-Schleife: `invalid BlobHeader size` oder `curl: (22) … error: 416`
 
-**Symptom:** Der Container startet etwa jede Minute neu. Im Log steht `Resuming transfer from byte position …` und danach `curl: (22) The requested URL returned error: 416`.
+**Symptom:** Der Container startet immer wieder neu. Im Log steht `Resuming transfer from byte position …` und danach entweder `curl: (22) The requested URL returned error: 416` (Neustart nach einer Minute) oder nach ca. 20 Minuten Import `ERROR: PBF error: invalid BlobHeader size (> max_blob_header_size)`.
 
-**Ursache:** Ein früherer Lauf hat den Extrakt `/nominatim/data.osm.pbf` vollständig geladen, der Import ist danach aber abgebrochen (die Marke `import-finished` fehlt). Bei jedem Start lädt `init.sh` den Extrakt mit `curl -C -` weiter. Ist die Datei schon vollständig, antwortet Geofabrik mit `416 Range Not Satisfiable`, `curl` bricht wegen `--fail-with-body` ab und der Container beendet sich.
+**Ursache:** `init.sh` lädt den Extrakt mit `curl -C -` nach `/nominatim/data.osm.pbf` (im Container, kein Volume) und löscht ihn erst nach einem erfolgreichen Import. Bricht der Import ab (die Marke `import-finished` fehlt), lädt jeder Neustart die Datei „weiter“. Geofabrik ersetzt `germany-latest.osm.pbf` aber täglich:
 
-**Prüfen**, ob die Datei vollständig ist: Die Byte-Position im Log mit der aktuellen Größe vergleichen.
+- Ist die neue Datei größer, hängt `curl` deren Ende an die alte Datei. Die Datei ist dann kaputt und `osm2pgsql` bricht mit `invalid BlobHeader size` ab.
+- Ist die lokale Datei gleich groß oder größer, antwortet Geofabrik mit `416 Range Not Satisfiable` und `curl` bricht wegen `--fail-with-body` ab.
+
+Ein erneuter Start repariert das nie. Entscheidend ist der **erste** Abbruch.
+
+**Ersten Abbruch suchen**, bevor etwas gelöscht wird:
 
 ```bash
-curl -sIL https://download.geofabrik.de/europe/germany-latest.osm.pbf | grep -i content-length
-```
-
-**Abbruchgrund suchen**, bevor etwas gelöscht wird:
-
-```bash
-docker logs stadtfest-nominatim 2>&1 | grep -nE "Killed|ERROR|FATAL|osm2pgsql" | head -40
+docker logs stadtfest-nominatim 2>&1 | grep -nE "Killed|ERROR|FATAL|Traceback|osm2pgsql" | head -40
 docker inspect stadtfest-nominatim --format '{{.State.OOMKilled}} {{json .Mounts}}'
 ```
 
-Häufige Gründe:
-
-- **Speicher (OOM):** `init.sh` setzt `THREADS` ohne eigenen Wert auf `nproc`, also auf alle Kerne des Servers statt auf das CPU-Limit des Containers. Mit vielen Threads reicht das RAM-Limit von 12 GB nicht. Abhilfe: `THREADS=4` am Dienst im HomeLab-Stack setzen.
-- **Unterbrechung:** Deploy oder Neustart des Stacks während des mehrstündigen Imports.
+Der erste `osm2pgsql`-Block ohne `ERROR` gefolgt von einem zweiten Start zeigt einen Abbruch nach dem Einlesen (Indizierung). Die Zeilen direkt vor dem zweiten `osm2pgsql version` nennen den Grund, etwa ein Deploy oder Neustart des Stacks während des mehrstündigen Imports oder `OOMKilled true`.
 
 **Beheben:**
 
-1. Container entfernen: `docker rm -f stadtfest-nominatim`. Damit verschwindet auch die geladene Datei, solange `/nominatim` kein Volume ist (siehe `Mounts` oben; sonst die Datei dort löschen).
+1. Container entfernen: `docker rm -f stadtfest-nominatim`. Damit verschwindet auch die kaputte Datei, solange `/nominatim` kein Volume ist (siehe `Mounts` oben; sonst die Datei dort löschen).
 2. Den halb gefüllten Datenbank-Ordner leeren: `sudo rm -rf ${APPDATA}/stadtfest/nominatim/*`.
-3. Ggf. `THREADS` anpassen und den Stack in Komodo neu deployen. Der Import beginnt von vorn und dauert mehrere Stunden.
+3. Den Stack in Komodo neu deployen und während des Imports (mehrere Stunden) nicht neu starten.
+
+**Vorbeugen:** Statt `germany-latest.osm.pbf` einen datierten Extrakt verwenden, z. B. `PBF_URL=https://download.geofabrik.de/europe/germany-261025.osm.pbf`. Dessen Inhalt ändert sich nicht, Weiterladen ist also unschädlich. Geofabrik hält datierte Extrakte nur einige Tage (Monatserste länger) vor; für einen späteren Neuimport die URL auf ein aktuelles Datum setzen. Die `UPDATE_MODE=continuous`-Diffs holen den Stand danach automatisch nach. Noch robuster: Den datierten Extrakt einmal auf dem Host laden, gegen die zugehörige `.md5` prüfen (`md5sum -c germany-261025.osm.pbf.md5`), read-only einbinden und `PBF_PATH` statt `PBF_URL` setzen.
 
 **Hinweis:** Die Zeile `SCP='sshpass -p … your-storagebox.de'` im Log ist kein eigenes Geheimnis. Sie steht fest im `init.sh` des Images und gehört zum öffentlichen Speicher der Image-Maintainer für die optionalen Wikipedia-Daten.
 
