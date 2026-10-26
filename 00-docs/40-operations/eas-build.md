@@ -30,11 +30,13 @@ Profile und Submit-Ziele stehen in `mobile/eas.json`; die Build-Nummer zählt EA
 ## Schritte
 
 1. **Access-Token:** expo.dev → *Account settings → Access tokens → Create token* (Name `github-actions`). GitHub → Repo `Harpune/Stadtfest-Finder` → *Settings → Secrets and variables → Actions → New repository secret* `EXPO_TOKEN`. **Niemals ins Repo.**
-2. **EAS-Umgebungsvariablen:** expo.dev → Projekt → *Environment variables* → **Add variable**, jeweils für die Umgebungen **production** und **preview** (Preview-Builds sprechen dasselbe Backend an, solange es kein Staging gibt). Per CLI geht es so:
+2. **EAS-Umgebungsvariablen:** expo.dev → Projekt → *Environment variables* → **Add variable**, jeweils für die Umgebungen **production** und **preview** (Preview-Builds sprechen dasselbe Backend an, solange es kein Staging gibt). Per CLI geht es so (`env:set` legt die Variable an oder überschreibt einen vorhandenen Wert; `env:create` ist veraltet):
    ```bash
    cd mobile
-   npx eas-cli@latest env:create --environment production --environment preview \
-     --name EXPO_PUBLIC_API_URL --value https://stadtfest-api.herderstreet.de --visibility plaintext
+   npx eas-cli@latest env:set --environment production --environment preview \
+     --name EXPO_PUBLIC_API_URL --value https://stadtfest-api.herderstreet.de --visibility plaintext \
+     --non-interactive
+   npx eas-cli@latest env:list --environment production   # prüfen
    ```
    | Variable | Wert | Sichtbarkeit | Quelle |
    |---|---|---|---|
