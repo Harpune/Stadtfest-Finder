@@ -107,6 +107,8 @@ export function formFromEvent(event: ModEventDetail): EventForm {
 
 const orNull = (value: string): string | null => value.trim() || null;
 
+const POSTAL_CODE = /^[0-9]{5}$/;
+
 /** All editable fields as a full merge patch; empty texts are cleared (`null`). */
 export function formToPatch(form: EventForm): ModEventPatch {
   return {
@@ -176,6 +178,9 @@ export function publishErrors(
   }
   if (form.lat === null || form.lon === null) {
     errors.location = strings.mod.errors.location;
+  } else if (!POSTAL_CODE.test(form.postalCode ?? '') || !form.city.trim()) {
+    // The public detail needs both; they come from geocoding the address or pin.
+    errors.location = strings.mod.errors.locationIncomplete;
   }
   const website = normalizeWebsite(form.websiteUrl);
   if (website && !isWebUrl(website))
@@ -206,7 +211,10 @@ export function errorsFromServer(
             : strings.mod.errors.end;
         break;
       case 'location':
-        errors.location = strings.mod.errors.location;
+        errors.location =
+          problem === 'incomplete'
+            ? strings.mod.errors.locationIncomplete
+            : strings.mod.errors.location;
         break;
       case 'websiteUrl':
         errors.websiteUrl = strings.mod.errors.website;

@@ -103,6 +103,17 @@ describe('EventDetailScreen', () => {
     );
   });
 
+  it('shows place and city in the header without empty parts', async () => {
+    mockApi({...DETAIL, place: ''});
+    await renderDetail();
+    await waitFor(() =>
+      expect(screen.getByTestId('detail.about')).toBeOnTheScreen(),
+    );
+    expect(screen.getByTestId('detail.locality')).toHaveTextContent('Aalen', {
+      exact: true,
+    });
+  });
+
   it('omits empty sections and unsafe websites', async () => {
     mockApi({
       ...DETAIL,

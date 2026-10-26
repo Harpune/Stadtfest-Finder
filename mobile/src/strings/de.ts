@@ -498,6 +498,8 @@ export const strings = {
       errors: {
         search_running: 'Für dich läuft schon eine Suche.',
         postal_code_unknown: 'Diese Postleitzahl kennen wir nicht.',
+        geocoding_unavailable:
+          'Die Ortssuche ist gerade nicht erreichbar. Bitte versuche es später erneut.',
         daily_limit:
           'Du hast heute schon die maximale Anzahl an Suchen gestartet.',
       },
@@ -703,6 +705,8 @@ export const strings = {
       end: 'Bitte wähle das Ende.',
       endBeforeStart: 'Das Ende liegt vor dem Beginn.',
       location: 'Bitte gib eine Adresse ein oder setze einen Pin.',
+      locationIncomplete:
+        'Postleitzahl und Stadt fehlen. Wähle eine Adresse aus den Vorschlägen oder setze den Pin neu.',
       website: 'Bitte gib eine gültige Web-Adresse ein.',
     },
   },
