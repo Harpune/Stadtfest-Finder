@@ -1,7 +1,8 @@
 # Mobile builds via EAS Build (R16-US6), separate from the Docker images (release.yml).
 # - Manual: choose profile (preview = internal distribution, production = store) and platform.
-# - Tags v*.*.*: production builds for iOS and Android, submitted to TestFlight and the
-#   Play Console internal track (eas.json "submit.production").
+# - Tags v*.*.*: production build for Android, submitted to the Play Console internal
+#   track (eas.json "submit.production"). iOS is left out until there is an Apple
+#   Developer account; it can still be built manually (platform ios or all).
 # Needs the repository secret EXPO_TOKEN (00-docs/40-operations/eas-build.md).
 name: EAS build
 
@@ -16,8 +17,8 @@ on:
       platform:
         description: Platform
         type: choice
-        options: [all, ios, android]
-        default: all
+        options: [android, ios, all]
+        default: android
       submit:
         description: Submit production builds to TestFlight / Play internal track
         type: boolean
@@ -34,14 +35,14 @@ concurrency:
 
 jobs:
   build:
-    name: EAS build (${{ inputs.profile || 'production' }}, ${{ inputs.platform || 'all' }})
+    name: EAS build (${{ inputs.profile || 'production' }}, ${{ inputs.platform || 'android' }})
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: mobile
     env:
       PROFILE: ${{ inputs.profile || 'production' }}
-      PLATFORM: ${{ inputs.platform || 'all' }}
+      PLATFORM: ${{ inputs.platform || 'android' }}
       SUBMIT: ${{ github.event_name == 'push' || inputs.submit }}
     steps:
       - name: Require EXPO_TOKEN
