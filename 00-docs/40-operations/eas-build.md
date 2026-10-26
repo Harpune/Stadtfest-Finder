@@ -8,7 +8,7 @@ iOS- und Android-Builds entstehen mit EAS Build, getrennt von den Docker-Images 
 |---|---|---|
 | *Actions → EAS build → Run workflow*, Profil `preview` | `preview` | interne Verteilung: Android-APK, iOS Ad-hoc (registrierte Geräte) |
 | *Run workflow*, Profil `production`, optional „submit“ | `production` | Store-Builds (AAB, IPA), mit „submit“ an TestFlight bzw. Play-Testtrack „Intern“ |
-| Git-Tag `v1.2.3` | `production` | Store-Build für Android (AAB), automatisch an den Play-Testtrack „Intern“ eingereicht |
+| Git-Tag `v1.2.3` | `preview` | Android-APK zum direkten Installieren (Download-Link bei expo.dev), ohne Store-Einreichung |
 
 **iOS ist vorerst ausgesetzt**, solange es kein Apple-Developer-Konto gibt: Tags bauen nur Android, und *Run workflow* steht standardmäßig auf `android`. Ein iOS-Build geht weiterhin von Hand (Plattform `ios` oder `all`), sobald die iOS-Zugangsdaten bei EAS eingerichtet sind (Schritt 3).
 
@@ -64,7 +64,7 @@ Profile und Submit-Ziele stehen in `mobile/eas.json`; die Build-Nummer zählt EA
    - iOS: EAS legt die App-ID mit den Capabilities Push Notifications, Associated Domains und Sign in with Apple an. Ein APNs-Schlüssel **bei EAS** ist für `PUSH_PROVIDER=direct` nicht nötig (die Frage danach mit „No“ beantworten); den Schlüssel bekommt das Backend ([push-apns-fcm.md](push-apns-fcm.md)).
    - Android: `credentials -p android` → *Keystore* zeigt den **SHA256 Fingerprint** (`AB:CD:…`) → Komodo-Variable `STADTFEST_ANDROID_CERT_SHA256` setzen und den Stack `stadtfest` neu deployen. Nach dem ersten Play-Upload kommt der Fingerabdruck des **App-Signaturschlüssels** aus der Play Console dazu, kommagetrennt ([store-release.md](store-release.md), Schritt 1).
 4. **Preview-Build** starten (Workflow, Profil `preview`) und auf einem Testgerät installieren (Link auf der Build-Seite von expo.dev). iOS-Testgeräte vorher registrieren: `npx eas-cli@latest device:create`.
-5. **Production-Build** mit „submit“ bzw. per Tag; Einreichung siehe [store-release.md](store-release.md).
+5. **Production-Build** über *Run workflow* mit Profil `production` und „submit“; Einreichung siehe [store-release.md](store-release.md). Tags bauen nur die APK.
 
 ## Prüfung
 

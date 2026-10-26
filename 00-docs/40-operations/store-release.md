@@ -78,7 +78,7 @@ Abgeleitet aus dem VVT; **kein Tracking, keine Werbung, keine Analyse**, alle Ü
 
 ### 4. Testversionen verteilen
 
-1. Tag setzen: `git tag v1.0.0 && git push origin v1.0.0` → Workflow „EAS build“ baut und reicht ein.
+1. *Actions → EAS build → Run workflow* mit Profil `production` und „submit“ → baut und reicht ein. (Ein Tag baut nur die APK, [eas-build.md](eas-build.md).)
 2. **TestFlight:** Build erscheint nach der Verarbeitung; interne Tester (App-Store-Connect-Nutzer) bekommen ihn sofort, externe nach der Beta-Prüfung.
 3. **Play:** *Testen → Interner Test* → Tester-Liste (E-Mail-Adressen) → Link teilen.
 
