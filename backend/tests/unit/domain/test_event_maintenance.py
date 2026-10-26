@@ -59,6 +59,11 @@ def test_complete_content_can_be_published() -> None:
         ({"end_date": date(2026, 10, 2)}, "endDate", "before_start"),
         ({"lat": None}, "location", "required"),
         ({"lon": None}, "location", "required"),
+        # The public detail requires a 5-digit postal code and a city (geocoding unavailable).
+        ({"postal_code": None}, "location", "incomplete"),
+        ({"postal_code": ""}, "location", "incomplete"),
+        ({"postal_code": "8907"}, "location", "incomplete"),
+        ({"city": "  "}, "location", "incomplete"),
         ({"website_url": "schwaebisch gmuend"}, "websiteUrl", "invalid_url"),
         ({"website_url": "ftp://example.test"}, "websiteUrl", "invalid_url"),
     ],
@@ -118,8 +123,8 @@ def test_publish_reports_missing_fields() -> None:
     assert event.pending_events == []
 
 
-@pytest.mark.parametrize("postal_code", ["89073", "10115", None])
-def test_publish_anywhere_in_germany(postal_code: str | None) -> None:
+@pytest.mark.parametrize("postal_code", ["89073", "10115", "01067"])
+def test_publish_anywhere_in_germany(postal_code: str) -> None:
     """No regions (ADR 0015): the location is required, not a postal code range."""
     event = _event(postal_code=postal_code)
     event.publish(frozenset({CATEGORY}), NOW)

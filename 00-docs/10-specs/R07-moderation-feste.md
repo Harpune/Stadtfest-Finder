@@ -65,7 +65,7 @@
 | Kategorie | – | ✓, aktiv | „Bitte wähle eine Kategorie.“ |
 | Beginn | – | ✓ | „Bitte wähle den Beginn.“ |
 | Ende | – | ✓, ≥ Beginn | „Bitte wähle das Ende.“ / „Das Ende liegt vor dem Beginn.“ |
-| Adresse oder Pin | – | ✓, Koordinaten vorhanden, PLZ ∈ Region | „Bitte gib eine Adresse ein oder setze einen Pin.“ / „Der Ort liegt außerhalb deiner Region.“ |
+| Adresse oder Pin | – | ✓, Koordinaten vorhanden, PLZ (5 Ziffern) und Stadt aus dem Geocoding vorhanden (Code `incomplete`; ohne Regionen, ADR 0015) | „Bitte gib eine Adresse ein oder setze einen Pin.“ / „Postleitzahl und Stadt fehlen. Wähle eine Adresse aus den Vorschlägen oder setze den Pin neu.“ |
 | Website | – | wenn gesetzt: http(s)-URL | „Bitte gib eine gültige Web-Adresse ein.“ |
 
 - Die Regeln liegen in der Domain (`Event.can_publish()`) und gelten für App, Backend und MCP.

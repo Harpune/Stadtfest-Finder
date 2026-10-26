@@ -188,6 +188,7 @@ def test_invalid_transition_and_publish_anywhere(client: TestClient) -> None:
             "startDate": "2026-10-17",
             "endDate": "2026-10-18",
             "postalCode": "89073",
+            "city": "Ulm",
             "lat": 48.4,
             "lon": 9.99,
         },
