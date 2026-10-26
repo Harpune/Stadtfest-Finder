@@ -1,0 +1,8 @@
+# Accepted Trivy findings. Each entry needs a reason and an expiry date;
+# Trivy reports the finding again once the date has passed.
+
+# zod 3.25.76 – DoS via unbounded array validation, fixed only in zod 4.
+# Pulled in solely by @expo/cli (build tooling, also in Expo SDK 58: zod ^3),
+# not bundled into the app and only validates our own config, never untrusted
+# input. Re-check when Expo moves to zod 4.
+CVE-2023-54404 exp:2027-01-31
