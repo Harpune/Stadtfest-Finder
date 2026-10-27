@@ -191,11 +191,15 @@ Flow letters match the architecture diagram.
   fails fast. Document every variable in `.env.example`.
 - The provider must support tool calling and structured output; the web search tool and
   the event schema are passed provider-independently.
-- Output schema for an event draft (fixed, versioned in code):
-  name, date_from, date_to, place, address, coordinates, category, source_url, description.
+- Output schema for an event draft (fixed, versioned in code, `EventDraftV2`):
+  name, date_from, date_to, place, address, coordinates, category, source_url, description,
+  website_url, opening_hours (per day), price. A website is kept only if the job saw it
+  (search result or link on a read page); a broken optional field never discards the find.
 - Every draft must carry `source_url`. Drafts without a verifiable source are rejected.
 - Prompts contain only ZIP code, place names (the searched place and towns within the radius,
-  from the geocoder), radius, time range and categories (see Privacy). Prompts are versioned
+  from the geocoder), radius, time range, categories and fixed search-focus texts (see Privacy).
+  Moderators may narrow a search only with optional filters from fixed values (period,
+  categories, radius, focus; R10c) – never with free text. Prompts are versioned
   templates in `application/ai_ingestion/prompts/*.md` with an allowlist of placeholders,
   selected via `AI_SEARCH_PROMPT_VERSION`. Compare versions with `make ai-eval` (real
   providers, costs requests, never in CI).
@@ -222,7 +226,7 @@ Flow letters match the architecture diagram.
 |---|---|---|
 | `search_events(zip_code, radius_km, date_from, date_to)` | public / user | `events` search |
 | `get_event(event_id)` | public / user | `events` detail |
-| `start_ai_search(zip_code)` | `moderator` only | `ai_ingestion` create job |
+| `start_ai_search(zip_code, date_from?, date_to?, categories?, radius_km?, focus?)` | `moderator` only | `ai_ingestion` create job |
 
 Tools are thin adapters: parse input, call the use case, map the result. No business logic.
 
