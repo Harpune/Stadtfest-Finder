@@ -1,4 +1,4 @@
-"""Finds of the AI search (schema `EventDraftV1`) and their checks (R10-US3)."""
+"""Finds of the AI search (schema `EventDraftV2`) and their checks (R10-US3, R10c)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from datetime import date
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 # Version of the fixed output schema; stored in the job log.
-DRAFT_SCHEMA_VERSION = "EventDraftV1"
+DRAFT_SCHEMA_VERSION = "EventDraftV2"
 
 # Germany's bounding box: coordinates outside are implausible and get geocoded again.
 _LAT = (47.2, 55.1)
@@ -16,6 +16,46 @@ _LON = (5.8, 15.1)
 
 _POSTAL_CITY = re.compile(r"\b(\d{5})\s+([^,\n]+)")
 _TRACKING = re.compile(r"^(utm_.*|fbclid|gclid|mc_cid|mc_eid|ref|ref_src)$", re.IGNORECASE)
+_CLOCK = re.compile(r"^([01]?\d|2[0-4]):([0-5]\d)$")
+_WEEKDAYS = ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
+# Limits of `openingHours` in the moderation form (`ModEventFields`).
+MAX_OPENING_HOURS = 10
+
+
+def parse_clock(text: str | None) -> str | None:
+    """`18:00`, `9:30` or `24:00` as `HH:MM` (local time Berlin); None if not a clock time."""
+    match = _CLOCK.match((text or "").strip())
+    if match is None:
+        return None
+    hours, minutes = int(match.group(1)), int(match.group(2))
+    if hours == 24 and minutes:
+        return None
+    return f"{hours:02d}:{minutes:02d}"
+
+
+def _short_clock(clock: str) -> str:
+    """`18:00` → `18`, `18:30` → `18:30` (style of the opening hours in the catalog)."""
+    hours, minutes = clock.split(":")
+    return str(int(hours)) if minutes == "00" else f"{int(hours)}:{minutes}"
+
+
+@dataclass(frozen=True, slots=True)
+class DayHours:
+    """Opening time of one day of an event, local time Berlin (R10c).
+
+    Times are `HH:MM`; `closes` may be `24:00` or earlier than `opens` (after midnight).
+    """
+
+    day: date
+    opens: str
+    closes: str | None = None
+
+    def line(self) -> str:
+        """One line of `openingHours`, e.g. `Fr 12.06. 18-24 Uhr` or `Sa 13.06. ab 11 Uhr`."""
+        prefix = f"{_WEEKDAYS[self.day.weekday()]} {self.day:%d.%m.}"
+        if self.closes is None:
+            return f"{prefix} ab {_short_clock(self.opens)} Uhr"
+        return f"{prefix} {_short_clock(self.opens)}-{_short_clock(self.closes)} Uhr"
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +72,24 @@ class FoundEvent:
     lon: float | None = None
     category: str | None = None
     description: str | None = None
+    # R10c: own website of the event (checked like the source), opening times, price.
+    website_url: str | None = None
+    opening_hours: tuple[DayHours, ...] = ()
+    price: str | None = None
+
+    def opening_hours_lines(self) -> tuple[str, ...]:
+        """Opening times within the event's dates as `openingHours` lines, by day."""
+        days = sorted(
+            {
+                h.day: h for h in self.opening_hours if self.date_from <= h.day <= self.date_to
+            }.values(),
+            key=lambda h: h.day,
+        )
+        return tuple(h.line() for h in days[:MAX_OPENING_HOURS])
+
+    def overlaps(self, start: date, end: date) -> bool:
+        """Whether the event takes place on at least one day of `start`-`end`."""
+        return self.date_from <= end and self.date_to >= start
 
     def problems(self, today: date) -> list[str]:
         """Content problems that make the find invalid (counted, never logged)."""

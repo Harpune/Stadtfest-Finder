@@ -14,7 +14,7 @@ from stadtfest.application.ai_ingestion.ports import (
     PageTool,
     SearchTool,
 )
-from stadtfest.domain.ai_ingestion.finds import FoundEvent
+from stadtfest.domain.ai_ingestion.finds import DayHours, FoundEvent
 
 
 class FakeEventFinder:
@@ -32,11 +32,12 @@ class FakeEventFinder:
         hits = await search("Feste Ostalb Herbst")
         today = date.today()
         by_title = {hit.title: hit.url for hit in hits}
+        first_day = today + timedelta(days=20)
         finds = [
             FoundEvent(
                 name="Lichterfest Wasseralfingen",
-                date_from=today + timedelta(days=20),
-                date_to=today + timedelta(days=21),
+                date_from=first_day,
+                date_to=first_day + timedelta(days=1),
                 place="Karlstraße",
                 address="Karlstraße 26, 73433 Aalen",
                 source_url=by_title.get("Lichterfest Wasseralfingen", ""),
@@ -44,6 +45,13 @@ class FakeEventFinder:
                 lon=10.1005,
                 category="Stadtfest",
                 description="Laternen, Musik und Markt.",
+                # R10c fields; the website must be a page the search returned.
+                website_url=by_title.get("Lichterfest Wasseralfingen"),
+                opening_hours=(
+                    DayHours(first_day, "17:00", "23:00"),
+                    DayHours(first_day + timedelta(days=1), "14:00", "22:00"),
+                ),
+                price="Eintritt frei",
             ),
             FoundEvent(
                 name="Herbstmarkt im Stadtgarten",

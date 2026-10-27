@@ -16,6 +16,8 @@ from stadtfest.application.ai_ingestion.ports import (
     FinderLimits,
     FinderResult,
     LlmUnavailableError,
+    PageContent,
+    PageLink,
     PageTool,
     SearchHit,
     SearchTool,
@@ -704,14 +706,16 @@ class FakeEventFinder:
 
 @dataclass
 class FakePageReader:
-    """Page texts by URL; unknown URLs cannot be read."""
+    """Page texts (and links) by URL; unknown URLs cannot be read."""
 
     texts: dict[str, str] = field(default_factory=dict)
     calls: list[tuple[str, int]] = field(default_factory=list)
+    links: dict[str, tuple[PageLink, ...]] = field(default_factory=dict)
 
-    async def read(self, url: str, max_chars: int) -> str | None:
+    async def read(self, url: str, max_chars: int) -> PageContent | None:
         self.calls.append((url, max_chars))
-        return self.texts.get(url)
+        text = self.texts.get(url)
+        return PageContent(text, self.links.get(url, ())) if text is not None else None
 
 
 @dataclass

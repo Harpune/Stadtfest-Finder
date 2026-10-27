@@ -1,9 +1,11 @@
 """The one generic LLM adapter, built on Pydantic AI (ADR 0012).
 
 The provider is chosen by settings only (`LLM_PROVIDER`, `LLM_MODEL`, `LLM_API_KEY`,
-`LLM_BASE_URL`). The web search tool and the output schema `EventDraftV1` are passed in a
+`LLM_BASE_URL`). The web search tool and the output schema `EventDraftV2` are passed in a
 provider-independent way. The model output is parsed leniently; every find is then
-validated on its own, so one broken find does not discard the others.
+validated on its own, so one broken find does not discard the others. The optional fields of
+`EventDraftV2` (website, opening times, price) are checked one by one: a broken value is
+dropped, the find is kept.
 """
 
 from __future__ import annotations
@@ -32,7 +34,13 @@ from stadtfest.application.ai_ingestion.ports import (
     PageTool,
     SearchTool,
 )
-from stadtfest.domain.ai_ingestion.finds import FoundEvent
+from stadtfest.domain.ai_ingestion.finds import (
+    MAX_OPENING_HOURS,
+    DayHours,
+    FoundEvent,
+    is_web_url,
+    parse_clock,
+)
 
 
 class LlmKind(StrEnum):
@@ -114,8 +122,19 @@ class Coordinates(BaseModel):
     lon: float = Field(ge=-180, le=180)
 
 
-class EventDraftV1(BaseModel):
-    """Fixed, versioned output schema of one find (CLAUDE.md "AI ingestion")."""
+class OpeningTime(BaseModel):
+    """Opening time of one day, local time (R10c)."""
+
+    day: date = Field(description="Tag, JJJJ-MM-TT")
+    opens: str = Field(description="Beginn SS:MM")
+    closes: str | None = Field(default=None, description="Ende SS:MM, falls bekannt")
+
+
+class EventDraftV2(BaseModel):
+    """Fixed, versioned output schema of one find (CLAUDE.md "AI ingestion").
+
+    V2 (R10c) adds `website_url`, `opening_hours` and `price` to V1.
+    """
 
     name: str = Field(min_length=1, max_length=120, description="Name der Veranstaltung")
     date_from: date = Field(description="Erster Tag, JJJJ-MM-TT")
@@ -126,13 +145,16 @@ class EventDraftV1(BaseModel):
     category: str | None = Field(default=None, max_length=60, description="Art des Festes")
     source_url: str = Field(min_length=8, max_length=500, description="Seite aus der Suche")
     description: str | None = Field(default=None, max_length=1000)
+    website_url: str | None = Field(default=None, description="Eigene Website des Fests")
+    opening_hours: list[OpeningTime] = Field(default_factory=list, description="Uhrzeiten je Tag")
+    price: str | None = Field(default=None, description="Eintritt, z. B. Eintritt frei")
 
 
 class _LooseDraft(BaseModel):
-    """`EventDraftV1` as the model sees it, every field optional.
+    """`EventDraftV2` as the model sees it, every field optional.
 
     One broken find thus never breaks the whole answer; each item is then validated
-    strictly with `EventDraftV1`.
+    strictly with `EventDraftV2`.
     """
 
     name: str | None = Field(default=None, description="Name der Veranstaltung")
@@ -146,6 +168,17 @@ class _LooseDraft(BaseModel):
     category: str | None = Field(default=None, description="Art des Festes")
     source_url: str | None = Field(default=None, description="Seite aus der Websuche")
     description: str | None = Field(default=None, description="Kurze Beschreibung")
+    website_url: str | None = Field(
+        default=None, description="Eigene Website des Fests oder Veranstalters, falls belegt"
+    )
+    # Plain dicts like `coordinates`: nested models put `$defs` into the output schema,
+    # which broke the schema generation (ADR 0012).
+    opening_hours: list[dict[str, str | None]] | None = Field(
+        default=None,
+        description="Uhrzeiten je Tag, nur wenn die Quelle sie nennt: "
+        "[{day: JJJJ-MM-TT, opens: SS:MM, closes: SS:MM}]",
+    )
+    price: str | None = Field(default=None, description="Eintritt, falls bekannt")
 
 
 class _Finds(BaseModel):
@@ -154,11 +187,39 @@ class _Finds(BaseModel):
     events: list[_LooseDraft] = Field(default_factory=list)
 
 
+_CORE_FIELDS = frozenset(EventDraftV2.model_fields) - {"website_url", "opening_hours", "price"}
+MAX_PRICE_LENGTH = 200
+MAX_URL_LENGTH = 500
+
+
+def _hours(times: list[dict[str, str | None]] | None) -> tuple[DayHours, ...]:
+    """Valid opening times only; a broken entry is dropped, not the find."""
+    result: list[DayHours] = []
+    for time in (times or [])[: MAX_OPENING_HOURS * 2]:
+        try:
+            day = date.fromisoformat((time.get("day") or "").strip())
+        except ValueError:
+            continue
+        opens = parse_clock(time.get("opens"))
+        if opens is None:
+            continue
+        result.append(DayHours(day, opens, parse_clock(time.get("closes"))))
+    return tuple(result)
+
+
+def _optional_text(value: str | None, limit: int) -> str | None:
+    text = " ".join((value or "").split())
+    return text if text and len(text) <= limit else None
+
+
 def _to_find(loose: _LooseDraft) -> FoundEvent | None:
     try:
-        draft = EventDraftV1.model_validate(loose.model_dump(exclude_none=True))
+        draft = EventDraftV2.model_validate(
+            loose.model_dump(exclude_none=True, include=set(_CORE_FIELDS))
+        )
     except ValidationError:
         return None
+    website = _optional_text(loose.website_url, MAX_URL_LENGTH)
     return FoundEvent(
         name=draft.name.strip(),
         date_from=draft.date_from,
@@ -170,6 +231,9 @@ def _to_find(loose: _LooseDraft) -> FoundEvent | None:
         lon=draft.coordinates.lon if draft.coordinates else None,
         category=draft.category,
         description=draft.description,
+        website_url=website if website and is_web_url(website) else None,
+        opening_hours=_hours(loose.opening_hours),
+        price=_optional_text(loose.price, MAX_PRICE_LENGTH),
     )
 
 

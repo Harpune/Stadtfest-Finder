@@ -39,6 +39,7 @@ from stadtfest.application.identity.claims import ClaimMapping
 from stadtfest.application.identity.use_cases import Authenticate
 from stadtfest.bootstrap.logging import configure_logging
 from stadtfest.bootstrap.settings import GeocodingProvider, LogFormat, Settings
+from stadtfest.domain.ai_ingestion.job import AiSearchFilters, SearchFocus
 from stadtfest.domain.events.event import EventStatus
 from stadtfest.domain.events.geo import GeoPoint
 from stadtfest.domain.events.time_filter import DateRange
@@ -145,6 +146,7 @@ def _deps(
             jobs,
             FakeAccountResolver(),
             geocoding,
+            FakeCategoryCatalog([CATEGORY]),
             clock,
             AiSearchSettings(daily_limit=5),
             now=lambda: datetime(2026, 10, 15, 9, tzinfo=UTC),
@@ -334,6 +336,49 @@ async def test_moderators_start_an_ai_search(world: World) -> None:
     assert result.structured_content["status"] == "queued"
     job = world.jobs.jobs[UUID(str(result.structured_content["jobId"]))]
     assert (job.postal_code, job.place_name) == ("73430", "Aalen")
+
+
+async def test_moderators_start_an_ai_search_with_filters(world: World) -> None:
+    """R10c: optional filters; categories by name, focuses from a fixed list."""
+    arguments = {
+        "zip_code": "73430",
+        "date_from": "2026-11-20",
+        "date_to": "2026-12-24",
+        "categories": ["stadtfest"],
+        "radius_km": 10,
+        "focus": ["municipal_calendars"],
+    }
+    async with world.server.client(headers=MOD) as client:
+        result = await client.call_tool("start_ai_search", arguments)
+
+    assert result.structured_content is not None
+    job = world.jobs.jobs[UUID(str(result.structured_content["jobId"]))]
+    assert job.filters == AiSearchFilters(
+        date_from=date(2026, 11, 20),
+        date_to=date(2026, 12, 24),
+        category_ids=(CATEGORY.id,),
+        radius_km=10,
+        focus=(SearchFocus.MUNICIPAL_CALENDARS,),
+    )
+
+
+@pytest.mark.parametrize(
+    ("arguments", "match"),
+    [
+        ({"categories": ["Kirmes"]}, "Kategorie"),
+        ({"focus": ["frei formuliert"]}, "focus"),
+        ({"radius_km": 80}, "radius_km"),
+        ({"date_from": "2026-01-01"}, "Ungültige Eingabe"),
+        ({"prompt": "Suche bei Familie Müller"}, "prompt"),
+    ],
+)
+async def test_ai_search_filters_are_checked(
+    world: World, arguments: dict[str, object], match: str
+) -> None:
+    async with world.server.client(headers=MOD) as client:
+        with pytest.raises(ToolError, match=match):
+            await client.call_tool("start_ai_search", {"zip_code": "73430"} | arguments)
+    assert world.jobs.jobs == {}
 
 
 async def test_running_search_and_unknown_postal_code_are_tool_errors(world: World) -> None:

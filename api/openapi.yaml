@@ -1548,6 +1548,12 @@ paths:
         geocoder is down); finds outside the search radius are skipped. One running search
         per moderator (`409 search_running`, `fields.jobId` = the running job). Daily limit
         per moderator (`429 daily_limit`).
+
+        Optional `filters` (R10c) narrow the search: period (from today, at most 365 days
+        ahead), active categories, radius and fixed search focuses. Invalid filters answer
+        `422 validation_failed` with `fields` naming the filter (`dateFrom: past`,
+        `dateTo: before_start | too_far`, `categoryIds: unknown`). Without filters the
+        search covers the next 365 days, all active categories and the configured radius.
       requestBody:
         required: true
         content:
@@ -2161,10 +2167,53 @@ components:
         postalCode:
           type: string
           pattern: "^[0-9]{5}$"
+        filters:
+          $ref: "#/components/schemas/AiSearchFilters"
+    AiSearchFocus:
+      type: string
+      description: |
+        Fixed search focus (R10c). Each value adds a reviewed text block to the prompt; there
+        is no free text, so no moderator input reaches the LLM or the web search.
+        `village_festivals` also small village and club festivals · `major_events` only
+        larger festivals · `municipal_calendars` municipal event calendars first ·
+        `regional_press` regional newspapers and official gazettes.
+      enum: [village_festivals, major_events, municipal_calendars, regional_press]
+    AiSearchFilters:
+      type: object
+      description: Optional filters of an AI search (R10c); missing or null means "no filter".
+      additionalProperties: false
+      properties:
+        dateFrom:
+          type: ["string", "null"]
+          format: date
+          description: First day; not before today. Default today.
+        dateTo:
+          type: ["string", "null"]
+          format: date
+          description: Last day; not before `dateFrom`, at most 365 days ahead. Default today + 365 days.
+        categoryIds:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          description: Active categories; empty means all.
+          items:
+            type: string
+            format: uuid
+        radiusKm:
+          type: ["integer", "null"]
+          minimum: 5
+          maximum: 50
+          description: Search radius around the postal code; default the server setting (25 km).
+        focus:
+          type: array
+          maxItems: 4
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/AiSearchFocus"
     AiSearchSkipped:
       type: object
       description: Finds that were not stored, by reason (counts only, no content).
-      required: [duplicate, outOfArea, invalid, unverifiedSource]
+      required: [duplicate, outOfArea, invalid, unverifiedSource, notMatching]
       properties:
         duplicate:
           type: integer
@@ -2179,10 +2228,14 @@ components:
         unverifiedSource:
           type: integer
           minimum: 0
+        notMatching:
+          type: integer
+          minimum: 0
+          description: Outside the period or of another category than the filters ask for (R10c).
     AiSearch:
       type: object
       description: An AI search job (R10).
-      required: [id, postalCode, placeName, status, createdAt, newEventIds, skipped]
+      required: [id, postalCode, placeName, status, createdAt, newEventIds, skipped, filters]
       properties:
         id:
           type: string
@@ -2191,6 +2244,8 @@ components:
           type: string
         placeName:
           type: string
+        filters:
+          $ref: "#/components/schemas/AiSearchFilters"
         status:
           $ref: "#/components/schemas/AiSearchStatus"
         createdAt:

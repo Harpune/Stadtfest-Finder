@@ -2,8 +2,9 @@
 
 The API only queues a job (`ai_search.requested` via the outbox); the worker runs the
 pipeline: geocoding → LLM with web search tool → validation → source check → search area
-→ duplicates → drafts. Finds are never published directly. There are no regions: any
-moderator may search around any postal code (ADR 0015).
+→ filters → duplicates → drafts. Finds are never published directly. There are no regions:
+any moderator may search around any postal code (ADR 0015). Optional filters narrow period,
+categories, radius and search focus (R10c).
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -23,6 +24,7 @@ from stadtfest.application.ai_ingestion.ports import (
     EventFinder,
     FinderLimits,
     LlmUnavailableError,
+    PageContent,
     PageReader,
     SearchHit,
     SourceChecker,
@@ -47,11 +49,13 @@ from stadtfest.domain.ai_ingestion.finds import (
     DRAFT_SCHEMA_VERSION,
     FoundEvent,
     geocoding_queries,
+    is_web_url,
     normalize_name,
     normalize_url,
 )
 from stadtfest.domain.ai_ingestion.job import (
     AiSearchError,
+    AiSearchFilters,
     AiSearchJob,
     InvalidJobTransitionError,
     SkipCounts,
@@ -68,6 +72,10 @@ POSTAL_CODE_UNKNOWN = "postal_code_unknown"
 GEOCODING_UNAVAILABLE = "geocoding_unavailable"
 DAILY_LIMIT = "daily_limit"
 SEARCH_HORIZON_DAYS = 365
+# Radius a moderator may choose per search (R10c); without a choice `AI_SEARCH_RADIUS_KM`.
+MIN_RADIUS_KM = 5
+MAX_RADIUS_KM = 50
+MAX_FILTER_CATEGORIES = 20
 LOG_RETENTION = timedelta(days=90)
 HITS_PER_QUERY = 10
 
@@ -103,6 +111,7 @@ READ_BUDGET_EXHAUSTED = (
 READ_NOT_A_RESULT = "Diese Seite stammt nicht aus deinen Suchergebnissen. Lies nur Treffer-URLs."
 READ_FAILED = "Die Seite konnte nicht gelesen werden."
 READ_UNAVAILABLE = "Seiten lesen ist in dieser Suche nicht verfügbar."
+READ_LINKS_HEADING = "Links auf der Seite:"
 # Finds may lie a little outside the search radius (venue at the edge of a town).
 AREA_TOLERANCE = 1.1
 # Sample points for the towns within the radius: (fraction of the radius, points, offset °).
@@ -115,6 +124,48 @@ def _authorize(principal: Principal) -> None:
         raise ForbiddenError
 
 
+def _checked_filters(
+    filters: AiSearchFilters, today: date, active_ids: frozenset[UUID]
+) -> AiSearchFilters:
+    """The filters without duplicates; problems are collected per field (R10c).
+
+    Raises:
+        InvalidInputError: `dateFrom: past`, `dateTo: before_start | too_far`,
+            `categoryIds: unknown | too_many`, `radiusKm: invalid`.
+    """
+    problems: dict[str, str] = {}
+    horizon = today + timedelta(days=SEARCH_HORIZON_DAYS)
+    if filters.date_from is not None and filters.date_from < today:
+        problems["dateFrom"] = "past"
+    if filters.date_to is not None:
+        if filters.date_to < (filters.date_from or today):
+            problems["dateTo"] = "before_start"
+        elif filters.date_to > horizon:
+            problems["dateTo"] = "too_far"
+    category_ids = tuple(dict.fromkeys(filters.category_ids))
+    if len(category_ids) > MAX_FILTER_CATEGORIES:
+        problems["categoryIds"] = "too_many"
+    elif any(category_id not in active_ids for category_id in category_ids):
+        problems["categoryIds"] = "unknown"
+    if filters.radius_km is not None and not (MIN_RADIUS_KM <= filters.radius_km <= MAX_RADIUS_KM):
+        problems["radiusKm"] = "invalid"
+    if problems:
+        raise InvalidInputError(problems)
+    return replace(filters, category_ids=category_ids, focus=tuple(dict.fromkeys(filters.focus)))
+
+
+@dataclass(frozen=True, slots=True)
+class _Scope:
+    """What one run searches: radius, period and the wanted categories (name → ID)."""
+
+    radius_km: int
+    date_from: date
+    date_to: date
+    categories: dict[str, UUID]
+    # Only set if the moderator chose categories; finds of other categories are skipped.
+    wanted: frozenset[UUID]
+
+
 class StartAiSearch:
     """Queue a search around any postal code known to the geocoder (R10-US1, ADR 0015)."""
 
@@ -123,6 +174,7 @@ class StartAiSearch:
         jobs: AiSearchRepository,
         accounts: AccountResolver,
         geocoding: GeocodingPort,
+        categories: CategoryCatalog,
         clock: Clock,
         settings: AiSearchSettings,
         now: Now = _utc_now,
@@ -131,15 +183,21 @@ class StartAiSearch:
         self._jobs = jobs
         self._accounts = accounts
         self._geocoding = geocoding
+        self._categories = categories
         self._clock = clock
         self._settings = settings
         self._now = now
 
-    async def __call__(self, principal: Principal, postal_code: str) -> AiSearchJob:
+    async def __call__(
+        self,
+        principal: Principal,
+        postal_code: str,
+        filters: AiSearchFilters | None = None,
+    ) -> AiSearchJob:
         """Create a queued job; the worker picks it up via the outbox.
 
         Raises:
-            InvalidInputError: Not five digits, or `postal_code_unknown`.
+            InvalidInputError: Not five digits, `postal_code_unknown`, or invalid filters.
             ConflictError: `search_running` with `jobId` if one is queued or running.
             TooManyRequestsError: `daily_limit` reached.
             ServiceUnavailableError: `geocoding_unavailable`.
@@ -148,6 +206,10 @@ class StartAiSearch:
         code = postal_code.strip()
         if not PostalCode.is_valid(code):
             raise InvalidInputError({"postalCode": "invalid"})
+        checked = AiSearchFilters()
+        if filters is not None and filters != checked:
+            active = frozenset(c.id for c in await self._categories.list_active())
+            checked = _checked_filters(filters, self._clock.today(), active)
         place = await _postal_code_place(self._geocoding, code)
         if place is None:
             raise InvalidInputError({"postalCode": POSTAL_CODE_UNKNOWN}, POSTAL_CODE_UNKNOWN)
@@ -163,7 +225,7 @@ class StartAiSearch:
             self._settings.daily_limit
         ):
             raise TooManyRequestsError(DAILY_LIMIT)
-        job = AiSearchJob(uuid4(), moderator_id, code, place.city, now)
+        job = AiSearchJob(uuid4(), moderator_id, code, place.city, now, filters=checked)
         await self._jobs.add(job)
         return job
 
@@ -241,6 +303,8 @@ class _RecordingSearch:
         self.queries: list[str] = []
         self.urls: list[str] = []
         self.read_urls: list[str] = []
+        # Links of read pages (R10c): allowed as an event's website, not as its source.
+        self.link_urls: list[str] = []
         self.failed = 0
 
     async def __call__(self, query: str) -> list[SearchHit]:
@@ -264,8 +328,11 @@ class _RecordingSearch:
         if normalize_url(url) not in self.normalized_urls:
             return READ_NOT_A_RESULT
         self.read_urls.append(url)
-        text = await self._pages.read(url, PAGE_MAX_CHARS)
-        return text if text else READ_FAILED
+        page = await self._pages.read(url, PAGE_MAX_CHARS)
+        if page is None or not page.text:
+            return READ_FAILED
+        self.link_urls.extend(link.url for link in page.links)
+        return _page_for_model(page)
 
     @property
     def all_failed(self) -> bool:
@@ -274,6 +341,18 @@ class _RecordingSearch:
     @property
     def normalized_urls(self) -> frozenset[str]:
         return frozenset(normalize_url(url) for url in self.urls)
+
+    @property
+    def normalized_links(self) -> frozenset[str]:
+        return frozenset(normalize_url(url) for url in self.link_urls)
+
+
+def _page_for_model(page: PageContent) -> str:
+    """Page text plus its links, one `text: url` per line (German, like the prompt)."""
+    if not page.links:
+        return page.text
+    links = "\n".join(f"- {link.text}: {link.url}" for link in page.links)
+    return f"{page.text}\n\n{READ_LINKS_HEADING}\n{links}"
 
 
 class RunAiSearch:
@@ -351,16 +430,19 @@ class RunAiSearch:
         center = await self._center(job)
         today = self._clock.today()
         active = {c.name: c.id for c in await self._categories.list_active()}
-        nearby = await self._nearby(center, job.place_name)
+        scope = self._scope(job.filters, today, active)
+        nearby = await self._nearby(center, job.place_name, scope.radius_km)
+        wanted = [name for name, category_id in active.items() if category_id in scope.wanted]
         parameters = SearchParameters(
             postal_code=job.postal_code,
             place_name=job.place_name,
-            radius_km=self._settings.radius_km,
-            date_from=today,
-            date_to=today + timedelta(days=SEARCH_HORIZON_DAYS),
-            categories=tuple(active),
+            radius_km=scope.radius_km,
+            date_from=scope.date_from,
+            date_to=scope.date_to,
+            categories=tuple(wanted or active),
             nearby_places=nearby,
             max_searches=self._settings.max_tool_calls,
+            focus=job.filters.focus,
         )
         prompt = self._settings.prompt.render(parameters)
         log["prompt"] = self._settings.prompt.version
@@ -385,7 +467,7 @@ class RunAiSearch:
         # A calendar page is the source of several events: same page *and* same name only.
         seen: set[tuple[str, str]] = set()
         for find in result.finds:
-            reason, candidate = await self._check(find, today, tool, center, active)
+            reason, candidate = await self._check(find, today, tool, center, scope)
             normalized = normalize_url(find.source_url)
             key = (normalized, normalize_name(find.name))
             if candidate is not None and key in seen:
@@ -402,16 +484,35 @@ class RunAiSearch:
         new_ids = await self._drafts.add_drafts(job.id, self._now(), candidates)
         return tuple(new_ids), skipped
 
+    def _scope(self, filters: AiSearchFilters, today: date, active: dict[str, UUID]) -> _Scope:
+        """Radius, period and categories of the run; defaults where no filter is set.
+
+        A job may wait in the queue past its first day, so the period never starts before
+        today. Categories deactivated since the start are ignored.
+        """
+        start = max(filters.date_from or today, today)
+        end = filters.date_to or today + timedelta(days=SEARCH_HORIZON_DAYS)
+        wanted = frozenset(filters.category_ids) & frozenset(active.values())
+        return _Scope(
+            radius_km=filters.radius_km or self._settings.radius_km,
+            date_from=start,
+            date_to=max(end, start),
+            categories=active,
+            wanted=wanted,
+        )
+
     async def _check(
         self,
         find: FoundEvent,
         today: date,
         tool: _RecordingSearch,
         center: GeoPoint,
-        active: dict[str, UUID],
+        scope: _Scope,
     ) -> tuple[SkipReason | None, DraftCandidate | None]:
         if find.problems(today):
             return SkipReason.INVALID, None
+        if not find.overlaps(scope.date_from, scope.date_to):
+            return SkipReason.NOT_MATCHING, None
         # Only pages the search tool returned in this job count: no invented sources.
         if normalize_url(find.source_url) not in tool.normalized_urls:
             return SkipReason.UNVERIFIED_SOURCE, None
@@ -421,10 +522,28 @@ class RunAiSearch:
         if place is None:
             return SkipReason.OUT_OF_AREA, None
         location, postal_code, city = place
-        if location.distance_km(center) > self._settings.radius_km * AREA_TOLERANCE:
+        if location.distance_km(center) > scope.radius_km * AREA_TOLERANCE:
             return SkipReason.OUT_OF_AREA, None
-        category = map_category(find.category, active)
+        category = map_category(find.category, scope.categories)
+        # Only a safe match of another category is skipped; unmapped finds stay (R10c).
+        if scope.wanted and category is not None and category not in scope.wanted:
+            return SkipReason.NOT_MATCHING, None
+        find = await self._checked_website(find, tool)
         return None, DraftCandidate(find, location, postal_code, city, category)
+
+    async def _checked_website(self, find: FoundEvent, tool: _RecordingSearch) -> FoundEvent:
+        """Keep the website only if this job saw it and it answers; else drop the field.
+
+        Like the source: a search result or a link on a read page, never a URL the model made
+        up. An unverified website never discards the find itself.
+        """
+        url = find.website_url
+        if url is None:
+            return find
+        known = tool.normalized_urls | tool.normalized_links
+        if is_web_url(url) and normalize_url(url) in known and await self._sources.reachable(url):
+            return find
+        return replace(find, website_url=None)
 
     async def _locate(self, find: FoundEvent) -> tuple[GeoPoint, str, str] | None:
         """Coordinates (geocoding the address if needed) with ZIP code and city."""
@@ -450,13 +569,12 @@ class RunAiSearch:
                 return places[0].location
         return None
 
-    async def _nearby(self, center: GeoPoint, place_name: str) -> tuple[str, ...]:
+    async def _nearby(self, center: GeoPoint, place_name: str, radius: int) -> tuple[str, ...]:
         """Towns within the radius: reverse geocoding on two rings around the center.
 
         Public place names only; nearest first, the searched place itself leads. Geocoding
         failures just shorten the list.
         """
-        radius = self._settings.radius_km
         points = [
             center.destination(360 * i / count + offset, radius * fraction)
             for fraction, count, offset in NEARBY_RINGS

@@ -18,8 +18,11 @@ from pydantic.alias_generators import to_camel
 from stadtfest.adapters.inbound.mcp.auth import current_principal
 from stadtfest.adapters.inbound.mcp.dependencies import McpConfig, McpDependencies
 from stadtfest.adapters.inbound.mcp.errors import tool_errors
+from stadtfest.application.ai_ingestion.use_cases import MAX_RADIUS_KM as AI_MAX_RADIUS_KM
+from stadtfest.application.ai_ingestion.use_cases import MIN_RADIUS_KM as AI_MIN_RADIUS_KM
 from stadtfest.application.events.criteria import MAX_RADIUS_KM, MIN_RADIUS_KM, SearchFilter
 from stadtfest.application.events.views import EventDetailView, EventSummaryView
+from stadtfest.domain.ai_ingestion.job import AiSearchFilters, SearchFocus
 from stadtfest.domain.events.event import EventStatus
 from stadtfest.domain.events.time_filter import TimeFilter
 
@@ -43,7 +46,11 @@ START_DESCRIPTION = """\
 Startet die KI-Suche nach neuen Festen um eine Postleitzahl. Nur für Moderatoren mit \
 Anmeldung. Funde werden als Entwürfe gespeichert und erst nach Prüfung veröffentlicht.
 Starts the AI search for new events around a German postal code. Moderators only (sign-in \
-required). Finds are stored as drafts and published only after a moderator reviews them."""
+required). Finds are stored as drafts and published only after a moderator reviews them.
+Optional filters: period (from today, at most 365 days ahead), category names, radius in km and \
+fixed search focuses. There is no free-text prompt."""
+
+FocusName = Literal["village_festivals", "major_events", "municipal_calendars", "regional_press"]
 
 
 def _zip_code_text(value: object) -> object:
@@ -200,6 +207,18 @@ def _time_filter(date_from: date | None, date_to: date | None) -> TimeFilter:
         ) from None
 
 
+def _category_ids(names: list[str], active: dict[str, UUID]) -> tuple[UUID, ...]:
+    """IDs of the named active categories (case-insensitive); unknown names are an error."""
+    by_name = {name.casefold(): category_id for name, category_id in active.items()}
+    unknown = [name for name in names if name.strip().casefold() not in by_name]
+    if unknown:
+        raise ToolError(
+            f"Unbekannte Kategorie / unknown category: {', '.join(unknown)}. "
+            f"Erlaubt / allowed: {', '.join(active)}"
+        )
+    return tuple(by_name[name.strip().casefold()] for name in names)
+
+
 def register_tools(server: FastMCP, deps: McpDependencies, config: McpConfig) -> None:
     """Register the three tools of R15 on the server.
 
@@ -261,10 +280,40 @@ def register_tools(server: FastMCP, deps: McpDependencies, config: McpConfig) ->
             open_world_hint=True,
         ),
     )
-    async def start_ai_search(zip_code: ZipCode) -> AiSearchStarted:
+    async def start_ai_search(
+        zip_code: ZipCode,
+        date_from: Annotated[
+            date | None, Field(description="Frühestes Datum / from (ISO date, not in the past)")
+        ] = None,
+        date_to: Annotated[
+            date | None, Field(description="Spätestes Datum / to (ISO date, max. 365 days)")
+        ] = None,
+        categories: Annotated[
+            list[str] | None,
+            Field(description="Kategorienamen / category names, e.g. Weihnachtsmarkt"),
+        ] = None,
+        radius_km: Annotated[
+            int | None,
+            Field(ge=AI_MIN_RADIUS_KM, le=AI_MAX_RADIUS_KM, description="Umkreis / radius in km"),
+        ] = None,
+        focus: Annotated[
+            list[FocusName] | None, Field(description="Suchschwerpunkte / search focuses")
+        ] = None,
+    ) -> AiSearchStarted:
         principal = current_principal()
         if principal is None:  # normally answered with HTTP 401 by `OptionalBearerAuth`
             raise ToolError("Anmeldung erforderlich. / Sign-in required (OAuth).")
         with tool_errors():
-            job = await deps.start_ai_search(principal, zip_code)
+            category_ids: tuple[UUID, ...] = ()
+            if categories:
+                listed = (await deps.list_active_categories()).categories
+                category_ids = _category_ids(categories, {c.name: c.id for c in listed})
+            filters = AiSearchFilters(
+                date_from=date_from,
+                date_to=date_to,
+                category_ids=category_ids,
+                radius_km=radius_km,
+                focus=tuple(SearchFocus(item) for item in focus or ()),
+            )
+            job = await deps.start_ai_search(principal, zip_code, filters)
         return AiSearchStarted(job_id=str(job.id), status=job.status.value)

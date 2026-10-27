@@ -1,4 +1,7 @@
-/** "Feste automatisch suchen" (09-01, R10-US1): postal code with place name, start. */
+/**
+ * "Feste automatisch suchen" (09-01, R10-US1): postal code with place name, start. The postal
+ * code stays the only required input; optional filters sit in a collapsed accordion (R10c).
+ */
 import React, {useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 
@@ -7,6 +10,13 @@ import {BottomSheet, Button, Text, TextField} from '@/components';
 import {strings} from '@/strings/de';
 import {useTheme} from '@/theme';
 
+import {
+  AiFilterState,
+  AiSearchFilters,
+  EMPTY_FILTERS,
+  periodError,
+  toRequestFilters,
+} from './AiSearchFilters';
 import {useAiSearch} from './AiSearchProvider';
 
 const POSTAL_CODE = /^[0-9]{5}$/;
@@ -26,7 +36,10 @@ export function AiSearchSheet({
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<AiFilterState>(EMPTY_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const valid = POSTAL_CODE.test(code);
+  const filtersValid = periodError(filters) === null;
   const place = $api.useQuery(
     'get',
     '/v1/geocode',
@@ -46,11 +59,13 @@ export function AiSearchSheet({
 
   const submit = async () => {
     setBusy(true);
-    const result = await start(code);
+    const result = await start(code, toRequestFilters(filters));
     setBusy(false);
     if (result.ok || result.status === 409) {
       setCode('');
       setTouched(false);
+      setFilters(EMPTY_FILTERS);
+      setFiltersOpen(false);
       onClose();
       return;
     }
@@ -73,7 +88,7 @@ export function AiSearchSheet({
           label={strings.mod.ai.start}
           variant="mod"
           onPress={() => void submit()}
-          disabled={!valid || unknown}
+          disabled={!valid || unknown || !filtersValid}
           loading={busy}
           testID="mod.ai.start"
           style={styles.button}
@@ -105,6 +120,15 @@ export function AiSearchSheet({
           </Text>
         ) : null}
       </View>
+      <AiSearchFilters
+        value={filters}
+        onChange={next => {
+          setFilters(next);
+          setServerError(null);
+        }}
+        expanded={filtersOpen}
+        onToggle={() => setFiltersOpen(open => !open)}
+      />
     </BottomSheet>
   );
 }

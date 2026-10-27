@@ -1,9 +1,9 @@
-"""AI search job: status machine and result counters (R10-US2/US3)."""
+"""AI search job: status machine, filters and result counters (R10-US2/US3, R10c)."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 from uuid import UUID
 
@@ -45,6 +45,7 @@ class SkipCounts:
     out_of_area: int = 0
     invalid: int = 0
     unverified_source: int = 0
+    not_matching: int = 0
 
     def add(self, reason: SkipReason) -> SkipCounts:
         """One more skipped find for the reason."""
@@ -59,6 +60,33 @@ class SkipReason(StrEnum):
     OUT_OF_AREA = "out_of_area"
     INVALID = "invalid"
     UNVERIFIED_SOURCE = "unverified_source"
+    # Outside the requested period, or another category than requested (R10c).
+    NOT_MATCHING = "not_matching"
+
+
+class SearchFocus(StrEnum):
+    """Fixed search focuses (R10c); each adds a reviewed text block to the prompt."""
+
+    VILLAGE_FESTIVALS = "village_festivals"
+    MAJOR_EVENTS = "major_events"
+    MUNICIPAL_CALENDARS = "municipal_calendars"
+    REGIONAL_PRESS = "regional_press"
+
+
+@dataclass(frozen=True, slots=True)
+class AiSearchFilters:
+    """Optional filters of a search (R10c). Empty values mean "no filter".
+
+    Only public, moderator-independent values: dates, category IDs, a radius and fixed
+    focuses. There is deliberately no free text (privacy: nothing a moderator types reaches
+    the LLM or the web search).
+    """
+
+    date_from: date | None = None
+    date_to: date | None = None
+    category_ids: tuple[UUID, ...] = ()
+    radius_km: int | None = None
+    focus: tuple[SearchFocus, ...] = ()
 
 
 class InvalidJobTransitionError(Exception):
@@ -81,6 +109,7 @@ class AiSearchJob:
     skipped: SkipCounts = field(default_factory=SkipCounts)
     error_code: AiSearchError | None = None
     log: dict[str, object] = field(default_factory=dict)
+    filters: AiSearchFilters = field(default_factory=AiSearchFilters)
 
     @property
     def active(self) -> bool:

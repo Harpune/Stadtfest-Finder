@@ -448,6 +448,30 @@ export const strings = {
       postalInvalid: 'Bitte gib eine fünfstellige Postleitzahl ein.',
       postalUnknown: 'Diese Postleitzahl kennen wir nicht.',
       start: 'Suche starten',
+      filters: {
+        title: 'Weitere Filter (optional)',
+        summaryDefault: 'Standard: 12 Monate, alle Kategorien, 25 km',
+        summaryActive: (n: number) =>
+          n === 1 ? '1 Filter aktiv' : `${n} Filter aktiv`,
+        period: 'Zeitraum',
+        from: 'Von',
+        to: 'Bis',
+        datePlaceholder: 'Datum wählen',
+        categories: 'Kategorien',
+        radius: 'Umkreis',
+        radiusKm: (km: number) => `${km} km`,
+        focus: 'Suchschwerpunkte',
+        focusOptions: {
+          village_festivals: 'Auch kleine Dorffeste',
+          major_events: 'Nur große Feste',
+          municipal_calendars: 'Gemeindekalender zuerst',
+          regional_press: 'Zeitungen und Amtsblätter',
+        },
+        reset: 'Filter zurücksetzen',
+        periodPast: 'Der Zeitraum darf nicht in der Vergangenheit beginnen.',
+        periodOrder: 'Das Ende liegt vor dem Beginn.',
+        periodTooFar: 'Höchstens 12 Monate im Voraus.',
+      },
       running: (code: string, place: string) =>
         `Suche läuft für ${code}${place ? ` ${place}` : ''} …`,
       found: (n: number, code: string) =>
@@ -476,6 +500,7 @@ export const strings = {
         location: 'Ort',
         openingHours: 'Öffnungszeiten',
         price: 'Eintritt',
+        website: 'Website',
         description: 'Beschreibung',
       },
       noImage: 'Kein Bild gefunden',
@@ -497,6 +522,7 @@ export const strings = {
       alreadyHandled: 'Dieser Fund wurde schon bearbeitet.',
       errors: {
         search_running: 'Für dich läuft schon eine Suche.',
+        validation_failed: 'Bitte prüfe den Zeitraum und die Filter.',
         postal_code_unknown: 'Diese Postleitzahl kennen wir nicht.',
         geocoding_unavailable:
           'Die Ortssuche ist gerade nicht erreichbar. Bitte versuche es später erneut.',
