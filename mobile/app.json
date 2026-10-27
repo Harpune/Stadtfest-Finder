@@ -8,14 +8,18 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "de.stadtfestfinder.app"
+      "bundleIdentifier": "de.stadtfestfinder.app",
+      "icon": {
+        "light": "./assets/icon.png",
+        "dark": "./assets/icon-dark.png",
+        "tinted": "./assets/icon-tinted.png"
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#15111C",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#FBF8F4",
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/adaptive-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "de.stadtfestfinder.app",
@@ -30,9 +34,11 @@
         {
           "backgroundColor": "#15111C",
           "image": "./assets/splash-icon.png",
-          "imageWidth": 160,
+          "imageWidth": 200,
+          "resizeMode": "contain",
           "dark": {
-            "backgroundColor": "#15111C"
+            "backgroundColor": "#15111C",
+            "image": "./assets/splash-icon.png"
           }
         }
       ],
