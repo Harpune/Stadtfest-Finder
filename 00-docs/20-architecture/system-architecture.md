@@ -109,7 +109,7 @@ flowchart LR
   REL --> REN[Renovate-PR im HomeLab<br/>Pins der 4 Images]
   REN -->|Merge| DEP[Komodo: Deploy von Hand<br/>migrate → api, worker, mcp, edge]
   DEP --> SMK[make smoke<br/>Health, Kategorien, Feste, MCP]
-  TAG --> EAS[eas-build.yml<br/>EAS Build + Submit]
+  TAG --> EAS[eas-build.yml<br/>EAS Build: Android-APK]
 ```
 
 - Stack: HomeLab `stacks/stadtfest/compose.yaml`; Umgebungsvertrag des Backends: [`infra/komodo-environment.example`](../../infra/komodo-environment.example); Anleitung: [deployment-komodo.md](../40-operations/deployment-komodo.md).
