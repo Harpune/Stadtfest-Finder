@@ -23,8 +23,10 @@ from stadtfest.application.identity.use_cases import Authenticate
 from stadtfest.domain.ai_ingestion.job import AiSearchError
 from stadtfest.domain.events.geo import GeoPoint
 from tests.fakes import (
+    CategoryView,
     FakeAccountResolver,
     FakeAiSearchRepository,
+    FakeCategoryCatalog,
     FakeDeletedAccounts,
     FakeGeocoding,
     FakeTokenVerifier,
@@ -34,6 +36,10 @@ from tests.fakes import (
 MOD = {"Authorization": "Bearer mod"}
 OTHER = {"Authorization": "Bearer other"}
 USER = {"Authorization": "Bearer user"}
+CATEGORY = CategoryView(
+    UUID("00000000-0000-0000-0000-00000000000a"), "Weihnachtsmarkt", "🎄", "#F", 0
+)
+NO_FILTERS = {"dateFrom": None, "dateTo": None, "categoryIds": [], "radiusKm": None, "focus": []}
 
 
 @pytest.fixture
@@ -65,6 +71,7 @@ def client(jobs: FakeAiSearchRepository) -> TestClient:
             jobs,
             accounts,
             geocoding,
+            FakeCategoryCatalog([CATEGORY]),
             FixedClock(date(2026, 10, 2)),
             AiSearchSettings(daily_limit=2),
             now=lambda: datetime(2026, 10, 2, 9, tzinfo=UTC),
@@ -86,7 +93,9 @@ def test_start_returns_202_and_the_job(client: TestClient) -> None:
         "outOfArea": 0,
         "invalid": 0,
         "unverifiedSource": 0,
+        "notMatching": 0,
     }
+    assert body["filters"] == NO_FILTERS
     job = client.get(f"/v1/mod/ai-searches/{body['id']}", headers=MOD)
     assert job.json()["id"] == body["id"]
     running = client.get("/v1/mod/ai-searches", params={"status": "running"}, headers=MOD)
@@ -136,3 +145,56 @@ def test_unknown_postal_code_invalid_code_and_roles(client: TestClient) -> None:
         client.post("/v1/mod/ai-searches", json={"postalCode": "73430"}, headers=USER).status_code
         == 403
     )
+
+
+def test_start_with_filters_returns_them(client: TestClient) -> None:
+    """R10c: optional filters are stored with the job and shown in its status."""
+    filters = {
+        "dateFrom": "2026-11-20",
+        "dateTo": "2026-12-24",
+        "categoryIds": [str(CATEGORY.id)],
+        "radiusKm": 10,
+        "focus": ["village_festivals", "municipal_calendars"],
+    }
+    response = client.post(
+        "/v1/mod/ai-searches", json={"postalCode": "73430", "filters": filters}, headers=MOD
+    )
+
+    assert response.status_code == 202
+    assert response.json()["filters"] == filters
+    job = client.get(f"/v1/mod/ai-searches/{response.json()['id']}", headers=MOD)
+    assert job.json()["filters"] == filters
+
+
+@pytest.mark.parametrize(
+    ("filters", "fields"),
+    [
+        ({"dateFrom": "2026-10-01"}, {"dateFrom": "past"}),
+        ({"dateFrom": "2026-12-01", "dateTo": "2026-11-01"}, {"dateTo": "before_start"}),
+        ({"dateTo": "2027-12-01"}, {"dateTo": "too_far"}),
+        ({"categoryIds": ["00000000-0000-0000-0000-0000000000ff"]}, {"categoryIds": "unknown"}),
+    ],
+)
+def test_invalid_filters_name_the_field(
+    client: TestClient, filters: dict[str, object], fields: dict[str, str]
+) -> None:
+    response = client.post(
+        "/v1/mod/ai-searches", json={"postalCode": "73430", "filters": filters}, headers=MOD
+    )
+
+    assert (response.status_code, response.json()["error"]) == (422, "validation_failed")
+    assert response.json()["fields"] == fields
+
+
+@pytest.mark.parametrize(
+    "filters", [{"radiusKm": 4}, {"radiusKm": 51}, {"focus": ["anything"]}, {"prompt": "x"}]
+)
+def test_filters_outside_the_contract_are_rejected(
+    client: TestClient, filters: dict[str, object]
+) -> None:
+    """No free text: unknown focuses and extra fields never reach the use case."""
+    response = client.post(
+        "/v1/mod/ai-searches", json={"postalCode": "73430", "filters": filters}, headers=MOD
+    )
+
+    assert response.status_code == 422

@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from uuid import uuid4
 
@@ -6,21 +7,25 @@ import pytest
 from stadtfest.application.ai_ingestion.prompts import bundled_versions, load_bundled
 from stadtfest.domain.ai_ingestion.categories import map_category
 from stadtfest.domain.ai_ingestion.finds import (
+    DayHours,
     FoundEvent,
     domain_of,
     geocoding_queries,
     normalize_name,
     normalize_url,
+    parse_clock,
 )
 from stadtfest.domain.ai_ingestion.job import (
     AiSearchError,
     AiSearchJob,
     AiSearchStatus,
     InvalidJobTransitionError,
+    SearchFocus,
     SkipCounts,
     SkipReason,
 )
 from stadtfest.domain.ai_ingestion.prompt import (
+    FOCUS_HINTS,
     InvalidPromptError,
     PromptTemplate,
     SearchParameters,
@@ -130,7 +135,7 @@ def test_prompt_v2_names_the_towns_and_years_but_no_iso_dates_in_rules() -> None
 
 
 def test_bundled_versions_are_valid() -> None:
-    assert {"v1", "v2", "v3"} <= set(bundled_versions())
+    assert {"v1", "v2", "v3", "v4"} <= set(bundled_versions())
     for version in bundled_versions():
         assert load_bundled(version).version == version
     with pytest.raises(InvalidPromptError):
@@ -222,3 +227,68 @@ def test_names_are_normalized_for_comparisons() -> None:
     assert normalize_name('Bopfinger Kneipentour "City Sounds"') == (
         "bopfinger kneipentour city sounds"
     )
+
+
+# --- R10c ----------------------------------------------------------------------------------
+
+
+def test_prompt_v4_names_focus_and_the_new_fields() -> None:
+    focus = (SearchFocus.VILLAGE_FESTIVALS, SearchFocus.REGIONAL_PRESS)
+    prompt = load_bundled("v4").render(replace(PARAMETERS, focus=focus))
+
+    assert "Suchschwerpunkte: Suche auch nach kleinen Dorf-" in prompt.user
+    assert FOCUS_HINTS[SearchFocus.REGIONAL_PRESS] in prompt.user
+    assert "`website_url`" in prompt.system
+    assert "`opening_hours`" in prompt.system
+    assert "{" not in prompt.system + prompt.user
+    assert "Suchschwerpunkte: keine" in load_bundled("v4").render(PARAMETERS).user
+
+
+def test_every_focus_has_a_reviewed_text() -> None:
+    """Focuses are the only steering a moderator has: fixed texts, no free input."""
+    assert set(FOCUS_HINTS) == set(SearchFocus)
+
+
+@pytest.mark.parametrize(
+    ("text", "clock"),
+    [
+        ("18:00", "18:00"),
+        ("9:30", "09:30"),
+        (" 24:00 ", "24:00"),
+        ("24:30", None),
+        ("25:00", None),
+        ("18 Uhr", None),
+        (None, None),
+    ],
+)
+def test_clock_times_are_parsed_strictly(text: str | None, clock: str | None) -> None:
+    assert parse_clock(text) == clock
+
+
+def test_opening_hours_become_lines_within_the_event_dates() -> None:
+    find = FoundEvent(
+        "Stadtfest",
+        date(2026, 6, 12),
+        date(2026, 6, 14),
+        "Markt",
+        "",
+        "https://a.de/x",
+        opening_hours=(
+            DayHours(date(2026, 6, 13), "11:00"),
+            DayHours(date(2026, 6, 12), "18:00", "01:00"),
+            DayHours(date(2026, 6, 20), "10:00", "12:00"),  # after the event: dropped
+            DayHours(date(2026, 6, 14), "11:30", "20:00"),
+        ),
+    )
+    assert find.opening_hours_lines() == (
+        "Fr 12.06. 18-1 Uhr",
+        "Sa 13.06. ab 11 Uhr",
+        "So 14.06. 11:30-20 Uhr",
+    )
+
+
+def test_finds_overlap_a_period() -> None:
+    find = FoundEvent("Fest", date(2026, 12, 1), date(2026, 12, 3), "", "", "https://a.de")
+    assert find.overlaps(date(2026, 12, 3), date(2026, 12, 24))
+    assert not find.overlaps(date(2026, 12, 4), date(2026, 12, 24))
+    assert not find.overlaps(date(2026, 11, 1), date(2026, 11, 30))

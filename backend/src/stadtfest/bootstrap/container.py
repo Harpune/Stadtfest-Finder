@@ -559,7 +559,9 @@ class Container:
             order_categories=OrderCategories(categories),
             delete_category=DeleteCategory(categories),
             ai_http=ai_http,
-            start_ai_search=StartAiSearch(ai_jobs, ensure_account, geocoding, clock, ai_settings),
+            start_ai_search=StartAiSearch(
+                ai_jobs, ensure_account, geocoding, catalog, clock, ai_settings
+            ),
             get_ai_search=GetAiSearch(ai_jobs, ensure_account),
             list_ai_searches=ListAiSearches(ai_jobs, ensure_account),
             run_ai_search=run_ai_search,

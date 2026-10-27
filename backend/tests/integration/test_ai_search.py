@@ -1,7 +1,7 @@
 """A complete AI search with the fake LLM and search against PostGIS and Redis (R10)."""
 
 from collections.abc import AsyncIterator
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -33,7 +33,7 @@ from stadtfest.application.ai_ingestion.use_cases import (
 )
 from stadtfest.application.identity.use_cases import EnsureAccount
 from stadtfest.domain.ai_ingestion.finds import FoundEvent, normalize_url
-from stadtfest.domain.ai_ingestion.job import AiSearchStatus
+from stadtfest.domain.ai_ingestion.job import AiSearchFilters, AiSearchStatus, SearchFocus
 from stadtfest.domain.events.geo import GeoPoint
 from stadtfest.domain.identity.principal import Principal, Role
 from tests.integration.seed_support import load
@@ -68,8 +68,9 @@ def _use_cases(
     jobs = SqlAiSearchRepository(sessions)
     geocoding = FakeGeocoding()
     settings = AiSearchSettings()
+    catalog = SqlCatalog(sessions, ImageUrls("https://img.test/b"))
     start = StartAiSearch(
-        jobs, EnsureAccount(SqlUserRepository(sessions)), geocoding, _Clock(), settings
+        jobs, EnsureAccount(SqlUserRepository(sessions)), geocoding, catalog, _Clock(), settings
     )
     run = RunAiSearch(
         jobs,
@@ -78,7 +79,7 @@ def _use_cases(
         AllowAllSourceChecker(),
         None,
         geocoding,
-        SqlCatalog(sessions, ImageUrls("https://img.test/b")),
+        catalog,
         SqlDraftStore(sessions),
         _Clock(),
         settings,
@@ -112,6 +113,11 @@ async def test_job_stores_drafts_and_skips_them_the_second_time(
     assert all(d.ai_job_id == job.id and d.source_url and d.found_at for d in drafts)
     lichterfest = next(d for d in drafts if d.name == "Lichterfest Wasseralfingen")
     assert lichterfest.postal_code == "73433"
+    # R10c: website (a page the search returned), opening times per day and price.
+    assert lichterfest.website_url == lichterfest.source_url
+    assert len(lichterfest.opening_hours) == 2
+    assert lichterfest.opening_hours[0].endswith(" 17-23 Uhr")
+    assert lichterfest.price == "Eintritt frei"
     stored = await jobs.get(job.id)
     assert stored is not None
     assert stored.log["queries"] == ["Feste Ostalb Herbst"]
@@ -196,3 +202,30 @@ async def test_one_calendar_page_is_the_source_of_several_events(
     async with sessions.begin() as session:
         session.add(RejectedSourceRow(url_normalized=key, name_normalized=""))
     assert await store.is_duplicate(candidate("Nikolausmarkt"), key)
+
+
+async def test_filters_are_stored_with_the_job(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    """R10c: filters survive the round trip; finds outside them count as not matching."""
+    start, run, jobs = _use_cases(sessions)
+    principal = Principal(f"sub-{uuid4()}", frozenset({Role.USER, Role.MODERATOR}))
+    filters = AiSearchFilters(
+        date_from=TODAY + timedelta(days=25),
+        date_to=TODAY + timedelta(days=60),
+        radius_km=30,
+        focus=(SearchFocus.VILLAGE_FESTIVALS, SearchFocus.REGIONAL_PRESS),
+    )
+
+    job = await start(principal, "73430", filters)
+    stored = await jobs.get(job.id)
+    done = await run(job.id)
+
+    assert stored is not None
+    assert stored.filters == filters
+    assert done is not None
+    # The fake finds start in 12, 20 and 30 days: only the last overlaps the period.
+    assert done.skipped.not_matching == 2
+    reloaded = await jobs.get(job.id)
+    assert reloaded is not None
+    assert reloaded.skipped.not_matching == 2

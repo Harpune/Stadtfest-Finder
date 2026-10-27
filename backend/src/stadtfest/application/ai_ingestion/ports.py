@@ -42,11 +42,27 @@ class WebSearchPort(Protocol):
         ...
 
 
+@dataclass(frozen=True, slots=True)
+class PageLink:
+    """A link on a read page (R10c): absolute `http(s)` URL and its visible text."""
+
+    url: str
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
+class PageContent:
+    """What `read_page` found on a page: visible text and links (none for PDFs)."""
+
+    text: str
+    links: tuple[PageLink, ...] = ()
+
+
 class PageReader(Protocol):
     """Reads the text of a web page for the LLM (R10b-US5), with SSRF protection."""
 
-    async def read(self, url: str, max_chars: int) -> str | None:
-        """Visible text of an HTML or text page, at most `max_chars`; None if unreadable."""
+    async def read(self, url: str, max_chars: int) -> PageContent | None:
+        """Visible text (at most `max_chars`) and links of a page; None if unreadable."""
         ...
 
 

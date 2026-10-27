@@ -12,10 +12,37 @@ from fastapi import APIRouter, Query
 
 from stadtfest.adapters.inbound.rest.auth import CurrentPrincipal
 from stadtfest.adapters.inbound.rest.dependencies import Deps
-from stadtfest.domain.ai_ingestion.job import AiSearchJob, AiSearchStatus
+from stadtfest.domain.ai_ingestion.job import (
+    AiSearchFilters,
+    AiSearchJob,
+    AiSearchStatus,
+    SearchFocus,
+)
 from stadtfest.generated import models as api
 
 router = APIRouter(prefix="/v1/mod/ai-searches", tags=["moderation"])
+
+
+def _filters(body: api.AiSearchFilters | None) -> AiSearchFilters | None:
+    if body is None:
+        return None
+    return AiSearchFilters(
+        date_from=body.date_from,
+        date_to=body.date_to,
+        category_ids=tuple(body.category_ids or ()),
+        radius_km=body.radius_km,
+        focus=tuple(SearchFocus(item.root) for item in body.focus or ()),
+    )
+
+
+def _filters_out(filters: AiSearchFilters) -> api.AiSearchFilters:
+    return api.AiSearchFilters(
+        date_from=filters.date_from,
+        date_to=filters.date_to,
+        category_ids=list(filters.category_ids),
+        radius_km=filters.radius_km,
+        focus=[api.AiSearchFocus(item.value) for item in filters.focus],
+    )
 
 
 def _search(job: AiSearchJob) -> api.AiSearch:
@@ -23,6 +50,7 @@ def _search(job: AiSearchJob) -> api.AiSearch:
         id=job.id,
         postal_code=job.postal_code,
         place_name=job.place_name,
+        filters=_filters_out(job.filters),
         status=api.AiSearchStatus(job.status.value),
         created_at=job.created_at,
         started_at=job.started_at,
@@ -33,6 +61,7 @@ def _search(job: AiSearchJob) -> api.AiSearch:
             out_of_area=job.skipped.out_of_area,
             invalid=job.skipped.invalid,
             unverified_source=job.skipped.unverified_source,
+            not_matching=job.skipped.not_matching,
         ),
         error_code=job.error_code.value if job.error_code else None,
     )
@@ -59,7 +88,8 @@ async def start_search(
     deps: Deps, principal: CurrentPrincipal, body: api.AiSearchRequest
 ) -> api.AiSearch:
     """Queue a search; the worker stores verified finds as drafts."""
-    return _search(await deps.start_ai_search(principal, body.postal_code))
+    job = await deps.start_ai_search(principal, body.postal_code, _filters(body.filters))
+    return _search(job)
 
 
 @router.get("/{job_id}", operation_id="getAiSearch", response_model=api.AiSearch)

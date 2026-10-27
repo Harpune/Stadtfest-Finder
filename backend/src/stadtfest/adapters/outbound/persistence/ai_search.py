@@ -23,8 +23,10 @@ from stadtfest.domain.ai_ingestion.finds import normalize_name, normalize_url
 from stadtfest.domain.ai_ingestion.job import (
     AiSearchError,
     AiSearchEventType,
+    AiSearchFilters,
     AiSearchJob,
     AiSearchStatus,
+    SearchFocus,
     SkipCounts,
 )
 from stadtfest.domain.events.event import EventStatus
@@ -54,10 +56,28 @@ def _job(row: AiSearchJobRow) -> AiSearchJob:
             out_of_area=row.skipped_out_of_area,
             invalid=row.skipped_invalid,
             unverified_source=row.skipped_unverified_source,
+            not_matching=row.skipped_not_matching,
         ),
         error_code=AiSearchError(row.error_code) if row.error_code else None,
         log=dict(row.log or {}),
+        filters=AiSearchFilters(
+            date_from=row.filter_date_from,
+            date_to=row.filter_date_to,
+            category_ids=tuple(row.filter_category_ids or ()),
+            radius_km=row.filter_radius_km,
+            focus=tuple(SearchFocus(item) for item in row.filter_focus or ()),
+        ),
     )
+
+
+def _filter_columns(filters: AiSearchFilters) -> dict[str, object]:
+    return {
+        "filter_date_from": filters.date_from,
+        "filter_date_to": filters.date_to,
+        "filter_category_ids": list(filters.category_ids),
+        "filter_radius_km": filters.radius_km,
+        "filter_focus": [item.value for item in filters.focus],
+    }
 
 
 def _values(job: AiSearchJob) -> dict[str, object]:
@@ -70,6 +90,7 @@ def _values(job: AiSearchJob) -> dict[str, object]:
         "skipped_out_of_area": job.skipped.out_of_area,
         "skipped_invalid": job.skipped.invalid,
         "skipped_unverified_source": job.skipped.unverified_source,
+        "skipped_not_matching": job.skipped.not_matching,
         "error_code": job.error_code.value if job.error_code else None,
         "log": job.log,
     }
@@ -103,6 +124,7 @@ class SqlAiSearchRepository:
                     place_name=job.place_name,
                     created_at=job.created_at,
                     **_values(job),
+                    **_filter_columns(job.filters),
                 )
             )
             await session.flush()
@@ -252,6 +274,9 @@ class SqlDraftStore:
                         lat=draft.location.lat,
                         lon=draft.location.lon,
                         description=find.description,
+                        website_url=find.website_url,
+                        opening_hours=find.opening_hours_lines(),
+                        price=find.price,
                     ).with_defaults(),
                     source="ai",
                     source_url=find.source_url,

@@ -15,8 +15,17 @@ from stadtfest.adapters.outbound.search.searxng import SearxngWebSearch
 from stadtfest.adapters.outbound.sources import http as sources
 from stadtfest.adapters.outbound.sources import pages
 from stadtfest.adapters.outbound.sources.http import HttpSourceChecker
-from stadtfest.adapters.outbound.sources.pages import HttpPageReader, html_to_text, pdf_to_text
-from stadtfest.application.ai_ingestion.ports import WebSearchUnavailableError
+from stadtfest.adapters.outbound.sources.pages import (
+    HttpPageReader,
+    html_to_page,
+    html_to_text,
+    pdf_to_text,
+)
+from stadtfest.application.ai_ingestion.ports import (
+    PageContent,
+    PageLink,
+    WebSearchUnavailableError,
+)
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 BRAVE = json.loads((FIXTURES / "brave" / "web_search_aalen.json").read_text())
@@ -194,6 +203,26 @@ def test_html_to_text_keeps_visible_text_only() -> None:
     )
 
 
+def test_html_to_page_keeps_links_outside_navigation() -> None:
+    """R10c: links let the model name an event's own website without guessing it."""
+    html = (
+        "<body><nav><a href='/start'>Startseite</a></nav><h1>Kalender</h1>"
+        "<p><a href='https://www.reichsstaedter-tage.de/#programm'>Reichsstädter Tage</a></p>"
+        "<p><a href='programm.pdf'>Programm als PDF</a> <a href='mailto:x@aalen.de'>Mail</a>"
+        "<a href='#top'>nach oben</a><a href='/kalender'>Kalender</a>"
+        "<a href='https://www.reichsstaedter-tage.de/'>Noch einmal</a><a href='/x'>ab</a></p>"
+        "</body>"
+    )
+
+    page = html_to_page(html, "https://www.aalen.de/kalender", 100)
+
+    assert page.text.startswith("Kalender\nReichsstädter Tage")
+    assert page.links == (
+        PageLink("https://www.reichsstaedter-tage.de/", "Reichsstädter Tage"),
+        PageLink("https://www.aalen.de/programm.pdf", "Programm als PDF"),
+    )
+
+
 async def test_page_reader_reads_html_and_refuses_other_types(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -210,8 +239,10 @@ async def test_page_reader_reads_html_and_refuses_other_types(
         return httpx.Response(404)
 
     reader = HttpPageReader(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
-    assert await reader.read("https://www.aalen.de/fest", 100) == "Stadtfest\n17. Oktober"
-    assert await reader.read("https://www.aalen.de/fest", 9) == "Stadtfest"
+    assert await reader.read("https://www.aalen.de/fest", 100) == PageContent(
+        "Stadtfest\n17. Oktober"
+    )
+    assert await reader.read("https://www.aalen.de/fest", 9) == PageContent("Stadtfest")
     assert await reader.read("https://www.aalen.de/plan.pdf", 100) is None  # broken PDF
     assert await reader.read("https://www.aalen.de/bild.png", 100) is None
     assert await reader.read("https://www.aalen.de/weg", 100) is None
@@ -263,7 +294,7 @@ async def test_page_reader_reads_pdfs_up_to_a_size_limit(
         return httpx.Response(200, content=body, headers={"content-type": "application/pdf"})
 
     reader = HttpPageReader(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
-    assert await reader.read("https://www.kirchberg.de/kalender.pdf", 100) == (
+    assert await reader.read("https://www.kirchberg.de/kalender.pdf", 100) == PageContent(
         "Kirmes Kirchberg\n3. bis 5. September"
     )
     # A cut PDF cannot be parsed, so larger files are skipped.

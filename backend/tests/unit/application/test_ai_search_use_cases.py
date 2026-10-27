@@ -3,12 +3,13 @@ from uuid import uuid4
 
 import pytest
 
-from stadtfest.application.ai_ingestion.ports import SearchHit
+from stadtfest.application.ai_ingestion.ports import PageLink, SearchHit
 from stadtfest.application.ai_ingestion.prompts import load_bundled
 from stadtfest.application.ai_ingestion.use_cases import (
     PAGE_MAX_CHARS,
     READ_BUDGET_EXHAUSTED,
     READ_FAILED,
+    READ_LINKS_HEADING,
     READ_NOT_A_RESULT,
     READ_UNAVAILABLE,
     AiSearchSettings,
@@ -29,8 +30,13 @@ from stadtfest.application.shared.errors import (
     ServiceUnavailableError,
     TooManyRequestsError,
 )
-from stadtfest.domain.ai_ingestion.finds import FoundEvent
-from stadtfest.domain.ai_ingestion.job import AiSearchError, AiSearchStatus
+from stadtfest.domain.ai_ingestion.finds import DayHours, FoundEvent
+from stadtfest.domain.ai_ingestion.job import (
+    AiSearchError,
+    AiSearchFilters,
+    AiSearchStatus,
+    SearchFocus,
+)
 from stadtfest.domain.events.geo import GeoPoint
 from stadtfest.domain.identity.principal import Principal, Role
 from tests.fakes import (
@@ -51,6 +57,7 @@ MODERATOR = Principal("sub-mod", frozenset({Role.USER, Role.MODERATOR}))
 OTHER = Principal("sub-other", frozenset({Role.USER, Role.MODERATOR}))
 USER = Principal("sub-user", frozenset({Role.USER}))
 STADTFEST = CategoryView(uuid4(), "Stadtfest", "🎪", "#FFB547", 0)
+WEIHNACHTSMARKT = CategoryView(uuid4(), "Weihnachtsmarkt", "🎄", "#3FB59B", 1)
 AALEN = Place("73430 Aalen", "Aalen", GeoPoint(48.8375, 10.0933), PlaceKind.POSTCODE, "73430")
 WASSERALFINGEN = Place(
     "73433 Aalen", "Aalen", GeoPoint(48.8623, 10.1019), PlaceKind.POSTCODE, "73433"
@@ -61,7 +68,7 @@ SOURCE = "https://www.aalen.de/stadtfest"
 
 class _Catalog:
     async def list_active(self) -> list[CategoryView]:
-        return [STADTFEST]
+        return [STADTFEST, WEIHNACHTSMARKT]
 
 
 def _find(**changes: object) -> FoundEvent:
@@ -97,7 +104,7 @@ class Setup:
         )
         clock = FixedClock(TODAY)
         self.start = StartAiSearch(
-            self.jobs, accounts, self.geocoding, clock, self.settings, now=lambda: NOW
+            self.jobs, accounts, self.geocoding, _Catalog(), clock, self.settings, now=lambda: NOW
         )
         self.get = GetAiSearch(self.jobs, accounts)
         self.list = ListAiSearches(self.jobs, accounts)
@@ -447,3 +454,163 @@ async def test_old_logs_are_compacted(s: Setup) -> None:
     stored = await s.jobs.get(job.id)
     assert stored is not None
     assert stored.log == {}
+
+
+# --- filters and new fields (R10c) -----------------------------------------------------------
+
+WEBSITE = "https://www.aalener-stadtfest.de/"
+
+
+async def test_start_stores_checked_filters(s: Setup) -> None:
+    filters = AiSearchFilters(
+        date_from=date(2026, 11, 20),
+        date_to=date(2026, 12, 24),
+        category_ids=(WEIHNACHTSMARKT.id, WEIHNACHTSMARKT.id),
+        radius_km=10,
+        focus=(SearchFocus.VILLAGE_FESTIVALS, SearchFocus.VILLAGE_FESTIVALS),
+    )
+
+    job = await s.start(MODERATOR, "73430", filters)
+
+    assert job.filters == AiSearchFilters(
+        date_from=date(2026, 11, 20),
+        date_to=date(2026, 12, 24),
+        category_ids=(WEIHNACHTSMARKT.id,),
+        radius_km=10,
+        focus=(SearchFocus.VILLAGE_FESTIVALS,),
+    )
+    assert s.jobs.jobs[job.id].filters == job.filters
+
+
+@pytest.mark.parametrize(
+    ("filters", "fields"),
+    [
+        (AiSearchFilters(date_from=date(2026, 10, 1)), {"dateFrom": "past"}),
+        (
+            AiSearchFilters(date_from=date(2026, 12, 1), date_to=date(2026, 11, 30)),
+            {"dateTo": "before_start"},
+        ),
+        (AiSearchFilters(date_to=date(2026, 9, 30)), {"dateTo": "before_start"}),
+        (AiSearchFilters(date_to=TODAY + timedelta(days=366)), {"dateTo": "too_far"}),
+        (AiSearchFilters(category_ids=(uuid4(),)), {"categoryIds": "unknown"}),
+        (AiSearchFilters(radius_km=4), {"radiusKm": "invalid"}),
+        (AiSearchFilters(radius_km=51), {"radiusKm": "invalid"}),
+    ],
+)
+async def test_invalid_filters_are_rejected_per_field(
+    s: Setup, filters: AiSearchFilters, fields: dict[str, str]
+) -> None:
+    with pytest.raises(InvalidInputError) as error:
+        await s.start(MODERATOR, "73430", filters)
+    assert error.value.fields == fields
+    assert s.jobs.jobs == {}
+
+
+async def test_filters_shape_the_prompt() -> None:
+    s = Setup(prompt="v4")
+    filters = AiSearchFilters(
+        date_from=date(2026, 11, 20),
+        date_to=date(2026, 12, 24),
+        category_ids=(WEIHNACHTSMARKT.id,),
+        radius_km=10,
+        focus=(SearchFocus.MUNICIPAL_CALENDARS,),
+    )
+    job = await s.start(MODERATOR, "73430", filters)
+
+    await s.run(job.id)
+
+    _, prompt = s.finder.prompts[0]
+    assert "Finde Veranstaltungen im Umkreis von 10 km um 73430 Aalen." in prompt
+    assert "Zeitraum: 2026-11-20 bis 2026-12-24." in prompt
+    assert "Kategorien: Weihnachtsmarkt." in prompt
+    assert "Suchschwerpunkte: Beginne mit den Veranstaltungskalendern" in prompt
+
+
+async def test_without_filters_the_prompt_has_the_defaults() -> None:
+    s = Setup(prompt="v4")
+    job = await s.start(MODERATOR, "73430", AiSearchFilters())
+
+    await s.run(job.id)
+
+    _, prompt = s.finder.prompts[0]
+    assert "Umkreis von 25 km" in prompt
+    assert "Zeitraum: 2026-10-02 bis 2027-10-02." in prompt
+    assert "Kategorien: Stadtfest, Weihnachtsmarkt." in prompt
+    assert "Suchschwerpunkte: keine" in prompt
+
+
+async def test_finds_outside_the_filters_are_not_matching(s: Setup) -> None:
+    s.finder.finds = [
+        _find(),  # Stadtfest in October: outside the period
+        _find(name="Adventsmarkt", date_from=date(2026, 12, 5), date_to=date(2026, 12, 6)),
+        _find(
+            name="Weihnachtsmarkt Aalen",
+            date_from=date(2026, 12, 1),
+            date_to=date(2026, 12, 23),
+            category="Weihnachtsmarkt",
+        ),
+        _find(
+            name="Wintermarkt",
+            date_from=date(2026, 12, 12),
+            date_to=date(2026, 12, 12),
+            category="Irgendwas",
+        ),
+    ]
+    filters = AiSearchFilters(
+        date_from=date(2026, 11, 20),
+        date_to=date(2026, 12, 24),
+        category_ids=(WEIHNACHTSMARKT.id,),
+    )
+    job = await s.start(MODERATOR, "73430", filters)
+
+    done = await s.run(job.id)
+
+    assert done is not None
+    # October is outside the period; "Stadtfest" is safely another category. An unmapped
+    # category stays: the mapping is too uncertain to discard a find.
+    assert done.skipped.not_matching == 2
+    assert [c.find.name for c in s.drafts.stored] == ["Weihnachtsmarkt Aalen", "Wintermarkt"]
+
+
+async def test_radius_filter_limits_the_search_area(s: Setup) -> None:
+    far = _find(name="Fest in Ellwangen", lat=48.9617, lon=10.1316)  # about 14 km away
+    s.finder.finds = [far]
+    job = await s.start(MODERATOR, "73430", AiSearchFilters(radius_km=5))
+
+    done = await s.run(job.id)
+
+    assert done is not None
+    assert done.skipped.out_of_area == 1
+
+
+async def test_website_hours_and_price_reach_the_draft(s: Setup) -> None:
+    s.finder.reads = [SOURCE]
+    s.pages.links[SOURCE] = (PageLink(WEBSITE, "Zur Festseite"),)
+    hours = (DayHours(date(2026, 10, 17), "11:00", "24:00"),)
+    s.finder.finds = [_find(website_url=WEBSITE, opening_hours=hours, price="Eintritt frei")]
+    job = await s.start(MODERATOR, "73430")
+
+    await s.run(job.id)
+
+    page = s.finder.read_results[0]
+    assert f"{READ_LINKS_HEADING}\n- Zur Festseite: {WEBSITE}" in page
+    stored = s.drafts.stored[0].find
+    assert (stored.website_url, stored.price) == (WEBSITE, "Eintritt frei")
+    assert stored.opening_hours_lines() == ("Sa 17.10. 11-24 Uhr",)
+
+
+@pytest.mark.parametrize("dead", [False, True])
+async def test_unverified_websites_are_dropped_but_the_find_is_kept(s: Setup, dead: bool) -> None:
+    """An invented website (not in results or page links) or a dead one is removed."""
+    website = WEBSITE if dead else "https://erfunden.example/"
+    if dead:
+        s.search.hits.append(SearchHit(WEBSITE, "Festseite"))
+        s.sources.dead.add(WEBSITE)
+    s.finder.finds = [_find(website_url=website)]
+    job = await s.start(MODERATOR, "73430")
+
+    done = await s.run(job.id)
+
+    assert done is not None
+    assert len(done.new_event_ids) == 1
+    assert s.drafts.stored[0].find.website_url is None

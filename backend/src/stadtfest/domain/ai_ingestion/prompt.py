@@ -12,6 +12,8 @@ import string
 from dataclasses import dataclass
 from datetime import date
 
+from stadtfest.domain.ai_ingestion.job import SearchFocus
+
 PLACEHOLDERS = frozenset(
     {
         "postal_code",
@@ -23,8 +25,27 @@ PLACEHOLDERS = frozenset(
         "categories",
         "nearby_places",
         "max_searches",
+        "focus",
     }
 )
+
+# Reviewed text blocks of the search focuses (R10c). Only these fixed texts reach the LLM;
+# moderators pick focuses, they never type text.
+FOCUS_HINTS: dict[SearchFocus, str] = {
+    SearchFocus.VILLAGE_FESTIVALS: (
+        "Suche auch nach kleinen Dorf-, Vereins- und Straßenfesten in den kleineren Orten."
+    ),
+    SearchFocus.MAJOR_EVENTS: (
+        "Gib nur größere Feste mit vielen Besuchern zurück, keine kleinen Vereins- oder "
+        "Straßenfeste."
+    ),
+    SearchFocus.MUNICIPAL_CALENDARS: (
+        "Beginne mit den Veranstaltungskalendern der Städte und Gemeinden und lies sie gründlich."
+    ),
+    SearchFocus.REGIONAL_PRESS: (
+        "Suche gezielt in regionalen Zeitungen und Amtsblättern der Gemeinden nach Festterminen."
+    ),
+}
 
 
 class InvalidPromptError(ValueError):
@@ -45,6 +66,8 @@ class SearchParameters:
     nearby_places: tuple[str, ...] = ()
     # Search budget of the run (`AI_SEARCH_MAX_TOOL_CALLS`).
     max_searches: int = 8
+    # Fixed search focuses (R10c), rendered from `FOCUS_HINTS`.
+    focus: tuple[SearchFocus, ...] = ()
 
     def values(self) -> dict[str, str]:
         """Placeholder values; dates in ISO format, lists comma-separated."""
@@ -59,6 +82,7 @@ class SearchParameters:
             "categories": ", ".join(self.categories) or "alle",
             "nearby_places": ", ".join(self.nearby_places) or self.place_name,
             "max_searches": str(self.max_searches),
+            "focus": " ".join(FOCUS_HINTS[item] for item in self.focus) or "keine",
         }
 
 

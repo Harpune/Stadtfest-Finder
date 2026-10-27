@@ -181,8 +181,17 @@ class AiSearchJobRow(Base):
     skipped_out_of_area: Mapped[int] = mapped_column(default=0)
     skipped_invalid: Mapped[int] = mapped_column(default=0)
     skipped_unverified_source: Mapped[int] = mapped_column(default=0)
+    skipped_not_matching: Mapped[int] = mapped_column(default=0)
     error_code: Mapped[str | None]
     log: Mapped[dict[str, object]] = mapped_column(JSONB, default=dict)
+    # Optional filters (R10c); public values only, no free text.
+    filter_date_from: Mapped[date | None]
+    filter_date_to: Mapped[date | None]
+    filter_category_ids: Mapped[list[UUID]] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), default=list
+    )
+    filter_radius_km: Mapped[int | None]
+    filter_focus: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
 
 
 class RejectedSourceRow(Base):
