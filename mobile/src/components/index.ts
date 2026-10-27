@@ -1,3 +1,4 @@
+export * from './Accordion/Accordion';
 export * from './AiSearchBanner/AiSearchBanner';
 export * from './Avatar/Avatar';
 export * from './AvatarButton/AvatarButton';

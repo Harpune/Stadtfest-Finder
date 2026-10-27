@@ -311,6 +311,7 @@ function Find({
       value: event.openingHours.join('\n') || null,
     },
     {label: strings.mod.ai.fields.price, value: event.price ?? null},
+    {label: strings.mod.ai.fields.website, value: event.websiteUrl ?? null},
     {
       label: strings.mod.ai.fields.description,
       value: event.description ?? null,

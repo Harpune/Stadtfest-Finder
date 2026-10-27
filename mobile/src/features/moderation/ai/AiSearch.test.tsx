@@ -40,7 +40,14 @@ const JOB: AiSearch = {
   status: 'running',
   createdAt: '2026-10-02T09:00:00Z',
   newEventIds: [],
-  skipped: {duplicate: 0, outOfArea: 0, invalid: 0, unverifiedSource: 0},
+  skipped: {
+    duplicate: 0,
+    outOfArea: 0,
+    invalid: 0,
+    unverifiedSource: 0,
+    notMatching: 0,
+  },
+  filters: {categoryIds: [], focus: []},
 };
 const DONE: AiSearch = {
   ...JOB,
@@ -179,6 +186,75 @@ describe('AI search in the overview (09-01 to 09-03)', () => {
     ).toBeOnTheScreen();
     const start = calls.find(c => c.method === 'POST');
     expect(JSON.parse(start?.body ?? '{}')).toEqual({postalCode: '73430'});
+  });
+
+  it('keeps the filters optional in a collapsed accordion and sends them (R10c)', async () => {
+    const calls = mockApi(call => {
+      if (call.path === '/v1/geocode') {
+        return {
+          status: 200,
+          body: [
+            {
+              label: '73430 Aalen',
+              city: 'Aalen',
+              postalCode: '73430',
+              lat: 48.8,
+              lon: 10.1,
+              kind: 'postcode',
+            },
+          ],
+        };
+      }
+      if (call.path === '/v1/mod/ai-searches' && call.method === 'POST') {
+        return {status: 202, body: {...JOB, status: 'queued'}};
+      }
+      return undefined;
+    });
+    await render(<ModEventsScreen />);
+    await fireEvent.press(screen.getByTestId('mod.events.aiSearch'));
+
+    expect(screen.getByTestId('mod.ai.filters')).toBeCollapsed();
+    expect(screen.getByTestId('mod.ai.filters.summary')).toHaveTextContent(
+      'Standard: 12 Monate, alle Kategorien, 25 km',
+    );
+    expect(screen.queryByTestId('mod.ai.filters.radius.10')).toBeNull();
+
+    await fireEvent.press(screen.getByTestId('mod.ai.filters'));
+    await fireEvent.press(
+      await screen.findByTestId('mod.ai.filters.category.c1'),
+    );
+    await fireEvent.press(screen.getByTestId('mod.ai.filters.radius.10'));
+    await fireEvent.press(
+      screen.getByTestId('mod.ai.filters.focus.village_festivals'),
+    );
+    // "Nur große Feste" contradicts "auch kleine Dorffeste" and replaces it.
+    await fireEvent.press(
+      screen.getByTestId('mod.ai.filters.focus.major_events'),
+    );
+    await fireEvent.press(
+      screen.getByTestId('mod.ai.filters.focus.municipal_calendars'),
+    );
+    expect(screen.getByTestId('mod.ai.filters.summary')).toHaveTextContent(
+      '3 Filter aktiv',
+    );
+
+    await fireEvent.changeText(
+      screen.getByTestId('mod.ai.postalCode'),
+      '73430',
+    );
+    await screen.findByTestId('mod.ai.place');
+    await fireEvent.press(screen.getByTestId('mod.ai.start'));
+
+    await screen.findByText('Suche läuft für 73430 Aalen …');
+    const start = calls.find(c => c.method === 'POST');
+    expect(JSON.parse(start?.body ?? '{}')).toEqual({
+      postalCode: '73430',
+      filters: {
+        categoryIds: ['c1'],
+        radiusKm: 10,
+        focus: ['major_events', 'municipal_calendars'],
+      },
+    });
   });
 
   it('says so when the postal code is unknown', async () => {

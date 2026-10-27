@@ -23,6 +23,7 @@ import {MOD_EVENTS_QUERY} from '../useModeration';
 
 export type AiSearch = components['schemas']['AiSearch'];
 type ApiError = components['schemas']['Error'];
+type AiSearchFilters = components['schemas']['AiSearchFilters'];
 
 /** Polling interval while a search runs (E-12). */
 export const POLL_MS = 10_000;
@@ -33,7 +34,11 @@ export type StartResult =
 interface AiSearchState {
   /** The search shown in the status bar, or null. */
   search: AiSearch | null;
-  start: (postalCode: string) => Promise<StartResult>;
+  /** Starts a search; `filters` only when the moderator set some (R10c). */
+  start: (
+    postalCode: string,
+    filters?: AiSearchFilters,
+  ) => Promise<StartResult>;
   /** Hides a finished search (✕, or after reviewing all finds). */
   dismiss: () => void;
 }
@@ -90,9 +95,14 @@ export function AiSearchProvider({children}: PropsWithChildren) {
   }, [searchId, running, queryClient, toast]);
 
   const start = useCallback(
-    async (postalCode: string): Promise<StartResult> => {
+    async (
+      postalCode: string,
+      filters?: AiSearchFilters,
+    ): Promise<StartResult> => {
       const result = await fetchClient
-        .POST('/v1/mod/ai-searches', {body: {postalCode}})
+        .POST('/v1/mod/ai-searches', {
+          body: filters ? {postalCode, filters} : {postalCode},
+        })
         .catch(() => undefined);
       if (result?.data) {
         setSearch(result.data);
