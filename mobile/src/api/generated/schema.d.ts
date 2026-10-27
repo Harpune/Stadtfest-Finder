@@ -1070,6 +1070,12 @@ export interface paths {
          *     geocoder is down); finds outside the search radius are skipped. One running search
          *     per moderator (`409 search_running`, `fields.jobId` = the running job). Daily limit
          *     per moderator (`429 daily_limit`).
+         *
+         *     Optional `filters` (R10c) narrow the search: period (from today, at most 365 days
+         *     ahead), active categories, radius and fixed search focuses. Invalid filters answer
+         *     `422 validation_failed` with `fields` naming the filter (`dateFrom: past`,
+         *     `dateTo: before_start | too_far`, `categoryIds: unknown`). Without filters the
+         *     search covers the next 365 days, all active categories and the configured radius.
          */
         post: operations["startAiSearch"];
         delete?: never;
@@ -1355,6 +1361,34 @@ export interface components {
         AiSearchStatus: "queued" | "running" | "completed" | "failed";
         AiSearchRequest: {
             postalCode: string;
+            filters?: components["schemas"]["AiSearchFilters"];
+        };
+        /**
+         * @description Fixed search focus (R10c). Each value adds a reviewed text block to the prompt; there
+         *     is no free text, so no moderator input reaches the LLM or the web search.
+         *     `village_festivals` also small village and club festivals · `major_events` only
+         *     larger festivals · `municipal_calendars` municipal event calendars first ·
+         *     `regional_press` regional newspapers and official gazettes.
+         * @enum {string}
+         */
+        AiSearchFocus: "village_festivals" | "major_events" | "municipal_calendars" | "regional_press";
+        /** @description Optional filters of an AI search (R10c); missing or null means "no filter". */
+        AiSearchFilters: {
+            /**
+             * Format: date
+             * @description First day; not before today. Default today.
+             */
+            dateFrom?: string | null;
+            /**
+             * Format: date
+             * @description Last day; not before `dateFrom`, at most 365 days ahead. Default today + 365 days.
+             */
+            dateTo?: string | null;
+            /** @description Active categories; empty means all. */
+            categoryIds?: string[];
+            /** @description Search radius around the postal code; default the server setting (25 km). */
+            radiusKm?: number | null;
+            focus?: components["schemas"]["AiSearchFocus"][];
         };
         /** @description Finds that were not stored, by reason (counts only, no content). */
         AiSearchSkipped: {
@@ -1363,6 +1397,8 @@ export interface components {
             outOfArea: number;
             invalid: number;
             unverifiedSource: number;
+            /** @description Outside the period or of another category than the filters ask for (R10c). */
+            notMatching: number;
         };
         /** @description An AI search job (R10). */
         AiSearch: {
@@ -1370,6 +1406,7 @@ export interface components {
             id: string;
             postalCode: string;
             placeName: string;
+            filters: components["schemas"]["AiSearchFilters"];
             status: components["schemas"]["AiSearchStatus"];
             /** Format: date-time */
             createdAt: string;

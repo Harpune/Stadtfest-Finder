@@ -44,11 +44,51 @@ class AiSearchStatus(RootModel[Literal["queued", "running", "completed", "failed
     root: Literal["queued", "running", "completed", "failed"]
 
 
-class AiSearchRequest(BaseModel):
+class AiSearchFocus(
+    RootModel[Literal["village_festivals", "major_events", "municipal_calendars", "regional_press"]]
+):
+    root: Annotated[
+        Literal["village_festivals", "major_events", "municipal_calendars", "regional_press"],
+        Field(
+            description="Fixed search focus (R10c). Each value adds a reviewed text block to the prompt; there\nis no free text, so no moderator input reaches the LLM or the web search.\n`village_festivals` also small village and club festivals · `major_events` only\nlarger festivals · `municipal_calendars` municipal event calendars first ·\n`regional_press` regional newspapers and official gazettes.\n"
+        ),
+    ]
+
+
+class AiSearchFilters(BaseModel):
+    """Optional filters of an AI search (R10c); missing or null means "no filter"."""
+
     model_config = ConfigDict(
+        extra="forbid",
         populate_by_name=True,
     )
-    postal_code: Annotated[str, Field(alias="postalCode", pattern="^[0-9]{5}$")]
+    date_from: Annotated[
+        date_aliased | None,
+        Field(alias="dateFrom", description="First day; not before today. Default today."),
+    ] = None
+    date_to: Annotated[
+        date_aliased | None,
+        Field(
+            alias="dateTo",
+            description="Last day; not before `dateFrom`, at most 365 days ahead. Default today + 365 days.",
+        ),
+    ] = None
+    category_ids: Annotated[
+        list[UUID] | None,
+        Field(
+            alias="categoryIds", description="Active categories; empty means all.", max_length=20
+        ),
+    ] = None
+    radius_km: Annotated[
+        int | None,
+        Field(
+            alias="radiusKm",
+            description="Search radius around the postal code; default the server setting (25 km).",
+            ge=5,
+            le=50,
+        ),
+    ] = None
+    focus: Annotated[list[AiSearchFocus] | None, Field(max_length=4)] = None
 
 
 class AiSearchSkipped(BaseModel):
@@ -68,6 +108,14 @@ class AiSearchSkipped(BaseModel):
     ]
     invalid: Annotated[int, Field(ge=0)]
     unverified_source: Annotated[int, Field(alias="unverifiedSource", ge=0)]
+    not_matching: Annotated[
+        int,
+        Field(
+            alias="notMatching",
+            description="Outside the period or of another category than the filters ask for (R10c).",
+            ge=0,
+        ),
+    ]
 
 
 class AiSearch(BaseModel):
@@ -79,6 +127,7 @@ class AiSearch(BaseModel):
     id: UUID
     postal_code: Annotated[str, Field(alias="postalCode")]
     place_name: Annotated[str, Field(alias="placeName")]
+    filters: AiSearchFilters
     status: AiSearchStatus
     created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
     started_at: Annotated[AwareDatetime | None, Field(alias="startedAt")] = None
@@ -957,6 +1006,14 @@ class ReadinessStatus(BaseModel):
         dict[str, Literal["ok", "unavailable"]],
         Field(description="Status per dependency, e.g. `database`, `redis`."),
     ]
+
+
+class AiSearchRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    postal_code: Annotated[str, Field(alias="postalCode", pattern="^[0-9]{5}$")]
+    filters: AiSearchFilters | None = None
 
 
 class EventDetail(BaseModel):
